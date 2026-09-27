@@ -1,0 +1,117 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_scale_conflicts",
+        "description": "Lista todas as inconsistências da escala ativa: choques de horário, tempo de deslocamento insuficiente ou pacientes com déficit de sessões no período.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date",
+              "description": "Data inicial no formato YYYY-MM-DD"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date",
+              "description": "Data final no formato YYYY-MM-DD"
+            },
+            "patientId": {
+              "type": "string",
+              "description": "Filtrar por paciente específico (opcional)"
+            }
+          },
+          "required": ["startDate", "endDate"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "suggest_substitute_professional",
+        "description": "Retorna candidatos substitutos elegíveis para um paciente em uma data/hora específica, filtrando OBRIGATORIAMENTE os profissionais que pertencem ao Care Team do paciente e que possuam viabilidade de agenda e trânsito.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "patientId": {
+              "type": "string",
+              "description": "ID do paciente que precisa de atendimento"
+            },
+            "targetDate": {
+              "type": "string",
+              "format": "date",
+              "description": "Data da sessão (YYYY-MM-DD)"
+            },
+            "startTime": {
+              "type": "string",
+              "description": "Horário de início (HH:mm)"
+            },
+            "durationMinutes": {
+              "type": "integer",
+              "description": "Duração da sessão em minutos"
+            }
+          },
+          "required": ["patientId", "targetDate", "startTime"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "execute_schedule_swap",
+        "description": "Executa a permuta ou remanejamento de uma sessão de atendimento para um novo profissional ou novo horário, validando ativamente o vínculo do Care Team antes de comitar a transação.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scheduleId": {
+              "type": "string",
+              "description": "ID do agendamento a ser modificado"
+            },
+            "newProfessionalId": {
+              "type": "string",
+              "description": "ID do novo profissional substituto (deve pertencer ao Care Team)"
+            },
+            "newScheduledStart": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Novo timestamp ISO de início (opcional caso mantenha o mesmo horário)"
+            },
+            "reason": {
+              "type": "string",
+              "description": "Justificativa da substituição (ex: atestado médico, remanejamento de rota)"
+            }
+          },
+          "required": ["scheduleId", "newProfessionalId", "reason"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "add_professional_to_care_team",
+        "description": "Permite ao Gestor associar formalmente um profissional de saúde à equipe (Care Team) de um paciente para desbloquear sua alocação caso a equipe atual não tenha disponibilidade.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "patientId": {
+              "type": "string",
+              "description": "ID do paciente"
+            },
+            "professionalId": {
+              "type": "string",
+              "description": "ID do profissional a ser integrado na equipe"
+            },
+            "roleInTeam": {
+              "type": "string",
+              "enum": ["TITULAR", "SUBSTITUTO", "CONSULTOR"],
+              "default": "TITULAR"
+            }
+          },
+          "required": ["patientId", "professionalId"]
+        }
+      }
+    }
+  ]
+}
