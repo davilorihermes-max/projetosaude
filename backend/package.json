@@ -8,7 +8,8 @@
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
