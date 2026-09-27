@@ -10,7 +10,8 @@ import {
   Sun,
   Activity,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Terminal
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -28,7 +29,8 @@ export default function Sidebar({
     { id: 'patients', label: 'Pacientes', icon: Users },
     { id: 'records', label: 'Prontuário (PEP)', icon: FileHeart },
     { id: 'prescriptions', label: 'Receituário Rápido', icon: Pill },
-    { id: 'clinic', label: 'Clínica & Config.', icon: Settings }
+    { id: 'clinic', label: 'Clínica & Config.', icon: Settings },
+    { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '21 Tests' }
   ];
 
   return (
