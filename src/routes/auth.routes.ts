@@ -22,90 +22,49 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
    * Valida credenciais com bcrypt e retorna JWT com userId e role
    */
   app.post<{ Body: LoginBody }>('/login', async (request, reply) => {
-    const rawIdentifier = (
-      request.body?.email ||
-      (request.body as any)?.username ||
-      (request.body as any)?.login ||
-      (request.body as any)?.user ||
-      ''
-    ).trim();
-    const password = request.body?.password;
+    const rawEmail = (request.body?.email || '').trim().toLowerCase();
+    const rawPassword = request.body?.password;
 
-    if (!rawIdentifier || !password) {
+    if (!rawEmail || !rawPassword) {
       return reply.status(400).send({
         statusCode: 400,
         error: 'Bad Request',
-        message: 'Identificador (e-mail ou nome) e senha são obrigatórios'
+        message: 'E-mail e senha são obrigatórios.'
       });
     }
 
-    // 1. Tentar busca exata por e-mail
-    let user = await prisma.user.findUnique({
-      where: { email: rawIdentifier.toLowerCase() },
+    // Validação estrita de formato de e-mail (não permite apenas "dr lucas" ou apelidos)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(rawEmail)) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'E-mail inválido. O login corporativo exige um e-mail válido (ex: lucas@omnisaude.com.br).'
+      });
+    }
+
+    // 1. Busca estrita por e-mail no Prisma
+    const user = await prisma.user.findUnique({
+      where: { email: rawEmail },
       include: { professional: true }
     });
 
-    // 2. Se não encontrar por e-mail, buscar por nome ou pseudônimo (ex: "dr lucas", "lucas", "admin")
-    if (!user) {
-      const cleanId = rawIdentifier.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const allUsers = await prisma.user.findMany({
-        include: { professional: true }
-      });
-
-      user = allUsers.find((u) => {
-        const uEmail = u.email.toLowerCase();
-        const uName = u.name.toLowerCase();
-        const uNameClean = uName.replace(/[^a-z0-9]/g, '');
-        const uEmailClean = uEmail.replace(/[^a-z0-9]/g, '');
-
-        if (uEmail === rawIdentifier.toLowerCase()) return true;
-        if (uNameClean.includes(cleanId) || cleanId.includes(uNameClean)) return true;
-        if (uEmailClean.includes(cleanId) || cleanId.includes(uEmailClean)) return true;
-
-        // Suporte a "dr lucas", "lucas", "drlucas", "silveira"
-        if (cleanId.includes('lucas') && (uEmail.includes('lucas') || uName.includes('lucas'))) return true;
-        // Suporte a "admin", "administrador"
-        if (cleanId.includes('admin') && (uEmail.includes('admin') || uName.includes('admin'))) return true;
-
-        return false;
-      }) || null;
-    }
-
     if (!user) {
       return reply.status(401).send({
         statusCode: 401,
         error: 'Unauthorized',
-        message: 'Credenciais inválidas: usuário não encontrado'
+        message: 'Credenciais inválidas: e-mail ou senha incorretos.'
       });
     }
 
-    // Validação de senha: bcrypt nativo + senhas de demonstração amigáveis
-    let isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-    if (!isPasswordValid) {
-      const normalizedPass = password.trim().toLowerCase();
-      const validDemoPasswords = [
-        'doctorpassword123!',
-        'adminpassword123!',
-        '123456',
-        '12345678',
-        'drlucas',
-        'dr lucas',
-        'dr. lucas',
-        'lucas',
-        'senha123',
-        'admin'
-      ];
-      if (validDemoPasswords.includes(normalizedPass)) {
-        isPasswordValid = true;
-      }
-    }
+    // 2. Validação estrita e segura de senha criptografada via bcrypt
+    const isPasswordValid = await bcrypt.compare(rawPassword, user.passwordHash);
 
     if (!isPasswordValid) {
       return reply.status(401).send({
         statusCode: 401,
         error: 'Unauthorized',
-        message: 'Credenciais inválidas: senha incorreta'
+        message: 'Credenciais inválidas: e-mail ou senha incorretos.'
       });
     }
 

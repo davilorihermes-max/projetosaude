@@ -20,18 +20,21 @@ import {
 export default function ApiTesterView() {
   const [activeTab, setActiveTab] = useState('auth'); // 'auth' | 'scheduler' | 'tests'
 
-  // Auth tester states
-  const [email, setEmail] = useState('dr lucas');
+  // Auth tester states (Strict email and bcrypt password)
+  const [email, setEmail] = useState('lucas@omnisaude.com.br');
   const [password, setPassword] = useState('DoctorPassword123!');
-  const [token, setToken] = useState('');
-  const [decodedUser, setDecodedUser] = useState(null);
+  const [token, setToken] = useState(() => localStorage.getItem('omnihome_jwt') || '');
+  const [decodedUser, setDecodedUser] = useState(() => {
+    const saved = localStorage.getItem('omnihome_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [loginResponse, setLoginResponse] = useState(null);
   const [guardResponse, setGuardResponse] = useState(null);
   const [loadingLogin, setLoadingLogin] = useState(false);
 
-  // Scheduler tester states
-  const [schedDocId, setSchedDocId] = useState('');
-  const [schedPatId, setSchedPatId] = useState('');
+  // Scheduler tester states (Real Prisma IDs)
+  const [schedDocId, setSchedDocId] = useState('cmukamckz000212nvxuw13gdp'); // Dr. Lucas
+  const [schedPatId, setSchedPatId] = useState('cmukamcl7000312nvzpsuxezd'); // Mariana Souza Lima
   const [proposedTime, setProposedTime] = useState('2026-09-27T14:00:00');
   const [duration, setDuration] = useState('45');
   const [schedResult, setSchedResult] = useState(null);
@@ -64,6 +67,8 @@ export default function ApiTesterView() {
       if (res.ok && data.token) {
         setToken(data.token);
         setDecodedUser(data.user);
+        localStorage.setItem('omnihome_jwt', data.token);
+        localStorage.setItem('omnihome_user', JSON.stringify(data.user));
         if (data.user.professionalId) {
           setSchedDocId(data.user.professionalId);
         }
@@ -76,11 +81,12 @@ export default function ApiTesterView() {
   };
 
   const testRouteGuard = async (route) => {
+    const currentToken = token || localStorage.getItem('omnihome_jwt') || '';
     try {
       const res = await fetch(`${API_BASE}/auth/${route}`, {
         method: 'GET',
         headers: {
-          Authorization: token ? `Bearer ${token}` : ''
+          Authorization: currentToken ? `Bearer ${currentToken}` : ''
         }
       });
       const data = await res.json();
@@ -95,16 +101,18 @@ export default function ApiTesterView() {
     setLoadingSched(true);
     setSchedResult(null);
 
+    const currentToken = token || localStorage.getItem('omnihome_jwt') || '';
+
     try {
       const res = await fetch(`${API_BASE}/scheduler/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
+          Authorization: currentToken ? `Bearer ${currentToken}` : ''
         },
         body: JSON.stringify({
           professionalId: schedDocId || 'cmukamckz000212nvxuw13gdp',
-          patientId: schedPatId || 'mariana-id',
+          patientId: schedPatId || 'cmukamcl7000312nvzpsuxezd',
           proposedTime: new Date(proposedTime).toISOString(),
           durationMinutes: parseInt(duration, 10)
         })
@@ -187,34 +195,12 @@ export default function ApiTesterView() {
                 className="btn btn-secondary"
                 style={{ fontSize: '0.78rem' }}
                 onClick={() => {
-                  setEmail('dr lucas');
-                  setPassword('DoctorPassword123!');
-                  handleLogin('dr lucas', 'DoctorPassword123!');
-                }}
-              >
-                ⚡ Dr. Lucas ("dr lucas")
-              </button>
-              <button
-                className="btn btn-secondary"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => {
-                  setEmail('dr lucas');
-                  setPassword('123456');
-                  handleLogin('dr lucas', '123456');
-                }}
-              >
-                ⚡ Dr. Lucas (Senha "123456")
-              </button>
-              <button
-                className="btn btn-secondary"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => {
                   setEmail('lucas@omnisaude.com.br');
                   setPassword('DoctorPassword123!');
                   handleLogin('lucas@omnisaude.com.br', 'DoctorPassword123!');
                 }}
               >
-                E-mail Completo
+                🔐 Dr. Lucas (lucas@omnisaude.com.br)
               </button>
               <button
                 className="btn btn-secondary"
@@ -225,33 +211,63 @@ export default function ApiTesterView() {
                   handleLogin('admin@omnisaude.com.br', 'AdminPassword123!');
                 }}
               >
-                Login ADMIN
+                🔐 Admin (admin@omnisaude.com.br)
               </button>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.78rem', color: '#b91c1c', borderColor: '#fca5a5' }}
+                onClick={() => {
+                  setEmail('dr lucas');
+                  setPassword('DoctorPassword123!');
+                  handleLogin('dr lucas', 'DoctorPassword123!');
+                }}
+                title="Testar rejeição 400 por não ser e-mail válido"
+              >
+                🚫 Testar "dr lucas" (Bloqueio 400)
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.78rem', color: '#b91c1c', borderColor: '#fca5a5' }}
+                onClick={() => {
+                  setEmail('lucas@omnisaude.com.br');
+                  setPassword('123456');
+                  handleLogin('lucas@omnisaude.com.br', '123456');
+                }}
+                title="Testar rejeição 401 por senha incorreta"
+              >
+                🚫 Testar Senha "123456" (Bloqueio 401)
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '1rem', padding: '0.65rem 0.85rem', background: 'var(--primary-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--primary-border)', fontSize: '0.76rem', color: 'var(--primary-dark)' }}>
+              🔒 <strong>Segurança Estrita Ativa:</strong> O login exige estritamente um <strong>e-mail corporativo válido</strong> e a <strong>senha criptografada via Bcrypt</strong>. Usuários informais (como <code>dr lucas</code>) e senhas fracas (<code>123456</code>) são bloqueados.
             </div>
 
             <div className="form-group">
               <label className="form-label">
-                Identificador (Aceita <strong>"dr lucas"</strong>, "lucas" ou "lucas@omnisaude.com.br")
+                E-mail Corporativo Obrigatório
               </label>
               <input
-                type="text"
+                type="email"
                 className="form-input"
-                placeholder="Ex: dr lucas ou lucas@omnisaude.com.br"
+                placeholder="Ex: lucas@omnisaude.com.br"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
 
             <div className="form-group">
               <label className="form-label">
-                Senha (Bcrypt hash ou atalhos: <code>DoctorPassword123!</code> / <code>123456</code> / <code>drlucas</code>)
+                Senha Segura (Validação Criptográfica por Bcrypt)
               </label>
               <input
                 type="password"
                 className="form-input"
-                placeholder="Ex: DoctorPassword123! ou 123456"
+                placeholder="DoctorPassword123!"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
             </div>
 
@@ -456,7 +472,87 @@ export default function ApiTesterView() {
               Testa a chamada completa passando pelo Prisma, validando <strong>CareTeamMember</strong> e compromissos do dia.
             </p>
 
+            {/* Auth check indicator */}
+            {token ? (
+              <div
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--success-subtle)',
+                  border: '1px solid var(--success-border)',
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1rem'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)', fontWeight: 600 }}>
+                  <CheckCircle2 size={15} /> Token JWT Ativo (Dr. Lucas)
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Bearer Authorization OK</span>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--warning-subtle)',
+                  border: '1px solid var(--warning-border)',
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1rem'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#b45309', fontWeight: 600 }}>
+                  <AlertCircle size={15} /> Não autenticado (Requer login)
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                  onClick={() => handleLogin('lucas@omnisaude.com.br', 'DoctorPassword123!')}
+                >
+                  Autenticar Dr. Lucas
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleEvaluateScheduler}>
+              <div className="form-group">
+                <label className="form-label">Profissional em Rota</label>
+                <select
+                  className="form-select"
+                  value={schedDocId}
+                  onChange={(e) => setSchedDocId(e.target.value)}
+                >
+                  <option value="cmukamckz000212nvxuw13gdp">
+                    Dr. Lucas Silveira (CRM/SP 142.890 - Cardiologia)
+                  </option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Paciente e Endereço Domiciliar</label>
+                <select
+                  className="form-select"
+                  value={schedPatId}
+                  onChange={(e) => setSchedPatId(e.target.value)}
+                >
+                  <option value="cmukamcl7000312nvzpsuxezd">
+                    Mariana Souza Lima (Alameda Santos, 1000 - Vinculada ao Dr. Lucas)
+                  </option>
+                  <option value="cmukamclc000412nvhljykrnk">
+                    Roberto Carlos Peixoto (Rua Fradique Coutinho, 500 - Vinculado ao Dr. Lucas)
+                  </option>
+                  <option value="cmukamclj000512nv8saiw844">
+                    Juliana Mendes Prado (Av. Moema, 350 - Sem vínculo CareTeam com Dr. Lucas)
+                  </option>
+                </select>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Data e Horário Proposto</label>
                 <input
@@ -484,31 +580,90 @@ export default function ApiTesterView() {
             </form>
 
             {schedResult && (
-              <div
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.85rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: schedResult.data?.report?.viable ? 'var(--success-subtle)' : 'var(--warning-subtle)',
-                  border: '1px solid',
-                  borderColor: schedResult.data?.report?.viable ? 'var(--success-border)' : 'var(--warning-border)',
-                  fontSize: '0.8rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold' }}>
-                  {schedResult.data?.report?.viable ? (
-                    <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <CheckCircle2 size={16} /> Horário 100% Viável!
-                    </span>
-                  ) : (
-                    <span style={{ color: '#b45309', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <AlertCircle size={16} /> Inviável / Conflito Detectado
-                    </span>
-                  )}
-                </div>
-                <div style={{ marginTop: '0.4rem' }}>
-                  <strong>Parecer:</strong> {schedResult.data?.report?.reason || 'Sem restrições de agenda ou deslocamento.'}
-                </div>
+              <div style={{ marginTop: '1rem' }}>
+                {schedResult.status !== 200 ? (
+                  /* Erro HTTP (Ex: 401 Não Autorizado ou 400 Parâmetro Inválido) */
+                  <div
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--danger-subtle)',
+                      border: '1px solid var(--danger-border)',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', color: 'var(--danger)' }}>
+                      <XCircle size={16} /> Erro HTTP {schedResult.status}: {schedResult.data?.error || 'Acesso Recusado'}
+                    </div>
+                    <div style={{ marginTop: '0.4rem', color: 'var(--text-main)' }}>
+                      {schedResult.data?.message || 'Token de autenticação ausente ou expirado. Faça login como Dr. Lucas.'}
+                    </div>
+                    {schedResult.status === 401 && (
+                      <button
+                        className="btn btn-secondary"
+                        style={{ marginTop: '0.6rem', fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        onClick={() => handleLogin('lucas@omnisaude.com.br', 'DoctorPassword123!')}
+                      >
+                        Clique aqui para Autenticar via JWT
+                      </button>
+                    )}
+                  </div>
+                ) : schedResult.data?.report?.viable ? (
+                  /* Horário 100% Viável */
+                  <div
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--success-subtle)',
+                      border: '1px solid var(--success-border)',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', color: 'var(--success)', fontSize: '0.9rem' }}>
+                      <CheckCircle2 size={18} /> Horário 100% Viável!
+                    </div>
+                    <div style={{ marginTop: '0.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Distância Geodésica:</span>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--primary)' }}>
+                          {schedResult.data.report.distanceKm} km
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Tempo com Trânsito:</span>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)' }}>
+                          ~{schedResult.data.report.transitTimeMinutes} min
+                        </div>
+                      </div>
+                    </div>
+                    {schedResult.data.report.estimatedTravelWindow && (
+                      <div style={{ marginTop: '0.5rem', padding: '0.4rem', background: 'rgba(0,0,0,0.04)', borderRadius: '4px', fontSize: '0.75rem' }}>
+                        ⏰ <strong>Janela de Deslocamento:</strong> Saída prevista às{' '}
+                        {new Date(schedResult.data.report.estimatedTravelWindow.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
+                        ➔ Chegada às{' '}
+                        {new Date(schedResult.data.report.estimatedTravelWindow.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Inviável / Conflito */
+                  <div
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--warning-subtle)',
+                      border: '1px solid var(--warning-border)',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', color: '#b45309', fontSize: '0.9rem' }}>
+                      <AlertCircle size={18} /> Inviável / Bloqueio Detectado
+                    </div>
+                    <div style={{ marginTop: '0.4rem', color: '#92400e' }}>
+                      <strong>Motivo:</strong> {schedResult.data?.report?.reason || 'Conflito detectado na rota.'}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

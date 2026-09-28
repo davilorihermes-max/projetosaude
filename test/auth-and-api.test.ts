@@ -39,12 +39,12 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(decoded?.role).toBe('ADMIN');
     });
 
-    it('deve autenticar com sucesso usando o identificador amigável "dr lucas"', async () => {
+    it('deve autenticar Dr. Lucas estritamente com e-mail corporativo e senha bcrypt', async () => {
       const response = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'dr lucas',
+          email: 'lucas@omnisaude.com.br',
           password: 'DoctorPassword123!'
         }
       });
@@ -56,21 +56,34 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(data.user.role).toBe('PROFESSIONAL');
     });
 
-    it('deve autenticar com sucesso usando { username: "dr lucas", password: "123456" }', async () => {
+    it('deve rejeitar identificadores informais como "dr lucas" ou "luca"', async () => {
       const response = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          username: 'dr lucas',
+          email: 'dr lucas',
+          password: 'DoctorPassword123!'
+        }
+      });
+
+      expect(response.statusCode).toBe(400);
+      const data = response.json();
+      expect(data.message).toContain('E-mail inválido');
+    });
+
+    it('deve rejeitar senhas fracas ou informais como "123456" para e-mail corporativo', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: 'lucas@omnisaude.com.br',
           password: '123456'
         }
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(401);
       const data = response.json();
-      expect(data.token).toBeDefined();
-      expect(data.user.name).toBe('Dr. Lucas Silveira');
-      expect(data.user.role).toBe('PROFESSIONAL');
+      expect(data.message).toContain('Credenciais inválidas');
     });
 
     it('deve rejeitar credenciais com senha incorreta via bcrypt', async () => {

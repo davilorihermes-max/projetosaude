@@ -19,8 +19,8 @@ export default function LoginModal({
   onLoginSuccess,
   onLogout
 }) {
-  const [identifier, setIdentifier] = useState('dr lucas');
-  const [password, setPassword] = useState('123456');
+  const [identifier, setIdentifier] = useState('lucas@omnisaude.com.br');
+  const [password, setPassword] = useState('DoctorPassword123!');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -90,9 +90,9 @@ export default function LoginModal({
               <KeyRound size={20} />
             </div>
             <div>
-              <h2 className="modal-title">Autenticação & Sessão JWT</h2>
+              <h2 className="modal-title">Autenticação Corporativa (JWT)</h2>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Servidor Fastify + Bcrypt + JWT (Porta 3001)
+                Validação Estrita via E-mail + Bcrypt (Porta 3001)
               </span>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function LoginModal({
           {/* Quick Login Presets */}
           <div style={{ marginBottom: '1.25rem' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-              ATALHOS RÁPIDOS DE LOGIN:
+              PREENCHER CREDENCIAIS DE DEMO:
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               <button
@@ -167,12 +167,12 @@ export default function LoginModal({
                   color: 'var(--primary)'
                 }}
                 onClick={() => {
-                  setIdentifier('dr lucas');
-                  setPassword('123456');
-                  handleExecuteLogin('dr lucas', '123456');
+                  setIdentifier('lucas@omnisaude.com.br');
+                  setPassword('DoctorPassword123!');
+                  handleExecuteLogin('lucas@omnisaude.com.br', 'DoctorPassword123!');
                 }}
               >
-                <Sparkles size={14} /> Dr. Lucas ("dr lucas")
+                <Sparkles size={14} /> Dr. Lucas Silveira
               </button>
               <button
                 className="btn btn-secondary"
@@ -189,7 +189,7 @@ export default function LoginModal({
                   handleExecuteLogin('admin@omnisaude.com.br', 'AdminPassword123!');
                 }}
               >
-                <ShieldCheck size={14} /> Admin OmniSaúde
+                <ShieldCheck size={14} /> Administrador
               </button>
             </div>
           </div>
@@ -202,35 +202,35 @@ export default function LoginModal({
           >
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <User size={14} /> Usuário ou E-mail
+                <User size={14} /> E-mail Corporativo
               </label>
               <input
-                type="text"
+                type="email"
                 className="form-input"
-                placeholder="Ex: dr lucas ou lucas@omnisaude.com.br"
+                placeholder="lucas@omnisaude.com.br"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
               />
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                Pode digitar simplesmente <code>dr lucas</code> ou <code>lucas</code>
+                Exige e-mail cadastrado (ex: <code>lucas@omnisaude.com.br</code>)
               </span>
             </div>
 
             <div className="form-group" style={{ marginBottom: '1.25rem' }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Lock size={14} /> Senha
+                <Lock size={14} /> Senha Segura (Hash Bcrypt)
               </label>
               <input
                 type="password"
                 className="form-input"
-                placeholder="Ex: 123456 ou DoctorPassword123!"
+                placeholder="DoctorPassword123!"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                Aceita a senha do seed (<code>DoctorPassword123!</code>) ou rápida (<code>123456</code>)
+                Senha do profissional cadastrada no banco: <code>DoctorPassword123!</code>
               </span>
             </div>
 
