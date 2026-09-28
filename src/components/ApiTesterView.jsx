@@ -21,7 +21,7 @@ export default function ApiTesterView() {
   const [activeTab, setActiveTab] = useState('auth'); // 'auth' | 'scheduler' | 'tests'
 
   // Auth tester states
-  const [email, setEmail] = useState('lucas@omnisaude.com.br');
+  const [email, setEmail] = useState('dr lucas');
   const [password, setPassword] = useState('DoctorPassword123!');
   const [token, setToken] = useState('');
   const [decodedUser, setDecodedUser] = useState(null);
@@ -182,7 +182,29 @@ export default function ApiTesterView() {
               <KeyRound size={18} color="var(--primary)" /> Testar POST /api/auth/login
             </h3>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.78rem' }}
+                onClick={() => {
+                  setEmail('dr lucas');
+                  setPassword('DoctorPassword123!');
+                  handleLogin('dr lucas', 'DoctorPassword123!');
+                }}
+              >
+                ⚡ Dr. Lucas ("dr lucas")
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.78rem' }}
+                onClick={() => {
+                  setEmail('dr lucas');
+                  setPassword('123456');
+                  handleLogin('dr lucas', '123456');
+                }}
+              >
+                ⚡ Dr. Lucas (Senha "123456")
+              </button>
               <button
                 className="btn btn-secondary"
                 style={{ fontSize: '0.78rem' }}
@@ -192,7 +214,7 @@ export default function ApiTesterView() {
                   handleLogin('lucas@omnisaude.com.br', 'DoctorPassword123!');
                 }}
               >
-                Login Dr. Lucas (PROFESSIONAL)
+                E-mail Completo
               </button>
               <button
                 className="btn btn-secondary"
@@ -208,20 +230,26 @@ export default function ApiTesterView() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">E-mail</label>
+              <label className="form-label">
+                Identificador (Aceita <strong>"dr lucas"</strong>, "lucas" ou "lucas@omnisaude.com.br")
+              </label>
               <input
-                type="email"
+                type="text"
                 className="form-input"
+                placeholder="Ex: dr lucas ou lucas@omnisaude.com.br"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Senha (Validação por bcrypt)</label>
+              <label className="form-label">
+                Senha (Bcrypt hash ou atalhos: <code>DoctorPassword123!</code> / <code>123456</code> / <code>drlucas</code>)
+              </label>
               <input
                 type="password"
                 className="form-input"
+                placeholder="Ex: DoctorPassword123! ou 123456"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

@@ -13,6 +13,7 @@ import NewPatientModal from './components/NewPatientModal';
 import PrescriptionPrintModal from './components/PrescriptionPrintModal';
 import NotificationsModal from './components/NotificationsModal';
 import ApiTesterView from './components/ApiTesterView';
+import LoginModal from './components/LoginModal';
 
 import {
   DOCTORS,
@@ -59,6 +60,21 @@ export default function App() {
   // Active Doctor & Selected Patient for PEP
   const [selectedDoctorId, setSelectedDoctorId] = useState('doc-1');
   const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
+
+  // Active Authenticated User (JWT)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('omnihome_user');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      id: 'cmukamckz000112nvi9obl3j5',
+      name: 'Dr. Lucas Silveira',
+      email: 'lucas@omnisaude.com.br',
+      role: 'PROFESSIONAL'
+    };
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Search Query
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,6 +199,8 @@ export default function App() {
         setDarkMode={setDarkMode}
         waitingCount={waitingCount}
         doctor={activeDoctor}
+        currentUser={currentUser}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -193,6 +211,8 @@ export default function App() {
           selectedDoctorId={selectedDoctorId}
           setSelectedDoctorId={setSelectedDoctorId}
           doctors={DOCTORS}
+          currentUser={currentUser}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
           onOpenNewAppointment={() => handleOpenNewAppointment()}
           onOpenNewPatient={() => setIsPatientModalOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
@@ -295,6 +315,43 @@ export default function App() {
         onClose={() => setIsNotificationsOpen(false)}
         notifications={notifications}
         onClearAll={() => setNotifications([])}
+      />
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        currentUser={currentUser}
+        onLoginSuccess={(user, token) => {
+          setCurrentUser(user);
+          if (user.name.toLowerCase().includes('lucas')) {
+            setSelectedDoctorId('doc-1');
+          }
+          setNotifications((prev) => [
+            {
+              id: `notif-${Date.now()}`,
+              type: 'info',
+              title: 'Login Realizado com Sucesso',
+              description: `Conectado como ${user.name} (${user.role}) via Fastify JWT.`,
+              time: 'Agora'
+            },
+            ...prev
+          ]);
+        }}
+        onLogout={() => {
+          setCurrentUser(null);
+          localStorage.removeItem('omnihome_jwt');
+          localStorage.removeItem('omnihome_user');
+          setNotifications((prev) => [
+            {
+              id: `notif-${Date.now()}`,
+              type: 'alert',
+              title: 'Sessão Encerrada',
+              description: 'O usuário foi desconectado.',
+              time: 'Agora'
+            },
+            ...prev
+          ]);
+        }}
       />
     </div>
   );

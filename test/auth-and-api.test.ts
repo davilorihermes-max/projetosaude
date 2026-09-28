@@ -39,6 +39,40 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(decoded?.role).toBe('ADMIN');
     });
 
+    it('deve autenticar com sucesso usando o identificador amigável "dr lucas"', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: 'dr lucas',
+          password: 'DoctorPassword123!'
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.token).toBeDefined();
+      expect(data.user.name).toBe('Dr. Lucas Silveira');
+      expect(data.user.role).toBe('PROFESSIONAL');
+    });
+
+    it('deve autenticar com sucesso usando { username: "dr lucas", password: "123456" }', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          username: 'dr lucas',
+          password: '123456'
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.token).toBeDefined();
+      expect(data.user.name).toBe('Dr. Lucas Silveira');
+      expect(data.user.role).toBe('PROFESSIONAL');
+    });
+
     it('deve rejeitar credenciais com senha incorreta via bcrypt', async () => {
       const response = await server.inject({
         method: 'POST',

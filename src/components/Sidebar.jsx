@@ -21,7 +21,9 @@ export default function Sidebar({
   darkMode,
   setDarkMode,
   waitingCount = 0,
-  doctor
+  doctor,
+  currentUser,
+  onOpenLoginModal
 }) {
   const navItems = [
     { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
@@ -30,7 +32,7 @@ export default function Sidebar({
     { id: 'records', label: 'PEP Domiciliar', icon: FileHeart },
     { id: 'prescriptions', label: 'Receituário Domiciliar', icon: Pill },
     { id: 'clinic', label: 'Central Operacional', icon: Settings },
-    { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '21 Tests' }
+    { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '23 Tests' }
   ];
 
   return (
@@ -79,15 +81,23 @@ export default function Sidebar({
           <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{darkMode ? 'ON' : 'OFF'}</span>
         </button>
 
-        <div className="doctor-profile-card">
+        <div
+          className="doctor-profile-card"
+          onClick={onOpenLoginModal}
+          title="Clique para gerenciar autenticação / Sessão JWT"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
           <img
             src={doctor?.avatar || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80'}
             alt={doctor?.name || 'Médico'}
             className="profile-avatar"
           />
           <div className="profile-details">
-            <span className="profile-name">{doctor?.name || 'Dr. Lucas Silveira'}</span>
-            <span className="profile-role">{doctor?.crm || 'CRM/SP 142.890'}</span>
+            <span className="profile-name">{currentUser?.name || doctor?.name || 'Dr. Lucas Silveira'}</span>
+            <span className="profile-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }}></span>
+              {currentUser ? `JWT (${currentUser.role})` : doctor?.crm || 'CRM/SP 142.890'}
+            </span>
           </div>
         </div>
       </div>
