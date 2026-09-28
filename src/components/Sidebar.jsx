@@ -32,7 +32,7 @@ export default function Sidebar({
     { id: 'records', label: 'PEP Domiciliar', icon: FileHeart },
     { id: 'prescriptions', label: 'Receituário Domiciliar', icon: Pill },
     { id: 'clinic', label: 'Central Operacional', icon: Settings },
-    { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '23 Tests' }
+    { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '31 Tests' }
   ];
 
   return (

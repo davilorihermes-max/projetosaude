@@ -678,14 +678,14 @@ export default function ApiTesterView() {
               <Terminal size={18} color="var(--primary)" /> Relatório da Suíte Vitest (npm run test)
             </h3>
             <span className="badge badge-completed" style={{ fontSize: '0.8rem' }}>
-              21 / 21 Testes Aprovados (100%)
+              31 / 31 Testes Aprovados (100%)
             </span>
           </div>
 
           <div style={{ background: '#090d16', color: '#10b981', padding: '1.25rem', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', fontSize: '0.825rem', lineHeight: '1.7', border: '1px solid #1e293b' }}>
             <div><span style={{ color: '#38bdf8' }}>&gt; vitest run</span></div>
             <div style={{ color: '#94a3b8', margin: '0.5rem 0' }}>RUN v5.0.2 C:/Users/davil/projetosaude</div>
-            <div>✓ test/scheduler-engine.test.ts (11 tests) 10ms</div>
+            <div>✓ test/scheduler-engine.test.ts (11 tests) 9ms</div>
             <div style={{ paddingLeft: '1.5rem', color: '#cbd5e1', fontSize: '0.75rem' }}>
               • calculateHaversineDistance: coordenadas idênticas = 0 km<br />
               • calculateHaversineDistance: Paulista (MASP) para Pinheiros ~3.9 km<br />
@@ -698,24 +698,35 @@ export default function ApiTesterView() {
               • evaluateScheduleViability: tempo de trânsito insuficiente vindo do anterior<br />
               • evaluateScheduleViability: tempo insuficiente para o próximo compromisso
             </div>
-            <div style={{ marginTop: '0.5rem' }}>✓ test/scheduling-service.test.ts (4 tests) 38ms</div>
+            <div style={{ marginTop: '0.5rem' }}>✓ test/scheduling-service.test.ts (4 tests) 28ms</div>
             <div style={{ paddingLeft: '1.5rem', color: '#cbd5e1', fontSize: '0.75rem' }}>
               • rejeição quando profissional não está no CareTeamMember do paciente<br />
               • aprovação com profissional vinculado ao CareTeamMember e horário livre<br />
               • detecção de colisão com agendamentos gravados no Prisma<br />
               • validação de IDs de paciente e médico inexistentes
             </div>
-            <div style={{ marginTop: '0.5rem' }}>✓ test/auth-and-api.test.ts (6 tests) 747ms</div>
+            <div style={{ marginTop: '0.5rem' }}>✓ test/auth-and-api.test.ts (9 tests) 782ms</div>
             <div style={{ paddingLeft: '1.5rem', color: '#cbd5e1', fontSize: '0.75rem' }}>
-              • login com sucesso, bcrypt e geração de JWT (userId e role)<br />
+              • login estrito corporativo com e-mail e validação por hash Bcrypt<br />
+              • rejeição 400 Bad Request para "dr lucas" e apelidos informais<br />
+              • rejeição 401 Unauthorized para senhas fracas "123456"<br />
               • rejeição com senha incorreta (401 Unauthorized)<br />
               • validação de campos obrigatórios (400 Bad Request)<br />
               • permissão de acesso ADMIN para usuário com role ADMIN (200 OK)<br />
               • bloqueio 403 Forbidden para PROFESSIONAL na rota restrita de ADMIN<br />
               • rejeição de requisição sem token (401 Unauthorized)
             </div>
+            <div style={{ marginTop: '0.5rem' }}>✓ test/e2e-auth-and-scheduler.test.ts (7 tests) 664ms</div>
+            <div style={{ paddingLeft: '1.5rem', color: '#cbd5e1', fontSize: '0.75rem' }}>
+              • E2E: Rejeição estrita de "dr lucas" e "luca" (400 Bad Request)<br />
+              • E2E: Rejeição de senha "123456" via Bcrypt (401 Unauthorized)<br />
+              • E2E: Aprovação de e-mail corporativo + DoctorPassword123! (200 OK)<br />
+              • E2E: Bloqueio de rota /evaluate sem token JWT (401 Unauthorized)<br />
+              • E2E: Viabilidade 100% com cálculo de distância e janela temporal (Mariana)<br />
+              • E2E: Bloqueio de viabilidade por falta de vínculo CareTeamMember (Juliana)
+            </div>
             <div style={{ marginTop: '1rem', color: '#38bdf8', fontWeight: 'bold' }}>
-              Test Files: 3 passed (3) | Tests: 21 passed (21) | Duration: 3.21s
+              Test Files: 4 passed (4) | Tests: 31 passed (31) | Duration: 1.92s
             </div>
           </div>
         </div>
