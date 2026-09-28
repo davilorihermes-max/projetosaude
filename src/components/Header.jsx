@@ -22,7 +22,7 @@ export default function Header({
           <input
             type="text"
             className="search-input"
-            placeholder="Buscar por paciente, CPF, prontuário ou procedimento..."
+            placeholder="Buscar por paciente, endereço residencial, CPF ou procedimento domiciliar..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -32,13 +32,13 @@ export default function Header({
       <div className="header-right">
         <div className="doctor-select-wrapper">
           <Stethoscope size={16} color="var(--primary)" />
-          <span className="doctor-select-label">Profissional:</span>
+          <span className="doctor-select-label">Profissional em Rota:</span>
           <select
             className="doctor-select"
             value={selectedDoctorId}
             onChange={(e) => setSelectedDoctorId(e.target.value)}
           >
-            <option value="all">Todos os Médicos</option>
+            <option value="all">Toda a Equipe</option>
             {doctors.map((doc) => (
               <option key={doc.id} value={doc.id}>
                 {doc.name} ({doc.specialty.split('&')[0]})
@@ -50,7 +50,7 @@ export default function Header({
         <button
           className="btn-icon notifications-btn"
           onClick={onOpenNotifications}
-          title="Notificações e Avisos da Clínica"
+          title="Notificações Operacionais e Alertas"
         >
           <Bell size={19} />
           {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
@@ -63,7 +63,7 @@ export default function Header({
           </button>
           <button className="btn btn-primary" onClick={onOpenNewAppointment}>
             <CalendarPlus size={16} />
-            <span>Novo Agendamento</span>
+            <span>Nova Sessão Domiciliar</span>
           </button>
         </div>
       </div>

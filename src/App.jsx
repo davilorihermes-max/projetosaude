@@ -42,17 +42,17 @@ export default function App() {
 
   // Core Data States (with LocalStorage)
   const [patients, setPatients] = useState(() => {
-    const saved = localStorage.getItem('omnisaude_patients');
+    const saved = localStorage.getItem('omnihome_patients_v2');
     return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
   });
 
   const [appointments, setAppointments] = useState(() => {
-    const saved = localStorage.getItem('omnisaude_appointments');
+    const saved = localStorage.getItem('omnihome_appointments_v2');
     return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
   });
 
   const [clinicalRecords, setClinicalRecords] = useState(() => {
-    const saved = localStorage.getItem('omnisaude_records');
+    const saved = localStorage.getItem('omnihome_records_v2');
     return saved ? JSON.parse(saved) : INITIAL_CLINICAL_RECORDS;
   });
 
@@ -72,42 +72,42 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [prescriptionModalData, setPrescriptionModalData] = useState(null);
 
-  // Clinic Notifications
+  // Home Care Operational Notifications
   const [notifications, setNotifications] = useState([
     {
       id: 'notif-1',
       type: 'alert',
-      title: 'Alergia Crítica Detectada',
-      description: 'Paciente Mariana Souza Lima possui alergia severa a Penicilina e Dipirona.',
+      title: 'Alergia Grave no Domicílio',
+      description: 'Mariana Souza Lima possui alergia severa a Penicilina e Dipirona.',
       time: 'Há 15 min'
     },
     {
       id: 'notif-2',
       type: 'lab',
-      title: 'Laudo Laboratorial Recebido',
-      description: 'Resultados de HbA1c e Lipidograma de Roberto Carlos Peixoto disponíveis.',
-      time: 'Há 32 min'
+      title: 'Check-in Realizado com Sucesso',
+      description: 'Dr. Lucas Silveira iniciou sessão domiciliar em Pinheiros (Roberto Carlos).',
+      time: 'Há 25 min'
     },
     {
       id: 'notif-3',
       type: 'info',
-      title: 'Confirmação via WhatsApp',
-      description: 'Juliana Mendes Prado confirmou a teleconsulta das 11:00.',
+      title: 'Confirmação do Cuidador',
+      description: 'Cuidadora de Juliana confirmou presença para a sessão respiratória das 14:00.',
       time: 'Há 1 hora'
     }
   ]);
 
   // Sync to LocalStorage
   useEffect(() => {
-    localStorage.setItem('omnisaude_patients', JSON.stringify(patients));
+    localStorage.setItem('omnihome_patients_v2', JSON.stringify(patients));
   }, [patients]);
 
   useEffect(() => {
-    localStorage.setItem('omnisaude_appointments', JSON.stringify(appointments));
+    localStorage.setItem('omnihome_appointments_v2', JSON.stringify(appointments));
   }, [appointments]);
 
   useEffect(() => {
-    localStorage.setItem('omnisaude_records', JSON.stringify(clinicalRecords));
+    localStorage.setItem('omnihome_records_v2', JSON.stringify(clinicalRecords));
   }, [clinicalRecords]);
 
   // Active doctor object

@@ -105,15 +105,27 @@ export default function PatientsView({
 
                 <div className="patient-card-body">
                   <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>CPF:</span>
-                    <strong>{patient.cpf}</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>📍 Domicílio:</span>
+                    <strong style={{ fontSize: '0.8rem', textAlign: 'right', maxWidth: '65%' }}>
+                      {patient.address || 'São Paulo - SP'}
+                    </strong>
                   </div>
+                  {patient.caregiver && (
+                    <div className="patient-metric-row">
+                      <span style={{ color: 'var(--text-muted)' }}>Cuidador(a):</span>
+                      <span style={{ fontSize: '0.78rem' }}>{patient.caregiver}</span>
+                    </div>
+                  )}
+                  {patient.mobilityStatus && (
+                    <div className="patient-metric-row">
+                      <span style={{ color: 'var(--text-muted)' }}>Mobilidade:</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)' }}>
+                        {patient.mobilityStatus}
+                      </span>
+                    </div>
+                  )}
                   <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>Telefone:</span>
-                    <span>{patient.phone}</span>
-                  </div>
-                  <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>Última PA:</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Última PA aferida:</span>
                     <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
                       {latestVitals ? `${latestVitals.bpSystolic}/${latestVitals.bpDiastolic} mmHg` : 'N/A'}
                     </span>
@@ -133,13 +145,13 @@ export default function PatientsView({
                     style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem' }}
                     onClick={() => onOpenPatientRecord(patient.id)}
                   >
-                    <FileHeart size={15} /> Prontuário (PEP)
+                    <FileHeart size={15} /> PEP Domiciliar
                   </button>
                   <button
                     className="btn btn-secondary"
                     style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem' }}
                     onClick={() => onOpenNewAppointment(patient.id)}
-                    title="Agendar Consulta para este paciente"
+                    title="Agendar Sessão Domiciliar"
                   >
                     <CalendarPlus size={15} />
                   </button>

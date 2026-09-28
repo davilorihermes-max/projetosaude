@@ -51,15 +51,15 @@ export default function ScheduleView({
   const getStatusBadge = (status) => {
     switch (status) {
       case 'waiting':
-        return <span className="badge badge-waiting"><span className="badge-dot"></span>Aguardando</span>;
+        return <span className="badge badge-waiting"><span className="badge-dot"></span>A Caminho do Domicílio</span>;
       case 'in_progress':
-        return <span className="badge badge-in_progress"><span className="badge-dot"></span>Em Atendimento</span>;
+        return <span className="badge badge-in_progress"><span className="badge-dot"></span>No Domicílio (Em Sessão)</span>;
       case 'completed':
-        return <span className="badge badge-completed"><span className="badge-dot"></span>Concluída</span>;
+        return <span className="badge badge-completed"><span className="badge-dot"></span>Sessão Concluída</span>;
       case 'cancelled':
-        return <span className="badge badge-cancelled"><span className="badge-dot"></span>Cancelada</span>;
+        return <span className="badge badge-cancelled"><span className="badge-dot"></span>Cancelada / Reagendada</span>;
       default:
-        return <span className="badge badge-scheduled"><span className="badge-dot"></span>Agendada</span>;
+        return <span className="badge badge-scheduled"><span className="badge-dot"></span>Programada</span>;
     }
   };
 
@@ -68,9 +68,9 @@ export default function ScheduleView({
       {/* Top Header Bar */}
       <div className="schedule-header-bar">
         <div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Agenda & Consultas</h2>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Agenda de Sessões Domiciliares & Deslocamento</h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Gerenciamento de horários, presenças e salas de atendimento.
+            Planejamento de rotas, janelas de trânsito e check-in na residência dos pacientes.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function ScheduleView({
             onChange={(e) => setSelectedDate(e.target.value)}
           />
           <button className="btn btn-primary" onClick={() => onOpenNewAppointment()}>
-            <Plus size={16} /> Novo Agendamento
+            <Plus size={16} /> Nova Sessão Domiciliar
           </button>
         </div>
       </div>
@@ -91,10 +91,10 @@ export default function ScheduleView({
       {/* Filter Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {[
-          { id: 'all', label: 'Todos os Status' },
-          { id: 'waiting', label: 'Aguardando Recepção' },
-          { id: 'in_progress', label: 'Em Atendimento' },
-          { id: 'scheduled', label: 'Agendadas Futuras' },
+          { id: 'all', label: 'Todas as Sessões' },
+          { id: 'waiting', label: 'A Caminho' },
+          { id: 'in_progress', label: 'No Domicílio (Em Atendimento)' },
+          { id: 'scheduled', label: 'Futuras na Rota' },
           { id: 'completed', label: 'Concluídas' }
         ].map((tab) => (
           <button
@@ -121,9 +121,9 @@ export default function ScheduleView({
                   onClick={() => onOpenNewAppointment(null, slot)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <span>Horário Livre para Agendamento</span>
+                  <span>Horário livre na rota de atendimento</span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
-                    + Agendar neste horário
+                    + Agendar sessão domiciliar neste horário
                   </span>
                 </div>
               </div>
@@ -150,21 +150,18 @@ export default function ScheduleView({
                     style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <strong style={{ fontSize: '1rem', color: 'var(--text-headline)' }}>
                         {patient?.name}
                       </strong>
                       {getStatusBadge(aptInSlot.status)}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                       <span>{aptInSlot.type}</span>
-                      <span>• Médico: <strong>{doctor?.name}</strong></span>
-                      <span>• {aptInSlot.room}</span>
-                      {aptInSlot.modality === 'Telemedicina' && (
-                        <span style={{ color: 'var(--info)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontWeight: 600 }}>
-                          <Video size={13} /> Telemedicina
-                        </span>
-                      )}
+                      <span>• Profissional: <strong>{doctor?.name}</strong></span>
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                        📍 {patient?.address || aptInSlot.address}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -176,7 +173,7 @@ export default function ScheduleView({
                       style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem' }}
                       onClick={() => onUpdateAppointmentStatus(aptInSlot.id, 'waiting')}
                     >
-                      Confirmar Chegada
+                      Iniciar Deslocamento
                     </button>
                   )}
 
@@ -189,7 +186,7 @@ export default function ScheduleView({
                         onOpenPatientRecord(patient?.id);
                       }}
                     >
-                      <Play size={13} /> Iniciar Atendimento
+                      <Play size={13} /> Check-in Domiciliar
                     </button>
                   )}
 
@@ -199,7 +196,7 @@ export default function ScheduleView({
                       style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem' }}
                       onClick={() => handleCompleteWithCelebration(aptInSlot.id)}
                     >
-                      <CheckCircle2 size={13} /> Concluir Atendimento
+                      <CheckCircle2 size={13} /> Concluir Sessão
                     </button>
                   )}
 

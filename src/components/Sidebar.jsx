@@ -24,12 +24,12 @@ export default function Sidebar({
   doctor
 }) {
   const navItems = [
-    { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'schedule', label: 'Agenda & Consultas', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} na fila` : null },
-    { id: 'patients', label: 'Pacientes', icon: Users },
-    { id: 'records', label: 'Prontuário (PEP)', icon: FileHeart },
-    { id: 'prescriptions', label: 'Receituário Rápido', icon: Pill },
-    { id: 'clinic', label: 'Clínica & Config.', icon: Settings },
+    { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
+    { id: 'schedule', label: 'Agenda & Deslocamento', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} a realizar` : null },
+    { id: 'patients', label: 'Pacientes & Domicílios', icon: Users },
+    { id: 'records', label: 'PEP Domiciliar', icon: FileHeart },
+    { id: 'prescriptions', label: 'Receituário Domiciliar', icon: Pill },
+    { id: 'clinic', label: 'Central Operacional', icon: Settings },
     { id: 'tester', label: 'Lab de Testes & API', icon: Terminal, badge: '21 Tests' }
   ];
 
@@ -41,8 +41,8 @@ export default function Sidebar({
             <Activity size={26} strokeWidth={2.4} />
           </div>
           <div className="brand-info">
-            <span className="brand-title">OmniSaúde</span>
-            <span className="brand-tagline">Clínica & PEP</span>
+            <span className="brand-title">OmniHome Care</span>
+            <span className="brand-tagline">Sessões Domiciliares</span>
           </div>
         </div>
 

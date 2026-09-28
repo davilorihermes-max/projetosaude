@@ -224,6 +224,12 @@ export default function MedicalRecordView({
                 <span>• Convênio: <strong>{patient.insurance}</strong> (Nº {patient.insuranceNumber})</span>
                 <span className="blood-type-badge">Tipo {patient.bloodType}</span>
               </div>
+              <div style={{ marginTop: '0.45rem', fontSize: '0.825rem', color: 'var(--text-body)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div>📍 <strong>Endereço do Domicílio:</strong> {patient.address || 'São Paulo - SP'}</div>
+                {patient.caregiver && <div>👤 <strong>Cuidador(a) Responsável:</strong> {patient.caregiver}</div>}
+                {patient.mobilityStatus && <div>♿ <strong>Status de Mobilidade:</strong> {patient.mobilityStatus}</div>}
+                {patient.accessNotes && <div style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>🔑 <strong>Instruções de Acesso:</strong> {patient.accessNotes}</div>}
+              </div>
             </div>
           </div>
         </div>
@@ -313,25 +319,25 @@ export default function MedicalRecordView({
           className={`pep-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
         >
-          <Clock size={16} /> Linha do Tempo Clínica ({patientRecord.timeline?.length || 0})
+          <Clock size={16} /> Linha do Tempo Domiciliar ({patientRecord.timeline?.length || 0})
         </button>
         <button
           className={`pep-tab-btn ${activeTab === 'new_evolution' ? 'active' : ''}`}
           onClick={() => setActiveTab('new_evolution')}
         >
-          <PlusCircle size={16} /> Nova Evolução Clínica (Hoje)
+          <PlusCircle size={16} /> Nova Evolução no Domicílio
         </button>
         <button
           className={`pep-tab-btn ${activeTab === 'prescriptions' ? 'active' : ''}`}
           onClick={() => setActiveTab('prescriptions')}
         >
-          <Pill size={16} /> Medicamentos & Prescrição ({prescribedMeds.length})
+          <Pill size={16} /> Medicamentos & Prescrição Domiciliar ({prescribedMeds.length})
         </button>
         <button
           className={`pep-tab-btn ${activeTab === 'exams' ? 'active' : ''}`}
           onClick={() => setActiveTab('exams')}
         >
-          <ClipboardList size={16} /> Solicitação de Exames ({selectedExams.length})
+          <ClipboardList size={16} /> Pedidos de Exames ({selectedExams.length})
         </button>
       </div>
 
@@ -433,26 +439,26 @@ export default function MedicalRecordView({
         <form onSubmit={handleSaveEvolution} className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
             <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FileText size={18} color="var(--primary)" /> Nova Evolução Médica
+              <FileText size={18} color="var(--primary)" /> Registro de Atendimento / Sessão Domiciliar
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Registrando como: <strong>{activeDoctor?.name || 'Dr. Lucas Silveira'}</strong>
+              Profissional Visitador: <strong>{activeDoctor?.name || 'Dr. Lucas Silveira'}</strong>
             </span>
           </div>
 
           {saveSuccessMessage && (
             <div style={{ background: 'var(--success-subtle)', border: '1px solid var(--success-border)', color: 'var(--success)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <CheckCircle size={18} />
-              <strong>Evolução gravada com sucesso no Prontuário do Paciente!</strong>
+              <strong>Evolução domiciliar gravada com sucesso no PEP do Paciente!</strong>
             </div>
           )}
 
           <div className="form-group">
-            <label className="form-label">Queixa Principal (QP) *</label>
+            <label className="form-label">Queixa no Domicílio / Relato do Cuidador ou Paciente *</label>
             <input
               type="text"
               className="form-input"
-              placeholder="Ex: Cefaleia pulsátil há 3 dias com piora vespertina..."
+              placeholder="Ex: Cuidadora relata dor moderada no membro operado e boa aceitação alimentar..."
               value={chiefComplaint}
               onChange={(e) => setChiefComplaint(e.target.value)}
               required
@@ -460,20 +466,20 @@ export default function MedicalRecordView({
           </div>
 
           <div className="form-group">
-            <label className="form-label">História da Moléstia Atual (HDA)</label>
+            <label className="form-label">História da Moléstia & Condições da Residência (HDA)</label>
             <textarea
               className="form-textarea"
-              placeholder="Descreva a evolução do quadro clínico, sintomas associados, fatores de melhora/piora..."
+              placeholder="Descreva a evolução do quadro clínico, condições de higiene do leito, adesão medicamentosa informada pelo cuidador..."
               value={hda}
               onChange={(e) => setHda(e.target.value)}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Exame Físico Estruturado</label>
+            <label className="form-label">Exame Físico Realizado no Domicílio</label>
             <textarea
               className="form-textarea"
-              placeholder="Estado Geral, Aparelho Cardiovascular, Respiratório, Abdome, Extremidades..."
+              placeholder="Sinais vitais in loco, ausculta pulmonar/cardíaca, estado da pele/curativo, mobilidade no leito..."
               value={physicalExam}
               onChange={(e) => setPhysicalExam(e.target.value)}
             />
@@ -483,22 +489,21 @@ export default function MedicalRecordView({
             <div className="form-group">
               <label className="form-label">Hipótese Diagnóstica (CID-10)</label>
               <select className="form-select" value={cid} onChange={(e) => setCid(e.target.value)}>
+                <option value="Z96.6 - Presença de implante articular ortopédico">Z96.6 - Pós-operatório ortopédico</option>
                 <option value="I10 - Hipertensão essencial">I10 - Hipertensão essencial</option>
-                <option value="E11 - Diabetes mellitus tipo 2">E11 - Diabetes mellitus tipo 2</option>
-                <option value="J45 - Asma">J45 - Asma</option>
-                <option value="Z00.0 - Exame médico geral de rotina">Z00.0 - Exame médico geral de rotina</option>
-                <option value="J00 - Rinofaringite aguda">J00 - Rinofaringite aguda</option>
-                <option value="K21 - Doença do refluxo gastroesofágico">K21 - Doença do refluxo gastroesofágico</option>
-                <option value="L20 - Dermatite atópica">L20 - Dermatite atópica</option>
+                <option value="E11.5 - Diabetes com complicações circulatórias / Pé diabético">E11.5 - Pé diabético / Neuropatia</option>
+                <option value="J45 - Asma sob oxigenoterapia">J45 - Asma grave domiciliar</option>
+                <option value="G81 - Hemiplegia / Pós-AVC acamado">G81 - Sequela de AVC / Acamado</option>
+                <option value="L89 - Úlcera por pressão">L89 - Úlcera por pressão / Curativo</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Conduta, Prescrição e Recomendações *</label>
+              <label className="form-label">Conduta, Prescrição e Orientações para a Família / Cuidador *</label>
               <textarea
                 className="form-textarea"
                 style={{ minHeight: '75px' }}
-                placeholder="Prescrição de medidas gerais, repouso, ajuste farmacológico e data prevista de retorno..."
+                placeholder="Prescrição de cuidados domiciliares, posologia para o cuidador administrar, data da próxima visita na rota..."
                 value={conduct}
                 onChange={(e) => setConduct(e.target.value)}
                 required

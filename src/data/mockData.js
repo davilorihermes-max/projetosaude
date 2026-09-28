@@ -1,37 +1,46 @@
 // src/data/mockData.js
+// Configuração e dados de demonstração voltados para ATENDIMENTO DOMICILIAR (Home Care / Sessões Domiciliares)
 
 export const DOCTORS = [
   {
     id: 'doc-1',
     name: 'Dr. Lucas Silveira',
-    specialty: 'Cardiologia & Clínica Médica',
+    specialty: 'Medicina de Família & Atenção Domiciliar (EMAD)',
     crm: 'CRM/SP 142.890',
     avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    color: '#0284c7'
+    color: '#0284c7',
+    baseAddress: 'Av. Paulista, 1000 - Bela Vista, São Paulo - SP',
+    baseCoordinates: { latitude: -23.561684, longitude: -46.655981 }
   },
   {
     id: 'doc-2',
     name: 'Dra. Beatriz Albuquerque',
-    specialty: 'Clínica Geral & Medicina da Família',
+    specialty: 'Clínica Geral & Cuidados Paliativos Domiciliares',
     crm: 'CRM/SP 98.412',
     avatar: 'https://images.unsplash.com/photo-1594824813689-53748f572a15?w=150&auto=format&fit=crop&q=80',
-    color: '#059669'
+    color: '#059669',
+    baseAddress: 'Rua Vergueiro, 1500 - Vila Mariana, São Paulo - SP',
+    baseCoordinates: { latitude: -23.578100, longitude: -46.640200 }
   },
   {
     id: 'doc-3',
     name: 'Dr. Rafael Fontes',
-    specialty: 'Pediatria e Desenvolvimento Infantil',
-    crm: 'CRM/SP 115.340',
+    specialty: 'Fisioterapia Cardiorrespiratória Domiciliar',
+    crm: 'CREFITO/SP 88.340',
     avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80',
-    color: '#d97706'
+    color: '#d97706',
+    baseAddress: 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP',
+    baseCoordinates: { latitude: -23.585000, longitude: -46.638000 }
   },
   {
     id: 'doc-4',
     name: 'Dra. Camila Nogueira',
-    specialty: 'Dermatologia Clínica & Estética',
-    crm: 'CRM/SP 178.220',
+    specialty: 'Enfermagem Estomaterapeuta & Curativos Complexos',
+    crm: 'COREN/SP 230.110',
     avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    color: '#9333ea'
+    color: '#9333ea',
+    baseAddress: 'Rua Pamplona, 700 - Jardim Paulista, São Paulo - SP',
+    baseCoordinates: { latitude: -23.565000, longitude: -46.657000 }
   }
 ];
 
@@ -45,20 +54,25 @@ export const INITIAL_PATIENTS = [
     birthDate: '1992-04-15',
     phone: '(11) 98452-1920',
     email: 'mariana.lima@exemplo.com.br',
-    insurance: 'Unimed Pleno',
+    insurance: 'Unimed Pleno Home Care',
     insuranceNumber: '8910239120',
     bloodType: 'O+',
     allergies: ['Penicilina', 'Dipirona Sódica'],
-    chronicConditions: ['Hipertensão Leve'],
+    chronicConditions: ['Pós-operatório de Artroplastia', 'Hipertensão'],
+    address: 'Alameda Santos, 1000 - Apto 82, Cerqueira César - SP',
+    accessNotes: 'Portaria 24h, interfone 82. Vaga de visitante liberada para saúde.',
+    caregiver: 'Dona Carmem (Mãe) - Tel: (11) 98111-2233',
+    mobilityStatus: 'Deambula com andador / Restrita ao leito em reabilitação',
+    coordinates: { latitude: -23.563099, longitude: -46.654271 },
     weight: 64,
     height: 1.65,
     vitalsHistory: [
-      { date: '10/05', bpSystolic: 125, bpDiastolic: 80, hr: 72, temp: 36.5, spo2: 98 },
-      { date: '12/07', bpSystolic: 130, bpDiastolic: 84, hr: 76, temp: 36.7, spo2: 98 },
-      { date: '15/09', bpSystolic: 122, bpDiastolic: 78, hr: 70, temp: 36.4, spo2: 99 },
-      { date: '27/09', bpSystolic: 124, bpDiastolic: 82, hr: 74, temp: 36.6, spo2: 98 }
+      { date: '10/09', bpSystolic: 125, bpDiastolic: 80, hr: 72, temp: 36.5, spo2: 98 },
+      { date: '18/09', bpSystolic: 128, bpDiastolic: 82, hr: 74, temp: 36.6, spo2: 98 },
+      { date: '27/09', bpSystolic: 122, bpDiastolic: 78, hr: 70, temp: 36.4, spo2: 99 },
+      { date: 'Hoje', bpSystolic: 120, bpDiastolic: 78, hr: 72, temp: 36.5, spo2: 99 }
     ],
-    lastVisit: 'Hoje, 09:30',
+    lastVisit: 'Hoje, 09:00 (Concluída)',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80'
   },
   {
@@ -70,20 +84,24 @@ export const INITIAL_PATIENTS = [
     birthDate: '1968-09-12',
     phone: '(11) 97123-4567',
     email: 'roberto.peixoto@exemplo.com.br',
-    insurance: 'Bradesco Saúde Top',
+    insurance: 'Bradesco Saúde Domiciliar',
     insuranceNumber: '4459102941',
     bloodType: 'A+',
     allergies: ['Nenhuma conhecida'],
-    chronicConditions: ['Diabetes Tipo 2', 'Dislipidemia'],
+    chronicConditions: ['Diabetes Tipo 2 com neuropatia periférica', 'Pé diabético'],
+    address: 'Rua Fradique Coutinho, 500 - Casa 3, Pinheiros - SP',
+    accessNotes: 'Vila fechada. Portão de ferro manual, interfone Casa 3.',
+    caregiver: 'Sra. Lúcia (Esposa) - Tel: (11) 97888-1122',
+    mobilityStatus: 'Cadeira de rodas para deslocamentos externos',
+    coordinates: { latitude: -23.567300, longitude: -46.693400 },
     weight: 86,
     height: 1.74,
     vitalsHistory: [
-      { date: '02/06', bpSystolic: 142, bpDiastolic: 92, hr: 84, temp: 36.8, spo2: 97 },
-      { date: '20/07', bpSystolic: 138, bpDiastolic: 88, hr: 80, temp: 36.6, spo2: 97 },
-      { date: '15/08', bpSystolic: 135, bpDiastolic: 85, hr: 78, temp: 36.7, spo2: 98 },
-      { date: '27/09', bpSystolic: 134, bpDiastolic: 84, hr: 82, temp: 36.8, spo2: 97 }
+      { date: '12/09', bpSystolic: 142, bpDiastolic: 92, hr: 84, temp: 36.8, spo2: 97 },
+      { date: '20/09', bpSystolic: 138, bpDiastolic: 88, hr: 80, temp: 36.6, spo2: 97 },
+      { date: 'Hoje', bpSystolic: 134, bpDiastolic: 84, hr: 80, temp: 36.7, spo2: 98 }
     ],
-    lastVisit: 'Hoje, 10:15',
+    lastVisit: 'Hoje, 11:00 (Em atendimento)',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80'
   },
   {
@@ -95,19 +113,24 @@ export const INITIAL_PATIENTS = [
     birthDate: '1999-11-20',
     phone: '(11) 99881-2233',
     email: 'juliana.prado@exemplo.com.br',
-    insurance: 'SulAmérica Exato',
+    insurance: 'SulAmérica Home Care',
     insuranceNumber: '7721839210',
     bloodType: 'B-',
     allergies: ['Aspirina / AINEs', 'Sulfa'],
-    chronicConditions: ['Asma Leve Intermitente'],
+    chronicConditions: ['Asma grave sob oxigenoterapia domiciliar intermitente'],
+    address: 'Av. Moema, 350 - Bloco B, Apto 112, Moema - SP',
+    accessNotes: 'Portaria principal pela Av. Moema, vaga de carga/descarga liberada.',
+    caregiver: 'Fernanda (Irmã) - Tel: (11) 99111-4455',
+    mobilityStatus: 'Deambula com tolerância moderada a esforços',
+    coordinates: { latitude: -23.602200, longitude: -46.662100 },
     weight: 56,
     height: 1.68,
     vitalsHistory: [
-      { date: '14/04', bpSystolic: 110, bpDiastolic: 70, hr: 68, temp: 36.4, spo2: 99 },
-      { date: '20/06', bpSystolic: 115, bpDiastolic: 75, hr: 72, temp: 36.5, spo2: 98 },
-      { date: '27/09', bpSystolic: 114, bpDiastolic: 72, hr: 68, temp: 36.4, spo2: 99 }
+      { date: '14/09', bpSystolic: 110, bpDiastolic: 70, hr: 68, temp: 36.4, spo2: 97 },
+      { date: '22/09', bpSystolic: 115, bpDiastolic: 75, hr: 72, temp: 36.5, spo2: 98 },
+      { date: 'Hoje', bpSystolic: 114, bpDiastolic: 72, hr: 70, temp: 36.5, spo2: 98 }
     ],
-    lastVisit: '15/08/2026',
+    lastVisit: 'Hoje, 14:00 (Agendada)',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
   },
   {
@@ -119,19 +142,23 @@ export const INITIAL_PATIENTS = [
     birthDate: '2018-02-10',
     phone: '(11) 96541-8899',
     email: 'pais.gabriel@exemplo.com.br',
-    insurance: 'Amil Fácil',
+    insurance: 'Amil Fácil Domiciliar',
     insuranceNumber: '334182910',
     bloodType: 'AB+',
-    allergies: ['Proteína do Leite (APLV passada)'],
-    chronicConditions: ['Nenhuma'],
+    allergies: ['Proteína do Leite (APLV)'],
+    chronicConditions: ['Reabilitação neuromotora pediátrica em domicílio'],
+    address: 'Rua Bela Cintra, 1400 - Cerqueira César - SP',
+    accessNotes: 'Casa térrea com portão automático azul.',
+    caregiver: 'Renata (Mãe) - Tel: (11) 96541-8899',
+    mobilityStatus: 'Estimulação precoce / Cadeirante pediátrico',
+    coordinates: { latitude: -23.558000, longitude: -46.662000 },
     weight: 27.5,
     height: 1.28,
     vitalsHistory: [
-      { date: '10/01', bpSystolic: 98, bpDiastolic: 62, hr: 92, temp: 36.5, spo2: 99 },
-      { date: '12/05', bpSystolic: 100, bpDiastolic: 65, hr: 88, temp: 36.6, spo2: 99 },
-      { date: '27/09', bpSystolic: 102, bpDiastolic: 66, hr: 86, temp: 36.5, spo2: 100 }
+      { date: '20/09', bpSystolic: 98, bpDiastolic: 62, hr: 92, temp: 36.5, spo2: 99 },
+      { date: 'Hoje', bpSystolic: 100, bpDiastolic: 64, hr: 88, temp: 36.5, spo2: 100 }
     ],
-    lastVisit: 'Hoje, 11:30',
+    lastVisit: 'Hoje, 16:00 (Agendada)',
     avatar: 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=120&auto=format&fit=crop&q=80'
   },
   {
@@ -143,19 +170,23 @@ export const INITIAL_PATIENTS = [
     birthDate: '1961-07-04',
     phone: '(11) 98112-9090',
     email: 'helena.vasconcelos@exemplo.com.br',
-    insurance: 'Particular',
+    insurance: 'Particular Home Care',
     insuranceNumber: 'PART-00491',
     bloodType: 'O-',
     allergies: ['Contraste Iodado'],
-    chronicConditions: ['Osteopenia', 'Hipotireoidismo'],
+    chronicConditions: ['Acamada crônica / Pós-AVC com hemiparesia'],
+    address: 'Rua Oscar Freire, 1800 - Apto 31, Pinheiros - SP',
+    accessNotes: 'Edifício com rampa de acessibilidade e elevador amplo para maca.',
+    caregiver: 'Enfermeira Marisa (Plantão 12x36) - Tel: (11) 98112-9099',
+    mobilityStatus: 'Acamada / Mudança de decúbito assistida',
+    coordinates: { latitude: -23.559000, longitude: -46.678000 },
     weight: 62,
     height: 1.60,
     vitalsHistory: [
-      { date: '15/03', bpSystolic: 120, bpDiastolic: 78, hr: 68, temp: 36.4, spo2: 98 },
-      { date: '10/06', bpSystolic: 126, bpDiastolic: 80, hr: 72, temp: 36.5, spo2: 97 },
-      { date: '27/09', bpSystolic: 122, bpDiastolic: 78, hr: 70, temp: 36.5, spo2: 98 }
+      { date: '15/09', bpSystolic: 124, bpDiastolic: 80, hr: 68, temp: 36.4, spo2: 98 },
+      { date: 'Hoje', bpSystolic: 122, bpDiastolic: 78, hr: 70, temp: 36.5, spo2: 98 }
     ],
-    lastVisit: 'Hoje, 14:00',
+    lastVisit: 'Hoje, 17:30 (Agendada)',
     avatar: 'https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=120&auto=format&fit=crop&q=80'
   }
 ];
@@ -165,167 +196,147 @@ export const INITIAL_APPOINTMENTS = [
     id: 'apt-1',
     patientId: 'pat-1',
     doctorId: 'doc-1',
-    time: '08:30',
-    date: '2026-09-27',
-    type: 'Retorno Cardiológico',
-    modality: 'Presencial',
+    time: '09:00',
+    date: '2026-09-28',
+    type: 'Sessão Domiciliar Médica & Curativo',
+    durationMinutes: 45,
     status: 'completed', // 'waiting' | 'in_progress' | 'completed' | 'scheduled' | 'cancelled'
-    room: 'Consultório 03',
-    notes: 'Avaliação dos exames de MAPA e Holter 24h.'
+    distanceFromPrevKm: 0.8,
+    transitTimeMinutes: 12,
+    address: 'Alameda Santos, 1000 - Apto 82, Cerqueira César',
+    notes: 'Avaliação da ferida operatória e aferição de sinais vitais no leito.'
   },
   {
     id: 'apt-2',
     patientId: 'pat-2',
-    doctorId: 'doc-2',
-    time: '09:15',
-    date: '2026-09-27',
-    type: 'Consulta de Rotina',
-    modality: 'Presencial',
-    status: 'completed',
-    room: 'Consultório 01',
-    notes: 'Ajuste posológico de medicação glicêmica.'
+    doctorId: 'doc-1',
+    time: '11:00',
+    date: '2026-09-28',
+    type: 'Atendimento Domiciliar de Controle Metabólico',
+    durationMinutes: 45,
+    status: 'in_progress', // Atendimento em andamento na casa do paciente
+    distanceFromPrevKm: 3.9,
+    transitTimeMinutes: 18,
+    address: 'Rua Fradique Coutinho, 500 - Casa 3, Pinheiros',
+    notes: 'Desbridamento de lesão plantar e ajuste de dose de insulina.'
   },
   {
     id: 'apt-3',
-    patientId: 'pat-4',
-    doctorId: 'doc-3',
-    time: '10:00',
-    date: '2026-09-27',
-    type: 'Puericultura & Desenvolvimento',
-    modality: 'Presencial',
-    status: 'in_progress',
-    room: 'Consultório 04',
-    notes: 'Acompanhamento de curva ponderoestatural e vacinas.'
+    patientId: 'pat-3',
+    doctorId: 'doc-1',
+    time: '14:00',
+    date: '2026-09-28',
+    type: 'Visita Domiciliar Respiratória',
+    durationMinutes: 45,
+    status: 'scheduled',
+    distanceFromPrevKm: 4.6,
+    transitTimeMinutes: 20,
+    address: 'Av. Moema, 350 - Bloco B, Moema',
+    notes: 'Checagem de cilindro de O2, oximetria e ausculta pulmonar.'
   },
   {
     id: 'apt-4',
-    patientId: 'pat-3',
-    doctorId: 'doc-4',
-    time: '11:00',
-    date: '2026-09-27',
-    type: 'Avaliação Dermatológica',
-    modality: 'Telemedicina',
-    status: 'waiting',
-    room: 'Sala Virtual 02',
-    notes: 'Queixa de lesão eritematosa descamativa em antebraço.'
+    patientId: 'pat-4',
+    doctorId: 'doc-3',
+    time: '16:00',
+    date: '2026-09-28',
+    type: 'Sessão de Fisioterapia Neuromotora',
+    durationMinutes: 50,
+    status: 'scheduled',
+    distanceFromPrevKm: 3.2,
+    transitTimeMinutes: 16,
+    address: 'Rua Bela Cintra, 1400 - Cerqueira César',
+    notes: 'Exercícios posturais e fortalecimento em tapete terapêutico.'
   },
   {
     id: 'apt-5',
     patientId: 'pat-5',
     doctorId: 'doc-1',
-    time: '14:00',
-    date: '2026-09-27',
-    type: 'Check-up Geral',
-    modality: 'Presencial',
+    time: '17:30',
+    date: '2026-09-28',
+    type: 'Revisão Domiciliar Pós-AVC',
+    durationMinutes: 45,
     status: 'scheduled',
-    room: 'Consultório 03',
-    notes: 'Trazer resultados de densitometria óssea e TSH.'
-  },
-  {
-    id: 'apt-6',
-    patientId: 'pat-2',
-    doctorId: 'doc-1',
-    time: '15:30',
-    date: '2026-09-27',
-    type: 'Eletrocardiograma de Repouso',
-    modality: 'Presencial',
-    status: 'scheduled',
-    room: 'Sala de Exames 1',
-    notes: 'Exame complementar solicitado pela Dra. Beatriz.'
+    distanceFromPrevKm: 2.1,
+    transitTimeMinutes: 14,
+    address: 'Rua Oscar Freire, 1800 - Apto 31, Pinheiros',
+    notes: 'Prevenção de úlceras por pressão e orientação ao cuidador.'
   }
 ];
 
 export const INITIAL_CLINICAL_RECORDS = {
   'pat-1': {
     patientId: 'pat-1',
-    diagnoses: ['I10 - Hipertensão essencial (primária)'],
+    diagnoses: ['Z96.6 - Presença de implante articular ortopédico', 'I10 - Hipertensão essencial'],
     currentMedications: [
-      { name: 'Losartana Potássica', dose: '50 mg', frequency: '1x ao dia (manhã)', instructions: 'Tomar com água, em jejum.' },
-      { name: 'Hidroclorotiazida', dose: '12.5 mg', frequency: '1x ao dia', instructions: 'Junto ao café da manhã.' }
+      { name: 'Enoxaparina Sódica', dose: '40 mg', frequency: '1x ao dia SC', instructions: 'Aplicar no abdome, alternando lados.' },
+      { name: 'Dipirona Sódica', dose: '500 mg', frequency: 'Se dor intensa', instructions: 'Apenas com prescrição em SOS.' }
     ],
     timeline: [
       {
         id: 'rec-1',
-        date: '27/09/2026 - 08:30',
+        date: '28/09/2026 - 09:00',
         doctor: 'Dr. Lucas Silveira',
         crm: 'CRM/SP 142.890',
-        subject: 'Retorno Cardiológico - MAPA Normalizado',
-        chiefComplaint: 'Paciente assintomática, nega cefaleia occipital, escotomas ou tonturas.',
-        hda: 'Em acompanhamento de HAS em uso regular de Losartana 50mg + Hidroclorotiazida 12.5mg. Traz MAPA 24h com média de 122x78 mmHg em vigília e descenso noturno preservado. Excelente adesão medicamentosa e controle dietético hipossódico.',
-        physicalExam: 'BEG, corada, hidratada, acianótica, anictérica. RCR 2T BNF sem sopros. Murmúrio vesicular presente bilateralmente, sem ruídos adventícios. PA: 124/82 mmHg. FC: 74 bpm. Abdome flácido, indolor. Membros inferiores sem edema.',
-        conduct: 'Manter esquema terapêutico atual. Reforçado estímulo à prática de atividade física aeróbica 150min/semana. Próximo retorno em 6 meses com novo perfil lipídico e função renal.',
-        cid: 'I10',
+        subject: 'Sessão Domiciliar - Revisão Pós-Artroplastia',
+        chiefComplaint: 'Atendimento domiciliar de rotina no 12º DPO.',
+        hda: 'Paciente encontrada no leito em bom estado geral. Relata melhora progressiva da dor. Nega febre ou secreção na ferida operatória. Cuidadora informa boa ingesta hídrica e alimentar.',
+        physicalExam: 'PA: 120/78 mmHg, FC: 72 bpm, SpO2: 99% em ar ambiente. Ferida cirúrgica em quadril direito limpa, bordas aproximadas sem flogose. Sem empastamento de panturrilhas. Pulsos periféricos presentes e simétricos.',
+        conduct: 'Orientada manutenção de repouso relativo com deambulação assistida. Retirada de pontos programada para a próxima visita domiciliar.',
+        cid: 'Z96.6',
         prescriptions: [
-          { drug: 'Losartana Potássica 50mg', qty: '2 caixas', dosage: 'Tomar 1 comprimido VO pela manhã.' },
-          { drug: 'Hidroclorotiazida 12,5mg', qty: '2 caixas', dosage: 'Tomar 1 comprimido VO pela manhã.' }
+          { drug: 'Cefalexina 500mg', qty: '1 caixa', dosage: 'Tomar 1 cápsula VO a cada 6 horas por mais 3 dias.' }
         ],
-        requestedExams: ['Creatinina sérica', 'Ureia', 'Potássio sérico', 'Perfil Lipídico Completo']
-      },
-      {
-        id: 'rec-2',
-        date: '15/09/2026 - 10:00',
-        doctor: 'Dra. Beatriz Albuquerque',
-        crm: 'CRM/SP 98.412',
-        subject: 'Consulta Clínica Geral de Rotina',
-        chiefComplaint: 'Check-up anual da saúde da mulher e renovação de receitas.',
-        hda: 'Paciente relata boa disposição. Pratica caminhada 3 vezes por semana. Nega alterações gastrointestinais ou respiratórias.',
-        physicalExam: 'PA: 122/78 mmHg, FC: 70 bpm, Peso: 64kg, IMC: 23.5 kg/m². Exame físico sem particularidades.',
-        conduct: 'Solicitados mamografia de rastreio e citopatológico preventivo. Encaminhada para avaliação cardiológica de rotina.',
-        cid: 'Z00.0',
-        prescriptions: [],
-        requestedExams: ['Mamografia Bilateral', 'Citopatologia Cérvico-Vaginal']
+        requestedExams: ['Hemograma Completo', 'PCR']
       }
     ]
   },
   'pat-2': {
     patientId: 'pat-2',
-    diagnoses: ['E11 - Diabetes mellitus não-insulino-dependente', 'E78.0 - Hipercolesterolemia pura'],
+    diagnoses: ['E11.5 - Diabetes mellitus tipo 2 com complicações circulatórias'],
     currentMedications: [
-      { name: 'Cloridrato de Metformina', dose: '850 mg', frequency: '2x ao dia (após refeições)', instructions: 'Almoço e Jantar.' },
-      { name: 'Sinvastatina', dose: '20 mg', frequency: '1x ao dia (noite)', instructions: 'Antes de dormir.' }
+      { name: 'Insulina NPH', dose: '24 UI', frequency: 'Pela manhã', instructions: 'Aplicação SC pré-café.' },
+      { name: 'Metformina', dose: '850 mg', frequency: '2x ao dia', instructions: 'Após almoço e jantar.' }
     ],
     timeline: [
       {
-        id: 'rec-3',
-        date: '27/09/2026 - 09:15',
-        doctor: 'Dra. Beatriz Albuquerque',
-        crm: 'CRM/SP 98.412',
-        subject: 'Acompanhamento Metabólico',
-        chiefComplaint: 'Retorno com exames laboratoriais de controle glicêmico.',
-        hda: 'Hemoglobina Glicada (HbA1c) atual: 6.8% (meta < 7%). Glicemia de jejum: 118 mg/dL. LDL-c: 92 mg/dL. Paciente aderente à dieta orientada por nutricionista.',
-        physicalExam: 'PA: 134/84 mmHg, FC: 82 bpm, Peso: 86kg, Circunferência abdominal: 98cm. Pulsos pediosos e tibiais posteriores cheios e simétricos. Sensibilidade preservada ao monofilamento 10g.',
-        conduct: 'Metas atingidas satisfatoriamente. Mantida dose de Metformina 850mg 2x/dia e Sinvastatina 20mg à noite.',
-        cid: 'E11.9',
+        id: 'rec-2',
+        date: '28/09/2026 - 11:00',
+        doctor: 'Dr. Lucas Silveira',
+        crm: 'CRM/SP 142.890',
+        subject: 'Atendimento Domiciliar - Curativo Especial em Pé Diabético',
+        chiefComplaint: 'Acompanhamento domiciliar de úlcera neuropática em calcâneo esquerdo.',
+        hda: 'Paciente atendido na poltrona da sala de estar. Cuidadora relata troca diária de curativo oclusivo conforme protocolo da equipe.',
+        physicalExam: 'PA: 134/84 mmHg, FC: 80 bpm, Glicemia capilar pontual: 142 mg/dL. Lesão trófica de 2x1.5 cm com tecido de granulação ativo, sem sinais de infecção aguda ou exsudato purulento.',
+        conduct: 'Realizada limpeza com soro fisiológico 0.9% e aplicação de hidrogel com alginato de prata. Reforçado uso de calçado protetor com alívio de pressão.',
+        cid: 'E11.5',
         prescriptions: [
-          { drug: 'Cloridrato de Metformina 850mg', qty: '3 caixas', dosage: '1 comprimido VO após almoço e 1 comprimido após o jantar.' },
-          { drug: 'Sinvastatina 20mg', qty: '2 caixas', dosage: '1 comprimido VO à noite.' }
+          { drug: 'Hidrogel com Alginato', qty: '1 bisnaga', dosage: 'Aplicar fina camada no leito da lesão nas trocas de curativo.' }
         ],
-        requestedExams: ['Glicemia de Jejum', 'HbA1c', 'Microalbuminúria em amostra isolada']
+        requestedExams: ['Glicemia de Jejum', 'Hemoglobina Glicada']
       }
     ]
   }
 };
 
 export const COMMON_MEDICATIONS = [
+  { name: 'Cefalexina', defaultDose: '500 mg', defaultInstructions: '1 cápsula de 6 em 6 horas por 7 dias' },
+  { name: 'Enoxaparina Sódica', defaultDose: '40 mg/0.4ml', defaultInstructions: '1 aplicação SC ao dia' },
+  { name: 'Dipirona Sódica', defaultDose: '500 mg/ml', defaultInstructions: '35 a 40 gotas de 6/6h se dor ou febre' },
+  { name: 'Paracetamol', defaultDose: '750 mg', defaultInstructions: '1 comprimido até 3x ao dia se dor leve' },
   { name: 'Losartana Potássica', defaultDose: '50 mg', defaultInstructions: '1 comprimido pela manhã' },
-  { name: 'Cloridrato de Metformina', defaultDose: '850 mg', defaultInstructions: '1 comprimido 2 vezes ao dia com as refeições' },
-  { name: 'Amoxicilina + Clavulanato', defaultDose: '875mg + 125mg', defaultInstructions: '1 comprimido de 12 em 12 horas por 7 dias' },
-  { name: 'Dipirona Monoidratada', defaultDose: '500 mg', defaultInstructions: '1 comprimido até de 6 em 6 horas se dor ou febre' },
-  { name: 'Paracetamol', defaultDose: '750 mg', defaultInstructions: '1 comprimido até de 8 em 8 horas se dor' },
-  { name: 'Omeprazol', defaultDose: '20 mg', defaultInstructions: '1 cápsula pela manhã em jejum 30 min antes da refeição' },
-  { name: 'Sinvastatina', defaultDose: '20 mg', defaultInstructions: '1 comprimido ao deitar' },
-  { name: 'Clonazepam', defaultDose: '0.5 mg', defaultInstructions: '1 comprimido à noite se insônia' },
-  { name: 'Azitromicina', defaultDose: '500 mg', defaultInstructions: '1 comprimido ao dia por 5 dias' },
-  { name: 'Prednisolona', defaultDose: '20 mg', defaultInstructions: '1 comprimido pela manhã por 5 dias com desmame' }
+  { name: 'Metformina', defaultDose: '850 mg', defaultInstructions: '1 comprimido 2 vezes ao dia com as refeições' },
+  { name: 'Omeprazol', defaultDose: '20 mg', defaultInstructions: '1 cápsula pela manhã em jejum' },
+  { name: 'Alginato de Prata / Hidrogel', defaultDose: 'Tópico', defaultInstructions: 'Aplicar na lesão a cada troca de curativo domiciliar' }
 ];
 
 export const CLINIC_INFO = {
-  name: 'OmniSaúde Clínica Integrada',
+  name: 'OmniHome Care - Saúde Domiciliar Integrada',
   cnes: '7849102',
   cnpj: '12.345.678/0001-90',
-  address: 'Av. Paulista, 1842 - 14º Andar, Bela Vista - São Paulo / SP',
+  address: 'Central Operacional EMAD - Av. Paulista, 1000, São Paulo / SP',
   phone: '(11) 3254-8000',
   whatsapp: '(11) 99123-0000',
-  email: 'contato@omnisaude.com.br',
+  email: 'operacional@omnihomecare.com.br',
   director: 'Dr. Lucas Silveira - CRM/SP 142.890'
 };
