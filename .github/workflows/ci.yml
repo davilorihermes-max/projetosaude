@@ -1,14 +1,49 @@
-name: CI Pipeline
+name: CI - Projeto Saúde
 
 on:
   push:
-    branches: [main, feat/*]
+    branches: [main, develop, feat/*]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  test-and-build:
-    name: Lint, Test & Build
+  validate-backend:
+    name: Backend (Prisma, Types & Tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Prisma Schema
+        run: npx prisma validate
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Typecheck TypeScript
+        run: npx tsc --noEmit
+
+      - name: Run Unit Tests
+        run: npm test
+
+  validate-frontend-and-api:
+    name: Frontend & API (Vitest & Vite Build)
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: "file:./dev.db"
@@ -23,6 +58,7 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
         run: npm ci
@@ -40,4 +76,3 @@ jobs:
 
       - name: Build Application
         run: npm run build
-
