@@ -12,7 +12,6 @@ import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
 import PrescriptionPrintModal from './components/PrescriptionPrintModal';
 import NotificationsModal from './components/NotificationsModal';
-import ApiTesterView from './components/ApiTesterView';
 import LoginModal from './components/LoginModal';
 
 import {
@@ -279,10 +278,6 @@ export default function App() {
               doctors={DOCTORS}
               onResetData={handleResetData}
             />
-          )}
-
-          {activeTab === 'tester' && (
-            <ApiTesterView />
           )}
         </div>
       </main>
