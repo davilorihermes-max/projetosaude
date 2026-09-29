@@ -1,13 +1,13 @@
-name: CI Pipeline
+name: CI - Projeto Saúde
 
 on:
   push:
-    branches: [main, feat/*]
+    branches: [main, develop, feat/*]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  test-and-build:
+  validate-and-test:
     name: Lint, Test & Build
     runs-on: ubuntu-latest
 

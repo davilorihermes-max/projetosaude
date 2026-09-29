@@ -1,3 +1,8 @@
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
 # Logs
 logs
 *.log
@@ -7,21 +12,35 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# Builds e compilação
 dist
 dist-ssr
-*.local
+build/
+.next/
+out/
 
-# Editor directories and files
+# Variáveis de ambiente e segredos
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Banco de dados local SQLite
+*.db
+*.db-journal
+
+# Dados locais do Docker / Banco
+postgres_data/
+
+# IDEs e Sistema Operacional
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-*.db
-*.db-journal
-.env

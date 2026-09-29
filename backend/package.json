@@ -1,0 +1,29 @@
+{
+  "name": "projetosaude-backend",
+  "version": "0.1.0",
+  "description": "Backend API para Gestão de Atendimentos, Escalas, Check-in e Fechamento em Saúde",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "test": "npm run test:financial && npm run test:attendance && npm run test:clinical",
+    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts",
+    "test:attendance": "tsx src/modules/attendance/geofencing.calculator.test.ts",
+    "test:clinical": "tsx src/modules/clinical-records/clinical-records.test.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
