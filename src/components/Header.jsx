@@ -53,7 +53,7 @@ export default function Header({
             <KeyRound size={15} color={currentUser ? 'var(--success)' : 'var(--primary)'} />
           )}
           <span>
-            {currentUser ? `${currentUser.name} (JWT Ativo)` : 'Fazer Login (dr lucas)'}
+            {currentUser ? `${currentUser.name} (JWT Ativo)` : 'Entrar / Login'}
           </span>
         </button>
 
