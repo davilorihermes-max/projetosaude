@@ -3,6 +3,22 @@ node_modules/
 .pnp
 .pnp.js
 
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Builds e compilação
+dist
+dist-ssr
+build/
+.next/
+out/
+
 # Variáveis de ambiente e segredos
 .env
 .env.local
@@ -10,23 +26,21 @@ node_modules/
 .env.test.local
 .env.production.local
 
-# Logs e depuração
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Builds e compilação
-dist/
-build/
-.next/
-out/
+# Banco de dados local SQLite
+*.db
+*.db-journal
 
 # Dados locais do Docker / Banco
 postgres_data/
 
 # IDEs e Sistema Operacional
-.vscode/
-.idea/
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
 Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

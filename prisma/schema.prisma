@@ -1,0 +1,80 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         String        @default("PROFESSIONAL") // "ADMIN", "PROFESSIONAL", "PATIENT"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  professional Professional?
+}
+
+model Professional {
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crm          String
+  specialty    String
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  careTeams    CareTeamMember[]
+  appointments Appointment[]
+}
+
+model Patient {
+  id              String           @id @default(cuid())
+  name            String
+  cpf             String           @unique
+  email           String?
+  phone           String?
+  latitude        Float
+  longitude       Float
+  address         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  careTeamMembers CareTeamMember[]
+  appointments    Appointment[]
+}
+
+model CareTeamMember {
+  id             String       @id @default(cuid())
+  patientId      String
+  patient        Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  role           String       @default("PRIMARY_CARE") // "PRIMARY_CARE", "SPECIALIST", "NURSE"
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([patientId, professionalId])
+}
+
+model Appointment {
+  id              String       @id @default(cuid())
+  professionalId  String
+  professional    Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  scheduledTime   DateTime
+  durationMinutes Int          @default(45)
+  status          String       @default("SCHEDULED") // "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
+  latitude        Float?
+  longitude       Float?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}

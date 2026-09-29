@@ -1,0 +1,353 @@
+// src/App.jsx
+import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Dashboard from './components/Dashboard';
+import ScheduleView from './components/ScheduleView';
+import PatientsView from './components/PatientsView';
+import MedicalRecordView from './components/MedicalRecordView';
+import PrescriptionsView from './components/PrescriptionsView';
+import ClinicSettingsView from './components/ClinicSettingsView';
+import NewAppointmentModal from './components/NewAppointmentModal';
+import NewPatientModal from './components/NewPatientModal';
+import PrescriptionPrintModal from './components/PrescriptionPrintModal';
+import NotificationsModal from './components/NotificationsModal';
+import LoginModal from './components/LoginModal';
+
+import {
+  DOCTORS,
+  INITIAL_PATIENTS,
+  INITIAL_APPOINTMENTS,
+  INITIAL_CLINICAL_RECORDS
+} from './data/mockData';
+
+export default function App() {
+  // Theme state
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('omnisaude_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('omnisaude_theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('omnisaude_theme', 'light');
+    }
+  }, [darkMode]);
+
+  // Main navigation tab
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Core Data States (with LocalStorage)
+  const [patients, setPatients] = useState(() => {
+    const saved = localStorage.getItem('omnihome_patients_v2');
+    return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
+  });
+
+  const [appointments, setAppointments] = useState(() => {
+    const saved = localStorage.getItem('omnihome_appointments_v2');
+    return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+  });
+
+  const [clinicalRecords, setClinicalRecords] = useState(() => {
+    const saved = localStorage.getItem('omnihome_records_v2');
+    return saved ? JSON.parse(saved) : INITIAL_CLINICAL_RECORDS;
+  });
+
+  // Active Doctor & Selected Patient for PEP
+  const [selectedDoctorId, setSelectedDoctorId] = useState('doc-1');
+  const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
+
+  // Active Authenticated User (JWT)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('omnihome_user');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      id: 'cmukamckz000112nvi9obl3j5',
+      name: 'Dr. Lucas Silveira',
+      email: 'lucas@omnisaude.com.br',
+      role: 'PROFESSIONAL'
+    };
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Search Query
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modals state
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [modalInitialPatientId, setModalInitialPatientId] = useState(null);
+  const [modalInitialTime, setModalInitialTime] = useState('09:00');
+
+  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [prescriptionModalData, setPrescriptionModalData] = useState(null);
+
+  // Home Care Operational Notifications
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'notif-1',
+      type: 'alert',
+      title: 'Alergia Grave no Domicílio',
+      description: 'Mariana Souza Lima possui alergia severa a Penicilina e Dipirona.',
+      time: 'Há 15 min'
+    },
+    {
+      id: 'notif-2',
+      type: 'lab',
+      title: 'Check-in Realizado com Sucesso',
+      description: 'Dr. Lucas Silveira iniciou sessão domiciliar em Pinheiros (Roberto Carlos).',
+      time: 'Há 25 min'
+    },
+    {
+      id: 'notif-3',
+      type: 'info',
+      title: 'Confirmação do Cuidador',
+      description: 'Cuidadora de Juliana confirmou presença para a sessão respiratória das 14:00.',
+      time: 'Há 1 hora'
+    }
+  ]);
+
+  // Sync to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('omnihome_patients_v2', JSON.stringify(patients));
+  }, [patients]);
+
+  useEffect(() => {
+    localStorage.setItem('omnihome_appointments_v2', JSON.stringify(appointments));
+  }, [appointments]);
+
+  useEffect(() => {
+    localStorage.setItem('omnihome_records_v2', JSON.stringify(clinicalRecords));
+  }, [clinicalRecords]);
+
+  // Active doctor object
+  const activeDoctor = DOCTORS.find((d) => d.id === selectedDoctorId) || DOCTORS[0];
+  const activePatient = patients.find((p) => p.id === activePatientId) || patients[0];
+
+  // Actions
+  const handleUpdateAppointmentStatus = (aptId, newStatus) => {
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === aptId ? { ...apt, status: newStatus } : apt))
+    );
+  };
+
+  const handleOpenPatientRecord = (patientId) => {
+    if (patientId) {
+      setActivePatientId(patientId);
+    }
+    setActiveTab('records');
+  };
+
+  const handleOpenNewAppointment = (patientId = null, time = '09:00') => {
+    setModalInitialPatientId(patientId);
+    setModalInitialTime(time);
+    setIsAppointmentModalOpen(true);
+  };
+
+  const handleSaveAppointment = (newApt) => {
+    setAppointments((prev) => [newApt, ...prev]);
+  };
+
+  const handleSavePatient = (newPatient) => {
+    setPatients((prev) => [newPatient, ...prev]);
+    setActivePatientId(newPatient.id);
+  };
+
+  const handleSaveNewEvolution = (patientId, newRecordItem) => {
+    setClinicalRecords((prev) => {
+      const existing = prev[patientId] || { timeline: [], diagnoses: [], currentMedications: [] };
+      return {
+        ...prev,
+        [patientId]: {
+          ...existing,
+          timeline: [newRecordItem, ...(existing.timeline || [])]
+        }
+      };
+    });
+  };
+
+  const handleResetData = () => {
+    if (window.confirm('Deseja restaurar todos os dados para os valores de demonstração padrão?')) {
+      setPatients(INITIAL_PATIENTS);
+      setAppointments(INITIAL_APPOINTMENTS);
+      setClinicalRecords(INITIAL_CLINICAL_RECORDS);
+      localStorage.removeItem('omnisaude_patients');
+      localStorage.removeItem('omnisaude_appointments');
+      localStorage.removeItem('omnisaude_records');
+      alert('Dados restaurados com sucesso!');
+    }
+  };
+
+  // Waiting in reception count
+  const waitingCount = appointments.filter(
+    (a) => a.date === '2026-09-27' && a.status === 'waiting'
+  ).length;
+
+  return (
+    <div className="app-container">
+      {/* Sidebar Navigation */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        waitingCount={waitingCount}
+        doctor={activeDoctor}
+        currentUser={currentUser}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+      />
+
+      {/* Main Content Area */}
+      <main className="main-content">
+        <Header
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          selectedDoctorId={selectedDoctorId}
+          setSelectedDoctorId={setSelectedDoctorId}
+          doctors={DOCTORS}
+          currentUser={currentUser}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
+          onOpenNewAppointment={() => handleOpenNewAppointment()}
+          onOpenNewPatient={() => setIsPatientModalOpen(true)}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+          unreadCount={notifications.length}
+        />
+
+        <div className="content-body">
+          {activeTab === 'dashboard' && (
+            <Dashboard
+              appointments={appointments}
+              patients={patients}
+              doctors={DOCTORS}
+              onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+              onOpenPatientRecord={handleOpenPatientRecord}
+              onOpenNewAppointment={() => handleOpenNewAppointment()}
+              activeDoctor={activeDoctor}
+            />
+          )}
+
+          {activeTab === 'schedule' && (
+            <ScheduleView
+              appointments={appointments}
+              patients={patients}
+              doctors={DOCTORS}
+              onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+              onOpenPatientRecord={handleOpenPatientRecord}
+              onOpenNewAppointment={handleOpenNewAppointment}
+              selectedDoctorId={selectedDoctorId}
+            />
+          )}
+
+          {activeTab === 'patients' && (
+            <PatientsView
+              patients={patients}
+              onOpenPatientRecord={handleOpenPatientRecord}
+              onOpenNewPatient={() => setIsPatientModalOpen(true)}
+              onOpenNewAppointment={handleOpenNewAppointment}
+            />
+          )}
+
+          {activeTab === 'records' && (
+            <MedicalRecordView
+              patient={activePatient}
+              allPatients={patients}
+              onSelectPatient={(p) => setActivePatientId(p.id)}
+              clinicalRecords={clinicalRecords}
+              onSaveNewEvolution={handleSaveNewEvolution}
+              onOpenPrescriptionModal={setPrescriptionModalData}
+              activeDoctor={activeDoctor}
+            />
+          )}
+
+          {activeTab === 'prescriptions' && (
+            <PrescriptionsView
+              patients={patients}
+              doctors={DOCTORS}
+              onOpenPrescriptionModal={setPrescriptionModalData}
+              activeDoctor={activeDoctor}
+            />
+          )}
+
+          {activeTab === 'clinic' && (
+            <ClinicSettingsView
+              doctors={DOCTORS}
+              onResetData={handleResetData}
+            />
+          )}
+        </div>
+      </main>
+
+      {/* Modals */}
+      <NewAppointmentModal
+        isOpen={isAppointmentModalOpen}
+        onClose={() => setIsAppointmentModalOpen(false)}
+        patients={patients}
+        doctors={DOCTORS}
+        onSaveAppointment={handleSaveAppointment}
+        initialPatientId={modalInitialPatientId}
+        initialTime={modalInitialTime}
+      />
+
+      <NewPatientModal
+        isOpen={isPatientModalOpen}
+        onClose={() => setIsPatientModalOpen(false)}
+        onSavePatient={handleSavePatient}
+      />
+
+      <PrescriptionPrintModal
+        isOpen={!!prescriptionModalData}
+        onClose={() => setPrescriptionModalData(null)}
+        data={prescriptionModalData}
+      />
+
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={notifications}
+        onClearAll={() => setNotifications([])}
+      />
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        currentUser={currentUser}
+        onLoginSuccess={(user, token) => {
+          setCurrentUser(user);
+          if (user.name.toLowerCase().includes('lucas')) {
+            setSelectedDoctorId('doc-1');
+          }
+          setNotifications((prev) => [
+            {
+              id: `notif-${Date.now()}`,
+              type: 'info',
+              title: 'Login Realizado com Sucesso',
+              description: `Conectado como ${user.name} (${user.role}) via Fastify JWT.`,
+              time: 'Agora'
+            },
+            ...prev
+          ]);
+        }}
+        onLogout={() => {
+          setCurrentUser(null);
+          localStorage.removeItem('omnihome_jwt');
+          localStorage.removeItem('omnihome_user');
+          setNotifications((prev) => [
+            {
+              id: `notif-${Date.now()}`,
+              type: 'alert',
+              title: 'Sessão Encerrada',
+              description: 'O usuário foi desconectado.',
+              time: 'Agora'
+            },
+            ...prev
+          ]);
+        }}
+      />
+    </div>
+  );
+}
