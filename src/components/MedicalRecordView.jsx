@@ -38,20 +38,31 @@ export default function MedicalRecordView({
   const [conduct, setConduct] = useState('');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
 
-  // Selected exams state
+  // Selected & available exams state (supports all complexities and pathology types)
   const [selectedExams, setSelectedExams] = useState(['Hemograma Completo', 'Glicemia de Jejum']);
-  const availableExams = [
-    'Hemograma Completo',
-    'Glicemia de Jejum',
-    'Hemoglobina Glicada (HbA1c)',
+  const [customExam, setCustomExam] = useState('');
+  const [availableExams, setAvailableExams] = useState([
+    'Hemograma Completo c/ Plaquetas',
+    'Gasometria Arterial / Equilíbrio Ácido-Básico',
+    'Cultura de Secreção Traqueal c/ Antibiograma',
+    'Urina Tipo I (EAS) & Urocultura c/ Antibiograma',
+    'Glicemia de Jejum & Hemoglobina Glicada',
+    'PCR Ultrassensível & Procalcitonina',
     'Perfil Lipídico Completo',
-    'Creatinina e Ureia',
-    'TSH e T4 Livre',
-    'Urina Tipo I (EAS)',
-    'Eletrocardiograma (ECG)',
-    'Raio-X de Tórax (PA e Perfil)',
-    'Ultrassonografia Abdominal Total'
-  ];
+    'Eletrólitos Séricos (Sódio, Potássio, Magnésio, Cálcio Iônico)',
+    'Creatinina, Ureia & Clearance Renal',
+    'Função Hepática (TGO, TGP, Gama-GT, Bilirrubinas)',
+    'Coagulograma Completo (TP, TTPA, INR, D-Dímero)',
+    'Marcadores Cardíacos (Troponina I, BNP / NT-proBNP)',
+    'Albumina Sérica & Pré-Albumina (Avaliação Nutricional)',
+    'Eletrocardiograma (ECG) Domiciliar de 12 Derivações',
+    'Raio-X de Tórax e Abdome no Leito',
+    'Ultrassonografia com Doppler Vascular / Geral no Domicílio',
+    'Ecocardiograma Transtorácico Domiciliar',
+    'Eletroneuromiografia / Potencial Evocado',
+    'Painel Genético / Sequenciamento de Exoma',
+    'Polissonografia Domiciliar Noturna'
+  ]);
 
   if (!patient) {
     return (
@@ -440,19 +451,59 @@ export default function MedicalRecordView({
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '1rem' }}>
             <div className="form-group">
-              <label className="form-label">Hipótese Diagnóstica (CID-10 ou CIF)</label>
-              <select className="form-select" value={cid} onChange={(e) => setCid(e.target.value)}>
-                <option value="Z96.6 - Presença de implante articular ortopédico">Z96.6 - Pós-operatório ortopédico</option>
-                <option value="I10 - Hipertensão essencial">I10 - Hipertensão essencial</option>
-                <option value="E11.5 - Diabetes com complicações circulatórias / Pé diabético">E11.5 - Pé diabético / Neuropatia</option>
-                <option value="J45 - Asma sob oxigenoterapia">J45 - Asma grave domiciliar</option>
-                <option value="G81 - Hemiplegia / Pós-AVC acamado">G81 - Sequela de AVC / Acamado</option>
-                <option value="L89 - Úlcera por pressão">L89 - Úlcera por pressão / Curativo</option>
-                <option value="R13 - Disfagia / Reabilitação fonoaudiológica">R13 - Disfagia / Deglutição</option>
-                <option value="Z74.0 - Necessidade de assistência motora e acamado">Z74.0 - Reabilitação Motora no Leito</option>
-              </select>
+              <label className="form-label">Diagnóstico, CID-10, CIF ou Condição Clínica (Qualquer Patologia)</label>
+              <input
+                type="text"
+                list="cid-suggestions-list"
+                className="form-input"
+                placeholder="Digite ou selecione qualquer patologia (Ex: G12.2 - ELA, C71 - Glioblastoma, Z99.1 - Ventilação Mecânica...)"
+                value={cid}
+                onChange={(e) => setCid(e.target.value)}
+              />
+              <datalist id="cid-suggestions-list">
+                {/* Doenças Neuromusculares e Neurodegenerativas */}
+                <option value="G12.2 - Esclerose Lateral Amiotrófica (ELA) / Doença do Neurônio Motor" />
+                <option value="Z99.1 - Dependência Contínua de Respirador / Ventilação Mecânica" />
+                <option value="G12.0 - Atrofia Muscular Espinhal (AME Tipos 1, 2, 3)" />
+                <option value="G71.0 - Distrofia Muscular (Duchenne, Becker, Cinturas)" />
+                <option value="G35 - Esclerose Múltipla / Doenças Desmielinizantes" />
+                <option value="G20 - Doença de Parkinson Avançada com Instabilidade Postural" />
+                <option value="F03 - Demência Avançada / Alzheimer em Fase de Acamamento" />
+                <option value="G80 - Paralisia Cerebral Espástica / Encefalopatia Crônica" />
+                <option value="G81.9 - Hemiplegia / Sequelas Motoras Graves de AVC Isquêmico/Hemorrágico" />
+                <option value="G61.0 - Síndrome de Guillain-Barré em Reabilitação Prolongada" />
+                <option value="G70.0 - Miastenia Gravis com Comprometimento Respiratório" />
+                {/* Oncologia e Cuidados Paliativos */}
+                <option value="C71 - Neoplasia Maligna do Encéfalo / Glioblastoma Multiforme" />
+                <option value="C34 - Câncer de Pulmão Avançado em Cuidados Domiciliares" />
+                <option value="C50 - Neoplasia de Mama com Metástase Óssea / Visceral" />
+                <option value="C90 - Mieloma Múltiplo em Suporte Domiciliar" />
+                <option value="Z51.5 - Cuidados Paliativos Domiciliares Exclusivos / Controle Álgico" />
+                {/* Doenças Respiratórias e Alta Complexidade */}
+                <option value="J96.1 - Insuficiência Respiratória Crônica em Oxigenoterapia Domiciliar" />
+                <option value="J44.1 - DPOC Grave Exacerbada com Suporte Ventilatório (BiPAP/CPAP)" />
+                <option value="J84.1 - Fibrose Pulmonar Idiopática Avançada" />
+                <option value="E84.0 - Fibrose Cística / Mucoviscidose com Bronquiectasias" />
+                {/* Doenças Metabólicas, Renais e Cardiovasculares */}
+                <option value="E11.5 - Diabetes Tipo 2 Descompensada com Pé Diabético & Isquemia" />
+                <option value="I50.9 - Insuficiência Cardíaca Congestiva Refratária (Classe IV)" />
+                <option value="I10 - Hipertensão Arterial Sistêmica Grave com Lesão em Órgão-Alvo" />
+                <option value="N18.5 - Doença Renal Crônica Terminal em Terapia Conservadora ou Peritoneal" />
+                {/* Feridas Complexas, Cirurgia e Dispositivos */}
+                <option value="L89.3 - Lesão por Pressão Grau III / IV em Sacro / Trocânteres" />
+                <option value="T81.3 - Deiscência de Ferida Operatória com Terapia por Pressão Negativa" />
+                <option value="Z93.0 - Traqueostomia com Necessidade de Aspiração Contínua" />
+                <option value="Z93.1 - Gastrostomia (GTT) / Suporte Enteral Contínuo" />
+                <option value="Z93.3 - Colostomia / Ileostomia de Alto Débito" />
+                <option value="Z96.6 - Pós-Operatório de Artroplastia / Cirurgias Ortopédicas Complexas" />
+                <option value="T07 - Politraumatismo Grave / Sequelas de Traumatismo Cranioencefálico (TCE)" />
+                {/* Fonoaudiologia, Deglutição e Nutrição */}
+                <option value="R13 - Disfagia Orofaríngea Severa com Risco Elevado de Broncoaspiração" />
+                <option value="Z74.0 - Necessidade de Assistência Motora & Mobilização Diária no Leito" />
+                <option value="F32.3 - Transtorno Depressivo Maior com Sintomas Catatônicos no Domicílio" />
+              </datalist>
             </div>
 
             <div className="form-group">
@@ -484,22 +535,50 @@ export default function MedicalRecordView({
       {/* TAB 4: Exam Orders */}
       {activeTab === 'exams' && (
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Solicitação de Exames Complementares</h3>
+              <h3 style={{ fontSize: '1.15rem' }}>Solicitação de Exames Complementares & Diagnósticos</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Selecione os exames que o paciente deverá realizar.
+                Selecione ou adicione qualquer pedido de exame laboratorial, diagnóstico por imagem ou teste especializado no leito.
               </p>
             </div>
             <button
               className="btn btn-primary"
               onClick={() => alert(`Pedido com ${selectedExams.length} exames gerado para o paciente ${patient.name}!`)}
             >
-              <Printer size={16} /> Emitir Guia de Exames
+              <Printer size={16} /> Emitir Guia de Exames ({selectedExams.length})
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+          {/* Quick custom exam add */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!customExam.trim()) return;
+              const formatted = customExam.trim();
+              if (!availableExams.includes(formatted)) {
+                setAvailableExams([formatted, ...availableExams]);
+              }
+              if (!selectedExams.includes(formatted)) {
+                setSelectedExams([...selectedExams, formatted]);
+              }
+              setCustomExam('');
+            }}
+            style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}
+          >
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Digite o nome de qualquer exame específico, painel genético, cultura, gasometria ou imagem..."
+              value={customExam}
+              onChange={(e) => setCustomExam(e.target.value)}
+            />
+            <button type="submit" className="btn btn-outline-primary" style={{ flexShrink: 0 }}>
+              <PlusCircle size={16} /> Incluir Exame
+            </button>
+          </form>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '0.75rem' }}>
             {availableExams.map((exam, idx) => {
               const isChecked = selectedExams.includes(exam);
               return (
@@ -524,7 +603,7 @@ export default function MedicalRecordView({
                     onChange={() => toggleExam(exam)}
                     style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
                   />
-                  <span style={{ fontSize: '0.85rem', fontWeight: isChecked ? 700 : 500, color: 'var(--text-headline)' }}>
+                  <span style={{ fontSize: '0.825rem', fontWeight: isChecked ? 700 : 500, color: 'var(--text-headline)' }}>
                     {exam}
                   </span>
                 </label>

@@ -19,6 +19,9 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
   const [caregiver, setCaregiver] = useState('');
   const [accessNotes, setAccessNotes] = useState('');
   const [mobilityStatus, setMobilityStatus] = useState('Deambula sem auxílio');
+  const [diagnosesText, setDiagnosesText] = useState('');
+  const [careLevel, setCareLevel] = useState('Alta Complexidade (Suporte de Vida / Ventilação / Terapias)');
+  const [devicesInUse, setDevicesInUse] = useState('');
 
   if (!isOpen) return null;
 
@@ -53,7 +56,9 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
       allergies,
       weight: parseFloat(weight) || 70,
       height: parseFloat(height) || 1.70,
-      chronicConditions: [],
+      chronicConditions: diagnosesText ? diagnosesText.split(',').map((s) => s.trim()).filter(Boolean) : ['Avaliação Multidisciplinar Global'],
+      careLevel,
+      devicesInUse,
       vitalsHistory: [
         {
           date: 'Hoje',
@@ -260,6 +265,40 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
                   placeholder="Ex: Interfone 42, portão automático, vaga de visitante autorizada..."
                   value={accessNotes}
                   onChange={(e) => setAccessNotes(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Diagnósticos Clínicos / Patologias Principais (Qualquer Doença)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: ELA, Glioblastoma, DPOC em VM, AME, Paralisia Cerebral, Pós-Artroplastia..."
+                    value={diagnosesText}
+                    onChange={(e) => setDiagnosesText(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nível de Complexidade da Atenção Domiciliar</label>
+                  <select className="form-select" value={careLevel} onChange={(e) => setCareLevel(e.target.value)}>
+                    <option value="Alta Complexidade (Suporte de Vida / Ventilação / Terapias)">Alta Complexidade (Suporte Vital / VM)</option>
+                    <option value="Média Complexidade (Curativos Complexos / GTT / SNE)">Média Complexidade (Curativos / GTT / SNE)</option>
+                    <option value="Reabilitação Neurofuncional & Doenças Raras">Reabilitação Neurofuncional & Raras</option>
+                    <option value="Cuidados Paliativos & Suporte de Conforto">Cuidados Paliativos & Conforto</option>
+                    <option value="Acompanhamento Clínico Multidisciplinar">Acompanhamento Clínico</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Dispositivos Médicos & Suporte Tecnológico no Leito</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Ex: Ventilador Mecânico BiPAP/Trilogy, Cânula de Traqueostomia, Gastrostomia (GTT), Bomba de Infusão..."
+                  value={devicesInUse}
+                  onChange={(e) => setDevicesInUse(e.target.value)}
                 />
               </div>
 

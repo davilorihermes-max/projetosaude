@@ -321,42 +321,52 @@ export default function Dashboard({
             </div>
           </div>
 
-          {/* Equipe Multidisciplinar (Care Team) */}
+          {/* Perfil Clínico e Níveis de Complexidade */}
           <div className="card">
             <div className="section-header">
               <h2 className="section-title">
                 <Home size={18} color="var(--accent)" />
-                Perfil dos Pacientes em Domicílio
+                Perfil Clínico & Complexidade Domiciliar
               </h2>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Pós-operatório & Reabilitação</span>
-                <span style={{ color: '#0284c7' }}>40%</span>
+                <span>Alta Complexidade & Suporte Ventilatório (BiPAP/VM)</span>
+                <span style={{ color: '#0284c7' }}>30%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '40%', background: '#0284c7' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '30%', background: '#0284c7' }}></div>
               </div>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Controle de Doenças Crônicas / Feridas</span>
-                <span style={{ color: '#059669' }}>35%</span>
+                <span>Doenças Neurodegenerativas, Raras & Reabilitação</span>
+                <span style={{ color: '#9333ea' }}>25%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '35%', background: '#059669' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '25%', background: '#9333ea' }}></div>
               </div>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Acamados de Alta Complexidade</span>
+                <span>Oncologia & Cuidados Paliativos Domiciliares</span>
                 <span style={{ color: '#d97706' }}>25%</span>
               </div>
               <div className="specialty-bar-track">
                 <div className="specialty-bar-fill" style={{ width: '25%', background: '#d97706' }}></div>
+              </div>
+            </div>
+
+            <div className="specialty-row">
+              <div className="specialty-meta">
+                <span>Pós-Cirúrgico Complexo, Feridas & Doenças Crônicas</span>
+                <span style={{ color: '#059669' }}>20%</span>
+              </div>
+              <div className="specialty-bar-track">
+                <div className="specialty-bar-fill" style={{ width: '20%', background: '#059669' }}></div>
               </div>
             </div>
           </div>

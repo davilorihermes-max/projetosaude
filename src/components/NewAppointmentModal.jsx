@@ -263,17 +263,46 @@ export default function NewAppointmentModal({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Tipo de Atendimento / Sessão</label>
-                <select className="form-select" value={type} onChange={(e) => setType(e.target.value)}>
-                  <option value="Sessão Médica Domiciliar">Sessão Médica Domiciliar</option>
-                  <option value="Fisioterapia Motora & Funcional no Leito">Fisioterapia Motora & Funcional no Leito</option>
-                  <option value="Fisioterapia Cardiorrespiratória">Fisioterapia Cardiorrespiratória</option>
-                  <option value="Curativo Especial & Estomaterapia (Enfermagem)">Curativo Especial & Estomaterapia (Enfermagem)</option>
-                  <option value="Visita de Enfermagem & Administração de Cuidados">Visita de Enfermagem & Administração de Cuidados</option>
-                  <option value="Reabilitação de Disfagia & Deglutição (Fonoaudiologia)">Reabilitação de Disfagia & Deglutição (Fonoaudiologia)</option>
-                  <option value="Avaliação Nutricional & Terapia Enteral">Avaliação Nutricional & Terapia Enteral</option>
-                  <option value="Avaliação Multidisciplinar Inicial para Home Care">Avaliação Multidisciplinar Inicial para Home Care</option>
-                </select>
+                <label className="form-label">Tipo de Sessão / Procedimento Clínico *</label>
+                <input
+                  type="text"
+                  list="session-types-datalist"
+                  className="form-input"
+                  placeholder="Selecione ou digite qualquer tipo de atendimento (Ex: Ventilação Mecânica, Quimioterapia, Fisioterapia ELA, GTT...)"
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  required
+                />
+                <datalist id="session-types-datalist">
+                  {/* Alta Complexidade & Terapia Intensiva Domiciliar */}
+                  <option value="Manejo de Ventilação Mecânica Invasiva & Aspiração Traqueal" />
+                  <option value="Fisioterapia Cardiorrespiratória & Desmame Ventilatório" />
+                  <option value="Troca e Cuidados de Cânula de Traqueostomia com Cuff" />
+                  <option value="Cuidados com Gastrostomia (GTT) & Sonda Nasoenteral (SNE)" />
+                  <option value="Manejo de Terapia Nutricional Parenteral Total (NPT)" />
+                  {/* Terapias Infusionais, Oncologia & Cuidados Paliativos */}
+                  <option value="Quimioterapia & Terapia Biológica Infusional no Domicílio" />
+                  <option value="Punção, Heparinização e Curativo de Port-a-Cath / PICC" />
+                  <option value="Cuidados Paliativos Domiciliares & Hipodermóclise Contínua" />
+                  <option value="Manejo de Sintomas Refratários & Controle Álgico" />
+                  {/* Reabilitação Neurofuncional & Doenças Raras */}
+                  <option value="Cinesioterapia Motora em Doença Neurodegenerativa (ELA / AME)" />
+                  <option value="Reabilitação Neurofuncional Intensiva (Pós-AVC / TCE Grave)" />
+                  <option value="Estimulação Precoce & Fisioterapia Neuropediátrica" />
+                  <option value="Reabilitação de Deglutição (Disfagia) & Treino de Fala (Fonoaudiologia)" />
+                  <option value="Comunicação Alternativa e Aumentativa (CAA / Fonoaudiologia)" />
+                  {/* Enfermagem & Feridas Complexas */}
+                  <option value="Curativo de Alta Complexidade & Terapia por Pressão Negativa (V.A.C.)" />
+                  <option value="Desbridamento Instrumental / Enzimático de Lesão por Pressão Grau IV" />
+                  <option value="Tratamento Avançado de Pé Diabético & Úlceras Vasculogênicas" />
+                  <option value="Manejo e Troca de Bolsa de Estomia (Colostomia / Ileostomia)" />
+                  {/* Avaliação Multidisciplinar & Apoio */}
+                  <option value="Avaliação Nutricional Clínica & Cálculo Calórico Domiciliar" />
+                  <option value="Sessão de Psicoterapia Domiciliar & Apoio à Família / Cuidador" />
+                  <option value="Terapia Ocupacional, Tecnologia Assistiva & Adaptação no Lar" />
+                  <option value="Consulta Médica Domiciliar Especializada & Prescrição Global" />
+                  <option value="Avaliação Multidisciplinar Inicial para Internação Domiciliar" />
+                </datalist>
               </div>
             </div>
 
