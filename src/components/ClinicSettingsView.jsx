@@ -141,10 +141,10 @@ export default function ClinicSettingsView({
             />
             <div>
               <strong style={{ fontSize: '0.9rem', color: 'var(--text-headline)' }}>
-                Lembrete de Medicamentos & Retorno Clínico
+                Lembrete de Sessão & Retorno Clínico
               </strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Notifica o paciente próximo à data indicada pelo médico para novo check-up.
+                Notifica o paciente e familiares próximo à data indicada para nova visita domiciliar.
               </p>
             </div>
           </label>

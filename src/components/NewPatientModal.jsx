@@ -265,12 +265,12 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
 
               <div className="form-group">
                 <label className="form-label" style={{ color: '#e11d48' }}>
-                  Alergias Medicamentosas ou Alimentares (Separadas por vírgula)
+                  Alergias e Restrições Conhecidas (Separadas por vírgula)
                 </label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Penicilina, Sulfa, Frutos do mar..."
+                  placeholder="Ex: Penicilina, Dipirona, Frutos do mar..."
                   value={allergiesText}
                   onChange={(e) => setAllergiesText(e.target.value)}
                 />

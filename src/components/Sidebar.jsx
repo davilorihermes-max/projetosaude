@@ -5,7 +5,6 @@ import {
   CalendarDays,
   FileHeart,
   Users,
-  Pill,
   Moon,
   Sun,
   Activity,
@@ -29,7 +28,6 @@ export default function Sidebar({
     { id: 'schedule', label: 'Agenda & Deslocamento', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} a realizar` : null },
     { id: 'patients', label: 'Pacientes & Domicílios', icon: Users },
     { id: 'records', label: 'PEP Domiciliar', icon: FileHeart },
-    { id: 'prescriptions', label: 'Receituário Domiciliar', icon: Pill },
     { id: 'clinic', label: 'Central Operacional', icon: Settings }
   ];
 

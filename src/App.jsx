@@ -6,11 +6,9 @@ import Dashboard from './components/Dashboard';
 import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
 import MedicalRecordView from './components/MedicalRecordView';
-import PrescriptionsView from './components/PrescriptionsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
-import PrescriptionPrintModal from './components/PrescriptionPrintModal';
 import NotificationsModal from './components/NotificationsModal';
 import LoginModal from './components/LoginModal';
 
@@ -85,7 +83,6 @@ export default function App() {
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [prescriptionModalData, setPrescriptionModalData] = useState(null);
 
   // Home Care Operational Notifications
   const [notifications, setNotifications] = useState([
@@ -259,16 +256,6 @@ export default function App() {
               onSelectPatient={(p) => setActivePatientId(p.id)}
               clinicalRecords={clinicalRecords}
               onSaveNewEvolution={handleSaveNewEvolution}
-              onOpenPrescriptionModal={setPrescriptionModalData}
-              activeDoctor={activeDoctor}
-            />
-          )}
-
-          {activeTab === 'prescriptions' && (
-            <PrescriptionsView
-              patients={patients}
-              doctors={DOCTORS}
-              onOpenPrescriptionModal={setPrescriptionModalData}
               activeDoctor={activeDoctor}
             />
           )}
@@ -299,11 +286,6 @@ export default function App() {
         onSavePatient={handleSavePatient}
       />
 
-      <PrescriptionPrintModal
-        isOpen={!!prescriptionModalData}
-        onClose={() => setPrescriptionModalData(null)}
-        data={prescriptionModalData}
-      />
 
       <NotificationsModal
         isOpen={isNotificationsOpen}

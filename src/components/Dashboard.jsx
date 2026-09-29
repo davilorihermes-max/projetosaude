@@ -293,9 +293,9 @@ export default function Dashboard({
             <div className="alert-card-item alert-danger-soft">
               <AlertCircle size={20} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Alergia Medicamentosa: Mariana Souza Lima</strong>
+                <strong>Alerta de Atenção Clínica: Mariana Souza Lima</strong>
                 <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
-                  Alergia a <strong>Penicilina</strong> e <strong>Dipirona</strong>. Certificar-se antes de aplicar qualquer medicação injetável ou oral no domicílio.
+                  Restrições clínicas registradas no PEP domiciliar. Conferir conduta antes de procedimentos invasivos.
                 </p>
               </div>
             </div>

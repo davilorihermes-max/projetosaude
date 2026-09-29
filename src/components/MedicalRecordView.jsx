@@ -1,4 +1,3 @@
-// src/components/MedicalRecordView.jsx
 import React, { useState } from 'react';
 import {
   User,
@@ -10,7 +9,6 @@ import {
   AlertTriangle,
   FileText,
   PlusCircle,
-  Pill,
   ClipboardList,
   Printer,
   Calendar,
@@ -20,7 +18,6 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { COMMON_MEDICATIONS } from '../data/mockData';
 import './MedicalRecordView.css';
 
 export default function MedicalRecordView({
@@ -29,10 +26,9 @@ export default function MedicalRecordView({
   onSelectPatient,
   clinicalRecords = {},
   onSaveNewEvolution,
-  onOpenPrescriptionModal,
   activeDoctor
 }) {
-  const [activeTab, setActiveTab] = useState('timeline'); // 'timeline' | 'new_evolution' | 'prescriptions' | 'exams'
+  const [activeTab, setActiveTab] = useState('timeline'); // 'timeline' | 'new_evolution' | 'exams'
 
   // New evolution form state
   const [chiefComplaint, setChiefComplaint] = useState('');
@@ -41,13 +37,6 @@ export default function MedicalRecordView({
   const [cid, setCid] = useState('Z00.0 - Exame médico geral');
   const [conduct, setConduct] = useState('');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
-
-  // New prescription state inside PEP
-  const [prescribedMeds, setPrescribedMeds] = useState([
-    { drug: 'Losartana Potássica 50mg', qty: '1 caixa', dosage: 'Tomar 1 comp VO 1x ao dia pela manhã.' }
-  ]);
-  const [newMedName, setNewMedName] = useState('');
-  const [newMedDosage, setNewMedDosage] = useState('');
 
   // Selected exams state
   const [selectedExams, setSelectedExams] = useState(['Hemograma Completo', 'Glicemia de Jejum']);
@@ -112,22 +101,6 @@ export default function MedicalRecordView({
     spo2: 98
   };
 
-  const handleAddMed = (e) => {
-    e.preventDefault();
-    if (!newMedName) return;
-    setPrescribedMeds([
-      ...prescribedMeds,
-      { drug: newMedName, qty: '1 caixa', dosage: newMedDosage || 'Conforme orientação médica.' }
-    ]);
-    setNewMedName('');
-    setNewMedDosage('');
-  };
-
-  const handleSelectPredefined = (med) => {
-    setNewMedName(`${med.name} ${med.defaultDose}`);
-    setNewMedDosage(med.defaultInstructions);
-  };
-
   const handleSaveEvolution = (e) => {
     e.preventDefault();
     if (!chiefComplaint || !conduct) {
@@ -146,7 +119,6 @@ export default function MedicalRecordView({
       physicalExam,
       conduct,
       cid,
-      prescriptions: prescribedMeds,
       requestedExams: selectedExams
     };
 
@@ -196,16 +168,10 @@ export default function MedicalRecordView({
 
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
-            className="btn btn-outline-primary"
-            onClick={() =>
-              onOpenPrescriptionModal({
-                patient,
-                doctor: activeDoctor,
-                medications: prescribedMeds
-              })
-            }
+            className="btn btn-primary"
+            onClick={() => setActiveTab('new_evolution')}
           >
-            <Printer size={16} /> Emitir Receituário Oficial
+            <PlusCircle size={16} /> Nova Evolução no Domicílio
           </button>
         </div>
       </div>
@@ -328,12 +294,6 @@ export default function MedicalRecordView({
           <PlusCircle size={16} /> Nova Evolução no Domicílio
         </button>
         <button
-          className={`pep-tab-btn ${activeTab === 'prescriptions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('prescriptions')}
-        >
-          <Pill size={16} /> Medicamentos & Prescrição Domiciliar ({prescribedMeds.length})
-        </button>
-        <button
           className={`pep-tab-btn ${activeTab === 'exams' ? 'active' : ''}`}
           onClick={() => setActiveTab('exams')}
         >
@@ -402,18 +362,7 @@ export default function MedicalRecordView({
                     <p className="clinical-section-text">{record.conduct}</p>
                   </div>
 
-                  {record.prescriptions && record.prescriptions.length > 0 && (
-                    <div className="clinical-section-box">
-                      <span className="clinical-section-title">Medicamentos Prescritos:</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {record.prescriptions.map((rx, idx) => (
-                          <div key={idx} className="rx-pill-item">
-                            <strong>{rx.drug}</strong> {rx.qty ? `(${rx.qty})` : ''} - {rx.dosage}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
 
                   {record.requestedExams && record.requestedExams.length > 0 && (
                     <div className="clinical-section-box">
@@ -522,121 +471,7 @@ export default function MedicalRecordView({
         </form>
       )}
 
-      {/* TAB 3: Digital Prescription Builder */}
-      {activeTab === 'prescriptions' && (
-        <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Prescrição Digital & Receituário</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Adicione fármacos para compor a receita que poderá ser emitida com carimbo e assinatura digital.
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={() =>
-                onOpenPrescriptionModal({
-                  patient,
-                  doctor: activeDoctor,
-                  medications: prescribedMeds
-                })
-              }
-            >
-              <Printer size={16} /> Visualizar / Imprimir Receita
-            </button>
-          </div>
 
-          {/* Quick presets */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <span style={{ fontSize: '0.775rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
-              Medicamentos Mais Prescritos (Clique para preencher rápido):
-            </span>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {COMMON_MEDICATIONS.map((med, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
-                  onClick={() => handleSelectPredefined(med)}
-                >
-                  + {med.name} {med.defaultDose}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Add form */}
-          <form onSubmit={handleAddMed} style={{ background: 'var(--bg-page)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', border: '1px solid var(--border-light)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr auto', gap: '0.75rem', alignItems: 'flex-end' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Medicamento e Concentração</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Losartana Potássica 50mg"
-                  value={newMedName}
-                  onChange={(e) => setNewMedName(e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Posologia & Instruções</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Tomar 1 comprimido VO pela manhã por 30 dias"
-                  value={newMedDosage}
-                  onChange={(e) => setNewMedDosage(e.target.value)}
-                />
-              </div>
-              <button type="submit" className="btn btn-outline-primary" style={{ height: '38px' }}>
-                <PlusCircle size={16} /> Adicionar
-              </button>
-            </div>
-          </form>
-
-          {/* List of current prescription */}
-          <div>
-            <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-headline)' }}>
-              Itens da Prescrição Atual:
-            </h4>
-            {prescribedMeds.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Nenhum medicamento adicionado ainda.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {prescribedMeds.map((item, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.75rem 1rem',
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-light)',
-                      borderRadius: 'var(--radius-md)'
-                    }}
-                  >
-                    <div>
-                      <strong style={{ color: 'var(--primary)' }}>{index + 1}. {item.drug}</strong>
-                      <p style={{ fontSize: '0.825rem', color: 'var(--text-body)', marginTop: '0.2rem' }}>
-                        Posologia: {item.dosage}
-                      </p>
-                    </div>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                      onClick={() => setPrescribedMeds(prescribedMeds.filter((_, i) => i !== index))}
-                    >
-                      Remover
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* TAB 4: Exam Orders */}
       {activeTab === 'exams' && (

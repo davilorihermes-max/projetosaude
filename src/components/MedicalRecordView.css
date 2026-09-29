@@ -272,12 +272,4 @@
   line-height: 1.6;
 }
 
-/* Prescription items pill in timeline */
-.rx-pill-item {
-  background: var(--bg-surface-hover);
-  border: 1px solid var(--border-light);
-  padding: 0.5rem 0.85rem;
-  border-radius: var(--radius-md);
-  margin-top: 0.4rem;
-  font-size: 0.825rem;
-}
+

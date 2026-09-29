@@ -275,30 +275,58 @@
 /* Alerts and Clinical Notices */
 .alert-card-item {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.85rem;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-md);
   margin-bottom: 0.75rem;
   font-size: 0.825rem;
-  line-height: 1.4;
+  line-height: 1.45;
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  transition: all var(--transition-fast);
+}
+
+.alert-card-item:hover {
+  box-shadow: var(--shadow-xs);
 }
 
 .alert-danger-soft {
+  border-left: 4px solid var(--danger);
   background: var(--danger-subtle);
-  border: 1px solid var(--danger-border);
-  color: #991b1b;
+}
+
+.alert-danger-soft strong {
+  color: #b91c1c;
+}
+
+.alert-danger-soft p {
+  color: var(--text-body);
 }
 
 .alert-warning-soft {
+  border-left: 4px solid var(--warning);
   background: var(--warning-subtle);
-  border: 1px solid var(--warning-border);
-  color: #92400e;
+}
+
+.alert-warning-soft strong {
+  color: #b45309;
+}
+
+.alert-warning-soft p {
+  color: var(--text-body);
 }
 
 .alert-info-soft {
-  background: var(--info-subtle);
-  border: 1px solid var(--info-border);
-  color: #3730a3;
+  border-left: 4px solid var(--primary);
+  background: var(--primary-subtle);
+}
+
+.alert-info-soft strong {
+  color: var(--primary);
+}
+
+.alert-info-soft p {
+  color: var(--text-body);
 }
 
 /* Specialty progress */
