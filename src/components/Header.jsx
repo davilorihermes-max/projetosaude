@@ -65,10 +65,10 @@ export default function Header({
             value={selectedDoctorId}
             onChange={(e) => setSelectedDoctorId(e.target.value)}
           >
-            <option value="all">Toda a Equipe</option>
+            <option value="all">Toda a Equipe Multidisciplinar</option>
             {doctors.map((doc) => (
               <option key={doc.id} value={doc.id}>
-                {doc.name} ({doc.specialty.split('&')[0]})
+                {doc.name} • {doc.profession || 'Especialista'} ({doc.councilNumber || doc.crm || doc.specialty})
               </option>
             ))}
           </select>

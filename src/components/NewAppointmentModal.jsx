@@ -256,21 +256,23 @@ export default function NewAppointmentModal({
                 >
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({d.specialty.split('&')[0]})
+                      {d.name} • {d.profession || 'Especialista'} ({d.councilNumber || d.crm || d.specialty})
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Tipo de Atendimento</label>
+                <label className="form-label">Tipo de Atendimento / Sessão</label>
                 <select className="form-select" value={type} onChange={(e) => setType(e.target.value)}>
                   <option value="Sessão Médica Domiciliar">Sessão Médica Domiciliar</option>
-                  <option value="Curativo Especial & Estomaterapia">Curativo Especial & Estomaterapia</option>
-                  <option value="Fisioterapia Motora no Leito">Fisioterapia Motora no Leito</option>
-                  <option value="Reabilitação Respiratória">Reabilitação Respiratória</option>
-                  <option value="Visita de Enfermagem / Cuidados Paliativos">Visita de Enfermagem / Cuidados Paliativos</option>
-                  <option value="Avaliação Inicial para Home Care">Avaliação Inicial para Home Care</option>
+                  <option value="Fisioterapia Motora & Funcional no Leito">Fisioterapia Motora & Funcional no Leito</option>
+                  <option value="Fisioterapia Cardiorrespiratória">Fisioterapia Cardiorrespiratória</option>
+                  <option value="Curativo Especial & Estomaterapia (Enfermagem)">Curativo Especial & Estomaterapia (Enfermagem)</option>
+                  <option value="Visita de Enfermagem & Administração de Cuidados">Visita de Enfermagem & Administração de Cuidados</option>
+                  <option value="Reabilitação de Disfagia & Deglutição (Fonoaudiologia)">Reabilitação de Disfagia & Deglutição (Fonoaudiologia)</option>
+                  <option value="Avaliação Nutricional & Terapia Enteral">Avaliação Nutricional & Terapia Enteral</option>
+                  <option value="Avaliação Multidisciplinar Inicial para Home Care">Avaliação Multidisciplinar Inicial para Home Care</option>
                 </select>
               </div>
             </div>

@@ -158,7 +158,7 @@ export default function ScheduleView({
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                       <span>{aptInSlot.type}</span>
-                      <span>• Profissional: <strong>{doctor?.name}</strong></span>
+                      <span>• Profissional: <strong>{doctor?.name}</strong> {doctor?.profession ? `(${doctor.profession})` : ''}</span>
                       <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
                         📍 {patient?.address || aptInSlot.address}
                       </span>

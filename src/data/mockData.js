@@ -1,11 +1,13 @@
 // src/data/mockData.js
 // Configuração e dados de demonstração voltados para ATENDIMENTO DOMICILIAR (Home Care / Sessões Domiciliares)
 
-export const DOCTORS = [
+export const PROFESSIONALS = [
   {
     id: 'doc-1',
     name: 'Dr. Lucas Silveira',
+    profession: 'Medicina',
     specialty: 'Medicina de Família & Atenção Domiciliar (EMAD)',
+    councilNumber: 'CRM/SP 142.890',
     crm: 'CRM/SP 142.890',
     avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
     color: '#0284c7',
@@ -15,7 +17,9 @@ export const DOCTORS = [
   {
     id: 'doc-2',
     name: 'Dra. Beatriz Albuquerque',
+    profession: 'Medicina',
     specialty: 'Clínica Geral & Cuidados Paliativos Domiciliares',
+    councilNumber: 'CRM/SP 98.412',
     crm: 'CRM/SP 98.412',
     avatar: 'https://images.unsplash.com/photo-1594824813689-53748f572a15?w=150&auto=format&fit=crop&q=80',
     color: '#059669',
@@ -25,7 +29,9 @@ export const DOCTORS = [
   {
     id: 'doc-3',
     name: 'Dr. Rafael Fontes',
-    specialty: 'Fisioterapia Cardiorrespiratória Domiciliar',
+    profession: 'Fisioterapia',
+    specialty: 'Fisioterapia Cardiorrespiratória & Motora no Leito',
+    councilNumber: 'CREFITO/SP 88.340',
     crm: 'CREFITO/SP 88.340',
     avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80',
     color: '#d97706',
@@ -35,14 +41,42 @@ export const DOCTORS = [
   {
     id: 'doc-4',
     name: 'Dra. Camila Nogueira',
-    specialty: 'Enfermagem Estomaterapeuta & Curativos Complexos',
+    profession: 'Enfermagem',
+    specialty: 'Enfermagem Estomaterapeuta & Lesões Cutâneas',
+    councilNumber: 'COREN/SP 230.110',
     crm: 'COREN/SP 230.110',
     avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
     color: '#9333ea',
     baseAddress: 'Rua Pamplona, 700 - Jardim Paulista, São Paulo - SP',
     baseCoordinates: { latitude: -23.565000, longitude: -46.657000 }
+  },
+  {
+    id: 'doc-5',
+    name: 'Dra. Fernanda Prado',
+    profession: 'Fonoaudiologia',
+    specialty: 'Fonoaudiologia & Reabilitação de Deglutição (Disfagia)',
+    councilNumber: 'CRFa/SP 14.520',
+    crm: 'CRFa/SP 14.520',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    color: '#0d9488',
+    baseAddress: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP',
+    baseCoordinates: { latitude: -23.563000, longitude: -46.653000 }
+  },
+  {
+    id: 'doc-6',
+    name: 'Dr. Thiago Ramos',
+    profession: 'Nutrição',
+    specialty: 'Nutrição Clínica & Terapia Enteral no Domicílio',
+    councilNumber: 'CRN-3/SP 45.190',
+    crm: 'CRN-3/SP 45.190',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    color: '#e11d48',
+    baseAddress: 'Rua Bela Cintra, 900 - Consolação, São Paulo - SP',
+    baseCoordinates: { latitude: -23.555000, longitude: -46.661000 }
   }
 ];
+
+export const DOCTORS = PROFESSIONALS;
 
 export const INITIAL_PATIENTS = [
   {
@@ -274,19 +308,45 @@ export const INITIAL_CLINICAL_RECORDS = {
     ],
     timeline: [
       {
+        id: 'rec-1c',
+        date: '28/09/2026 - 15:30',
+        doctor: 'Dr. Rafael Fontes',
+        profession: 'Fisioterapia',
+        crm: 'CREFITO/SP 88.340',
+        subject: 'Fisioterapia Motora & Treino de Marcha',
+        chiefComplaint: 'Sessão domiciliar de cinesioterapia e treino de deambulação assistida.',
+        hda: 'Paciente orientada quanto a transferências seguras leito-poltrona. Realizados exercícios ativos assistidos de flexão/extensão e fortalecimento de quadríceps.',
+        physicalExam: 'ADM de flexão de quadril preservada a 90°. Sem dor excessiva ou instabilidade. Deambulação assistida com andador por 25 metros no corredor residencial com boa tolerância.',
+        conduct: 'Plano mantido de 3 sessões semanais. Orientado cuidador quanto ao uso correto do andador e prevenção de quedas.',
+        cid: 'Z96.6',
+        requestedExams: []
+      },
+      {
+        id: 'rec-1b',
+        date: '28/09/2026 - 11:30',
+        doctor: 'Dra. Camila Nogueira',
+        profession: 'Enfermagem',
+        crm: 'COREN/SP 230.110',
+        subject: 'Visita de Enfermagem & Avaliação de Ferida Operatória',
+        chiefComplaint: 'Inspeção de ferida cirúrgica, hidratação cutânea e sinais vitais.',
+        hda: 'Leito limpo, arejado e organizado. Cuidador treinado administrando medicações nos horários prescritos.',
+        physicalExam: 'PA: 120/76 mmHg, FC: 70 bpm, Temperatura axilar: 36.4°C. Incisão cirúrgica limpa e seca, sem exsudato. Aplicada cobertura estéril respirável.',
+        conduct: 'Mantido curativo seco com micropore e gaze estéril. Próxima troca em 48 horas pela equipe.',
+        cid: 'Z96.6',
+        requestedExams: []
+      },
+      {
         id: 'rec-1',
         date: '28/09/2026 - 09:00',
         doctor: 'Dr. Lucas Silveira',
+        profession: 'Medicina',
         crm: 'CRM/SP 142.890',
-        subject: 'Sessão Domiciliar - Revisão Pós-Artroplastia',
+        subject: 'Avaliação Clínica Domiciliar - Revisão Pós-Artroplastia',
         chiefComplaint: 'Atendimento domiciliar de rotina no 12º DPO.',
-        hda: 'Paciente encontrada no leito em bom estado geral. Relata melhora progressiva da dor. Nega febre ou secreção na ferida operatória. Cuidadora informa boa ingesta hídrica e alimentar.',
-        physicalExam: 'PA: 120/78 mmHg, FC: 72 bpm, SpO2: 99% em ar ambiente. Ferida cirúrgica em quadril direito limpa, bordas aproximadas sem flogose. Sem empastamento de panturrilhas. Pulsos periféricos presentes e simétricos.',
-        conduct: 'Orientada manutenção de repouso relativo com deambulação assistida. Retirada de pontos programada para a próxima visita domiciliar.',
+        hda: 'Paciente encontrada no leito em bom estado geral. Relata melhora progressiva da dor. Nega febre. Cuidadora informa boa ingesta hídrica e alimentar.',
+        physicalExam: 'PA: 120/78 mmHg, FC: 72 bpm, SpO2: 99% em ar ambiente. Ferida cirúrgica em quadril direito limpa, bordas aproximadas sem flogose. Sem empastamento de panturrilhas.',
+        conduct: 'Liberada para sessões de fisioterapia motora com carga parcial. Retirada de pontos programada.',
         cid: 'Z96.6',
-        prescriptions: [
-          { drug: 'Cefalexina 500mg', qty: '1 caixa', dosage: 'Tomar 1 cápsula VO a cada 6 horas por mais 3 dias.' }
-        ],
         requestedExams: ['Hemograma Completo', 'PCR']
       }
     ]
@@ -300,20 +360,32 @@ export const INITIAL_CLINICAL_RECORDS = {
     ],
     timeline: [
       {
+        id: 'rec-2b',
+        date: '28/09/2026 - 14:00',
+        doctor: 'Dr. Thiago Ramos',
+        profession: 'Nutrição',
+        crm: 'CRN-3/SP 45.190',
+        subject: 'Consulta Nutricional Domiciliar & Controle Glicêmico',
+        chiefComplaint: 'Adequação de cardápio domiciliar e suporte para cicatrização tecidual.',
+        hda: 'Avaliação da despensa e orientações aos familiares para fracionamento de carboidratos complexos e aporte proteico aumentado para estímulo de tecido de granulação.',
+        physicalExam: 'Peso estimado: 74 kg, IMC: 25.6 kg/m². Glicemia capilar 2h pós-almoço: 138 mg/dL.',
+        conduct: 'Entregue plano alimentar individualizado ao cuidador com foco em micronutrientes (Zinco, Vitamina C e Proteínas de alto valor biológico).',
+        cid: 'E11.5',
+        requestedExams: ['Glicemia de Jejum', 'Hemoglobina Glicada', 'Albumina Sérica']
+      },
+      {
         id: 'rec-2',
         date: '28/09/2026 - 11:00',
-        doctor: 'Dr. Lucas Silveira',
-        crm: 'CRM/SP 142.890',
-        subject: 'Atendimento Domiciliar - Curativo Especial em Pé Diabético',
+        doctor: 'Dra. Camila Nogueira',
+        profession: 'Enfermagem',
+        crm: 'COREN/SP 230.110',
+        subject: 'Atendimento de Estomaterapia - Curativo Especial em Pé Diabético',
         chiefComplaint: 'Acompanhamento domiciliar de úlcera neuropática em calcâneo esquerdo.',
-        hda: 'Paciente atendido na poltrona da sala de estar. Cuidadora relata troca diária de curativo oclusivo conforme protocolo da equipe.',
+        hda: 'Paciente atendido na poltrona da sala. Cuidadora relata troca diária de curativo oclusivo conforme protocolo da equipe.',
         physicalExam: 'PA: 134/84 mmHg, FC: 80 bpm, Glicemia capilar pontual: 142 mg/dL. Lesão trófica de 2x1.5 cm com tecido de granulação ativo, sem sinais de infecção aguda ou exsudato purulento.',
         conduct: 'Realizada limpeza com soro fisiológico 0.9% e aplicação de hidrogel com alginato de prata. Reforçado uso de calçado protetor com alívio de pressão.',
         cid: 'E11.5',
-        prescriptions: [
-          { drug: 'Hidrogel com Alginato', qty: '1 bisnaga', dosage: 'Aplicar fina camada no leito da lesão nas trocas de curativo.' }
-        ],
-        requestedExams: ['Glicemia de Jejum', 'Hemoglobina Glicada']
+        requestedExams: []
       }
     ]
   }

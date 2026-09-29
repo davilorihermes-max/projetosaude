@@ -111,9 +111,10 @@ export default function MedicalRecordView({
     const newRecordItem = {
       id: `rec-${Date.now()}`,
       date: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
-      doctor: activeDoctor?.name || 'Dr. Lucas Silveira',
-      crm: activeDoctor?.crm || 'CRM/SP 142.890',
-      subject: `Evolução Clínica - ${chiefComplaint.slice(0, 30)}...`,
+      doctor: activeDoctor?.name || 'Profissional de Saúde',
+      profession: activeDoctor?.profession || 'Equipe Multidisciplinar',
+      crm: activeDoctor?.councilNumber || activeDoctor?.crm || 'Registro Ativo',
+      subject: `Evolução (${activeDoctor?.profession || 'Equipe'}) - ${chiefComplaint.slice(0, 30)}...`,
       chiefComplaint,
       hda,
       physicalExam,
@@ -316,10 +317,15 @@ export default function MedicalRecordView({
                 <div className="record-bullet"></div>
                 <div className="record-card-content">
                   <div className="record-top-meta">
-                    <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <span className="record-doctor">{record.doctor}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                        {record.crm}
+                      {record.profession && (
+                        <span className="badge badge-scheduled" style={{ fontSize: '0.7rem' }}>
+                          {record.profession}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {record.councilNumber || record.crm}
                       </span>
                     </div>
                     <div className="record-date">
@@ -386,19 +392,19 @@ export default function MedicalRecordView({
       {/* TAB 2: New Clinical Evolution */}
       {activeTab === 'new_evolution' && (
         <form onSubmit={handleSaveEvolution} className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FileText size={18} color="var(--primary)" /> Registro de Atendimento / Sessão Domiciliar
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Profissional Visitador: <strong>{activeDoctor?.name || 'Dr. Lucas Silveira'}</strong>
+              Profissional Responsável: <strong>{activeDoctor?.name || 'Profissional de Saúde'}</strong> {activeDoctor?.profession ? `(${activeDoctor.profession} • ${activeDoctor.councilNumber || activeDoctor.crm})` : ''}
             </span>
           </div>
 
           {saveSuccessMessage && (
             <div style={{ background: 'var(--success-subtle)', border: '1px solid var(--success-border)', color: 'var(--success)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <CheckCircle size={18} />
-              <strong>Evolução domiciliar gravada com sucesso no PEP do Paciente!</strong>
+              <strong>Evolução multidisciplinar gravada com sucesso no PEP do Paciente!</strong>
             </div>
           )}
 
@@ -407,7 +413,7 @@ export default function MedicalRecordView({
             <input
               type="text"
               className="form-input"
-              placeholder="Ex: Cuidadora relata dor moderada no membro operado e boa aceitação alimentar..."
+              placeholder="Ex: Cuidadora relata melhora na mobilidade e boa aceitação alimentar..."
               value={chiefComplaint}
               onChange={(e) => setChiefComplaint(e.target.value)}
               required
@@ -418,17 +424,17 @@ export default function MedicalRecordView({
             <label className="form-label">História da Moléstia & Condições da Residência (HDA)</label>
             <textarea
               className="form-textarea"
-              placeholder="Descreva a evolução do quadro clínico, condições de higiene do leito, adesão medicamentosa informada pelo cuidador..."
+              placeholder="Descreva a evolução do quadro, condições de higiene do leito, adesão às orientações e queixas relatadas pelo cuidador/paciente..."
               value={hda}
               onChange={(e) => setHda(e.target.value)}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Exame Físico Realizado no Domicílio</label>
+            <label className="form-label">Avaliação Clínica, Funcional ou Exame Físico no Domicílio</label>
             <textarea
               className="form-textarea"
-              placeholder="Sinais vitais in loco, ausculta pulmonar/cardíaca, estado da pele/curativo, mobilidade no leito..."
+              placeholder="Sinais vitais in loco, avaliação motora/respiratória, deglutição, integridade da pele/curativo, estado geral..."
               value={physicalExam}
               onChange={(e) => setPhysicalExam(e.target.value)}
             />
@@ -436,7 +442,7 @@ export default function MedicalRecordView({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
             <div className="form-group">
-              <label className="form-label">Hipótese Diagnóstica (CID-10)</label>
+              <label className="form-label">Hipótese Diagnóstica (CID-10 ou CIF)</label>
               <select className="form-select" value={cid} onChange={(e) => setCid(e.target.value)}>
                 <option value="Z96.6 - Presença de implante articular ortopédico">Z96.6 - Pós-operatório ortopédico</option>
                 <option value="I10 - Hipertensão essencial">I10 - Hipertensão essencial</option>
@@ -444,15 +450,17 @@ export default function MedicalRecordView({
                 <option value="J45 - Asma sob oxigenoterapia">J45 - Asma grave domiciliar</option>
                 <option value="G81 - Hemiplegia / Pós-AVC acamado">G81 - Sequela de AVC / Acamado</option>
                 <option value="L89 - Úlcera por pressão">L89 - Úlcera por pressão / Curativo</option>
+                <option value="R13 - Disfagia / Reabilitação fonoaudiológica">R13 - Disfagia / Deglutição</option>
+                <option value="Z74.0 - Necessidade de assistência motora e acamado">Z74.0 - Reabilitação Motora no Leito</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Conduta, Prescrição e Orientações para a Família / Cuidador *</label>
+              <label className="form-label">Conduta Profissional, Orientações ao Cuidador e Plano Terapêutico *</label>
               <textarea
                 className="form-textarea"
                 style={{ minHeight: '75px' }}
-                placeholder="Prescrição de cuidados domiciliares, posologia para o cuidador administrar, data da próxima visita na rota..."
+                placeholder="Conduta da sessão, exercícios/cinesioterapia, cuidados com curativo/leito, data do próximo retorno na rota..."
                 value={conduct}
                 onChange={(e) => setConduct(e.target.value)}
                 required
