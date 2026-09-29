@@ -172,4 +172,82 @@ describe('E2E Integration: Autenticação Estrita & Avaliação do Scheduler', (
       expect(data.report.reason).toContain('não faz parte da equipe de cuidado (CareTeamMember)');
     });
   });
+
+  describe('3. Gestão e Criação de Agendamentos (/api/scheduler/appointments)', () => {
+    it('deve BARRAR acesso a /api/scheduler/appointments sem token JWT (HTTP 401)', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/scheduler/appointments'
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('deve LISTAR agendamentos do profissional com token JWT (HTTP 200)', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/scheduler/appointments?professionalId=${professionalId}&date=2026-09-27`,
+        headers: {
+          Authorization: `Bearer ${doctorToken}`
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.success).toBe(true);
+      expect(Array.isArray(data.appointments)).toBe(true);
+      expect(data.count).toBeDefined();
+    });
+
+    it('deve REJEITAR criação de agendamento inviável (paciente sem CareTeam) com HTTP 400', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/scheduler/appointments',
+        headers: {
+          Authorization: `Bearer ${doctorToken}`
+        },
+        payload: {
+          professionalId,
+          patientId: patientJulianaId,
+          scheduledTime: '2026-09-27T16:00:00.000Z',
+          durationMinutes: 45
+        }
+      });
+
+      expect(response.statusCode).toBe(400);
+      const data = response.json();
+      expect(data.error).toBe('Unviable Schedule');
+      expect(data.message).toContain('não faz parte da equipe de cuidado (CareTeamMember)');
+    });
+
+    it('deve CRIAR com sucesso agendamento viável no Prisma com HTTP 201', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/scheduler/appointments',
+        headers: {
+          Authorization: `Bearer ${doctorToken}`
+        },
+        payload: {
+          professionalId,
+          patientId: patientMarianaId,
+          scheduledTime: '2026-09-27T18:00:00.000Z',
+          durationMinutes: 45,
+          notes: 'Avaliação pós-operatória domiciliar'
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const data = response.json();
+      expect(data.success).toBe(true);
+      expect(data.appointment).toBeDefined();
+      expect(data.appointment.notes).toBe('Avaliação pós-operatória domiciliar');
+      expect(data.report.viable).toBe(true);
+
+      // Cleanup
+      await prisma.appointment.delete({
+        where: { id: data.appointment.id }
+      });
+    });
+  });
 });
+

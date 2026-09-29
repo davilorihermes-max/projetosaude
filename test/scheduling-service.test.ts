@@ -82,4 +82,64 @@ describe('SchedulingService - Prisma Integration & CareTeam Checks', () => {
     expect(report.viable).toBe(false);
     expect(report.reason).toContain('não encontrado');
   });
+
+  it('deve rejeitar createAppointment quando o agendamento for inviável (ex: sem CareTeam)', async () => {
+    const doctor = await prisma.professional.findFirst({
+      where: { crm: 'CRM/SP 142.890' }
+    });
+    const patientJuliana = await prisma.patient.findFirst({
+      where: { cpf: '418.992.301-85' }
+    });
+
+    const result = await SchedulingService.createAppointment({
+      professionalId: doctor!.id,
+      patientId: patientJuliana!.id,
+      scheduledTime: '2026-09-27T16:00:00Z',
+      durationMinutes: 45
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.reason).toContain('não faz parte da equipe de cuidado (CareTeamMember)');
+  });
+
+  it('deve criar agendamento no banco Prisma e listá-lo com sucesso quando for viável', async () => {
+    const doctor = await prisma.professional.findFirst({
+      where: { crm: 'CRM/SP 142.890' }
+    });
+    const patientMariana = await prisma.patient.findFirst({
+      where: { cpf: '284.912.839-44' }
+    });
+
+    // 17:00 horário livre no seed
+    const result = await SchedulingService.createAppointment({
+      professionalId: doctor!.id,
+      patientId: patientMariana!.id,
+      scheduledTime: '2026-09-27T17:00:00Z',
+      durationMinutes: 45,
+      notes: 'Sessão domiciliar de fisioterapia motora pós-alta'
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.appointment).toBeDefined();
+    expect(result.appointment.id).toBeDefined();
+    expect(result.appointment.notes).toBe('Sessão domiciliar de fisioterapia motora pós-alta');
+    expect(result.appointment.latitude).toBe(patientMariana!.latitude);
+
+    // Lista agendamentos para o profissional no dia
+    const list = await SchedulingService.listAppointments({
+      professionalId: doctor!.id,
+      date: '2026-09-27'
+    });
+
+    expect(list.length).toBeGreaterThan(0);
+    const createdInList = list.find((a) => a.id === result.appointment.id);
+    expect(createdInList).toBeDefined();
+    expect(createdInList?.patient.name).toBe('Mariana Souza Lima');
+
+    // Cleanup: remove appointment criado pelo teste
+    await prisma.appointment.delete({
+      where: { id: result.appointment.id }
+    });
+  });
 });
+

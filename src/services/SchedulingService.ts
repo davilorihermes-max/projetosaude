@@ -118,4 +118,106 @@ export class SchedulingService {
       baseLocation
     );
   }
+
+  /**
+   * Cria um agendamento no banco Prisma após validação estrita de viabilidade:
+   * Rejeita se não for viável (fora do CareTeam ou conflito de horário/deslocamento).
+   */
+  static async createAppointment(input: {
+    professionalId: string;
+    patientId: string;
+    scheduledTime: Date | string;
+    durationMinutes?: number;
+    notes?: string;
+  }) {
+    const { professionalId, patientId, scheduledTime, durationMinutes = 45, notes } = input;
+
+    // 1. Avalia viabilidade antes de persistir
+    const viability = await this.evaluateProposedSchedule({
+      professionalId,
+      patientId,
+      proposedTime: scheduledTime,
+      durationMinutes
+    });
+
+    if (!viability.viable) {
+      return {
+        success: false,
+        reason: viability.reason,
+        report: viability
+      };
+    }
+
+    // 2. Busca coordenadas do domicílio do paciente
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    // 3. Persiste o agendamento no Prisma
+    const appointment = await prisma.appointment.create({
+      data: {
+        professionalId,
+        patientId,
+        scheduledTime: new Date(scheduledTime),
+        durationMinutes,
+        latitude: patient?.latitude ?? null,
+        longitude: patient?.longitude ?? null,
+        notes: notes || null,
+        status: 'SCHEDULED'
+      },
+      include: {
+        patient: true,
+        professional: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }
+      }
+    });
+
+    return {
+      success: true,
+      appointment,
+      report: viability
+    };
+  }
+
+  /**
+   * Lista agendamentos com filtro opcional por profissional e/ou data
+   */
+  static async listAppointments(filter?: {
+    professionalId?: string;
+    date?: string; // Formato YYYY-MM-DD
+  }) {
+    const where: any = {
+      status: { not: 'CANCELLED' }
+    };
+
+    if (filter?.professionalId) {
+      where.professionalId = filter.professionalId;
+    }
+
+    if (filter?.date) {
+      const startOfDay = new Date(`${filter.date}T00:00:00.000Z`);
+      const endOfDay = new Date(`${filter.date}T23:59:59.999Z`);
+      where.scheduledTime = {
+        gte: startOfDay,
+        lte: endOfDay
+      };
+    }
+
+    return prisma.appointment.findMany({
+      where,
+      orderBy: { scheduledTime: 'asc' },
+      include: {
+        patient: true,
+        professional: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }
+      }
+    });
+  }
 }
+
