@@ -172,7 +172,7 @@ export default function LoginModal({
                   handleExecuteLogin('rafael@omnisaude.com.br', 'DoctorPassword123!');
                 }}
               >
-                <Sparkles size={14} /> Dr. Rafael Fontes (Fisioterapeuta)
+                <Sparkles size={14} /> Rafael Fontes (Fisioterapeuta)
               </button>
               <button
                 className="btn btn-secondary"

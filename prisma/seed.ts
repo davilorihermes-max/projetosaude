@@ -51,12 +51,13 @@ async function main() {
   // 2b. Multidisciplinary Professional (Fisioterapia)
   const rafaelUser = await prisma.user.create({
     data: {
-      name: 'Dr. Rafael Fontes',
+      name: 'Rafael Fontes',
       email: 'rafael@omnisaude.com.br',
       passwordHash: doctorPasswordHash,
       role: 'PROFESSIONAL',
       professional: {
         create: {
+          id: 'doc-3',
           crm: 'CREFITO/SP 88.340',
           specialty: 'Fisioterapia Cardiorrespiratória & Motora',
           latitude: -23.585000,
@@ -75,6 +76,7 @@ async function main() {
   // 3. Patients in São Paulo
   const patientMariana = await prisma.patient.create({
     data: {
+      id: 'pat-1',
       name: 'Mariana Souza Lima',
       cpf: '284.912.839-44',
       email: 'mariana.lima@exemplo.com.br',
@@ -87,6 +89,7 @@ async function main() {
 
   const patientRoberto = await prisma.patient.create({
     data: {
+      id: 'pat-2',
       name: 'Roberto Carlos Peixoto',
       cpf: '109.834.721-12',
       email: 'roberto.peixoto@exemplo.com.br',
@@ -99,6 +102,7 @@ async function main() {
 
   const patientJuliana = await prisma.patient.create({
     data: {
+      id: 'pat-3',
       name: 'Juliana Mendes Prado',
       cpf: '418.992.301-85',
       email: 'juliana.prado@exemplo.com.br',

@@ -4,7 +4,7 @@
 export const PROFESSIONALS = [
   {
     id: 'doc-3',
-    name: 'Dr. Rafael Fontes',
+    name: 'Rafael Fontes',
     profession: 'Fisioterapia',
     specialty: 'Fisioterapia Cardiorrespiratória & Motora no Leito',
     councilNumber: 'CREFITO/SP 88.340',
@@ -16,7 +16,7 @@ export const PROFESSIONALS = [
   },
   {
     id: 'doc-4',
-    name: 'Dra. Camila Nogueira',
+    name: 'Camila Nogueira',
     profession: 'Enfermagem',
     specialty: 'Enfermagem Estomaterapeuta & Lesões Cutâneas',
     councilNumber: 'COREN/SP 230.110',
@@ -28,7 +28,7 @@ export const PROFESSIONALS = [
   },
   {
     id: 'doc-5',
-    name: 'Dra. Fernanda Prado',
+    name: 'Fernanda Prado',
     profession: 'Fonoaudiologia',
     specialty: 'Fonoaudiologia & Reabilitação de Deglutição (Disfagia)',
     councilNumber: 'CRFa/SP 14.520',
@@ -40,7 +40,7 @@ export const PROFESSIONALS = [
   },
   {
     id: 'doc-6',
-    name: 'Dr. Thiago Ramos',
+    name: 'Thiago Ramos',
     profession: 'Nutrição',
     specialty: 'Nutrição Clínica & Terapia Enteral no Domicílio',
     councilNumber: 'CRN-3/SP 45.190',
