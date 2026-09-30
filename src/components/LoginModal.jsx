@@ -19,7 +19,7 @@ export default function LoginModal({
   onLoginSuccess,
   onLogout
 }) {
-  const [identifier, setIdentifier] = useState('lucas@omnisaude.com.br');
+  const [identifier, setIdentifier] = useState('rafael@omnisaude.com.br');
   const [password, setPassword] = useState('DoctorPassword123!');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -167,12 +167,12 @@ export default function LoginModal({
                   color: 'var(--primary)'
                 }}
                 onClick={() => {
-                  setIdentifier('lucas@omnisaude.com.br');
+                  setIdentifier('rafael@omnisaude.com.br');
                   setPassword('DoctorPassword123!');
-                  handleExecuteLogin('lucas@omnisaude.com.br', 'DoctorPassword123!');
+                  handleExecuteLogin('rafael@omnisaude.com.br', 'DoctorPassword123!');
                 }}
               >
-                <Sparkles size={14} /> Dr. Lucas Silveira
+                <Sparkles size={14} /> Dr. Rafael Fontes (Fisioterapeuta)
               </button>
               <button
                 className="btn btn-secondary"
@@ -207,13 +207,13 @@ export default function LoginModal({
               <input
                 type="email"
                 className="form-input"
-                placeholder="lucas@omnisaude.com.br"
+                placeholder="rafael@omnisaude.com.br"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
               />
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                Exige e-mail cadastrado (ex: <code>lucas@omnisaude.com.br</code>)
+                Exige e-mail cadastrado (ex: <code>rafael@omnisaude.com.br</code> ou <code>admin@omnisaude.com.br</code>)
               </span>
             </div>
 

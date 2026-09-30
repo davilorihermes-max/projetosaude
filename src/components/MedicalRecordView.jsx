@@ -34,7 +34,7 @@ export default function MedicalRecordView({
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [hda, setHda] = useState('');
   const [physicalExam, setPhysicalExam] = useState('');
-  const [cid, setCid] = useState('Z00.0 - Exame médico geral');
+  const [cid, setCid] = useState('R26.8 - Outras anormalidades da marcha e da mobilidade');
   const [conduct, setConduct] = useState('');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
 

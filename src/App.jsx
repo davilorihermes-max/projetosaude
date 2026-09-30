@@ -40,34 +40,34 @@ export default function App() {
 
   // Core Data States (with LocalStorage)
   const [patients, setPatients] = useState(() => {
-    const saved = localStorage.getItem('omnihome_patients_v2');
+    const saved = localStorage.getItem('omnihome_patients_v3');
     return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
   });
 
   const [appointments, setAppointments] = useState(() => {
-    const saved = localStorage.getItem('omnihome_appointments_v2');
+    const saved = localStorage.getItem('omnihome_appointments_v3');
     return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
   });
 
   const [clinicalRecords, setClinicalRecords] = useState(() => {
-    const saved = localStorage.getItem('omnihome_records_v2');
+    const saved = localStorage.getItem('omnihome_records_v3');
     return saved ? JSON.parse(saved) : INITIAL_CLINICAL_RECORDS;
   });
 
-  // Active Doctor & Selected Patient for PEP
-  const [selectedDoctorId, setSelectedDoctorId] = useState('doc-1');
+  // Active Professional & Selected Patient for PEP
+  const [selectedDoctorId, setSelectedDoctorId] = useState(DOCTORS[0]?.id || 'doc-3');
   const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
 
   // Active Authenticated User (JWT)
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('omnihome_user');
+    const saved = localStorage.getItem('omnihome_user_v3');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
     return {
       id: 'cmukamckz000112nvi9obl3j5',
-      name: 'Dr. Lucas Silveira',
-      email: 'lucas@omnisaude.com.br',
+      name: 'Dr. Rafael Fontes',
+      email: 'rafael@omnisaude.com.br',
       role: 'PROFESSIONAL'
     };
   });
@@ -97,7 +97,7 @@ export default function App() {
       id: 'notif-2',
       type: 'lab',
       title: 'Check-in Realizado com Sucesso',
-      description: 'Dr. Lucas Silveira iniciou sessão domiciliar em Pinheiros (Roberto Carlos).',
+      description: 'Dr. Rafael Fontes iniciou sessão de fisioterapia domiciliar em Pinheiros (Roberto Carlos).',
       time: 'Há 25 min'
     },
     {
@@ -111,15 +111,15 @@ export default function App() {
 
   // Sync to LocalStorage
   useEffect(() => {
-    localStorage.setItem('omnihome_patients_v2', JSON.stringify(patients));
+    localStorage.setItem('omnihome_patients_v3', JSON.stringify(patients));
   }, [patients]);
 
   useEffect(() => {
-    localStorage.setItem('omnihome_appointments_v2', JSON.stringify(appointments));
+    localStorage.setItem('omnihome_appointments_v3', JSON.stringify(appointments));
   }, [appointments]);
 
   useEffect(() => {
-    localStorage.setItem('omnihome_records_v2', JSON.stringify(clinicalRecords));
+    localStorage.setItem('omnihome_records_v3', JSON.stringify(clinicalRecords));
   }, [clinicalRecords]);
 
   // Active doctor object
@@ -300,8 +300,10 @@ export default function App() {
         currentUser={currentUser}
         onLoginSuccess={(user, token) => {
           setCurrentUser(user);
-          if (user.name.toLowerCase().includes('lucas')) {
-            setSelectedDoctorId('doc-1');
+          if (user.name.toLowerCase().includes('rafael') || user.name.toLowerCase().includes('fontes')) {
+            setSelectedDoctorId('doc-3');
+          } else if (user.name.toLowerCase().includes('camila')) {
+            setSelectedDoctorId('doc-4');
           }
           setNotifications((prev) => [
             {
@@ -317,7 +319,7 @@ export default function App() {
         onLogout={() => {
           setCurrentUser(null);
           localStorage.removeItem('omnihome_jwt');
-          localStorage.removeItem('omnihome_user');
+          localStorage.removeItem('omnihome_user_v3');
           setNotifications((prev) => [
             {
               id: `notif-${Date.now()}`,

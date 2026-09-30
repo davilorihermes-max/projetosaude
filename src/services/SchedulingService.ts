@@ -103,7 +103,7 @@ export class SchedulingService {
       longitude: appt.longitude
     }));
 
-    // Localização base da clínica/médico
+    // Localização base da clínica/profissional
     const baseLocation =
       professional.latitude != null && professional.longitude != null
         ? { latitude: professional.latitude, longitude: professional.longitude }

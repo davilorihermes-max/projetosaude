@@ -48,7 +48,29 @@ async function main() {
     }
   });
 
+  // 2b. Multidisciplinary Professional (Fisioterapia)
+  const rafaelUser = await prisma.user.create({
+    data: {
+      name: 'Dr. Rafael Fontes',
+      email: 'rafael@omnisaude.com.br',
+      passwordHash: doctorPasswordHash,
+      role: 'PROFESSIONAL',
+      professional: {
+        create: {
+          crm: 'CREFITO/SP 88.340',
+          specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+          latitude: -23.585000,
+          longitude: -46.638000
+        }
+      }
+    },
+    include: {
+      professional: true
+    }
+  });
+
   const professionalId = doctorUser.professional!.id;
+  const rafaelProfessionalId = rafaelUser.professional!.id;
 
   // 3. Patients in São Paulo
   const patientMariana = await prisma.patient.create({
@@ -99,9 +121,27 @@ async function main() {
 
   await prisma.careTeamMember.create({
     data: {
+      patientId: patientMariana.id,
+      professionalId: rafaelProfessionalId,
+      role: 'SPECIALIST',
+      active: true
+    }
+  });
+
+  await prisma.careTeamMember.create({
+    data: {
       patientId: patientRoberto.id,
       professionalId: professionalId,
       role: 'PRIMARY_CARE',
+      active: true
+    }
+  });
+
+  await prisma.careTeamMember.create({
+    data: {
+      patientId: patientRoberto.id,
+      professionalId: rafaelProfessionalId,
+      role: 'SPECIALIST',
       active: true
     }
   });

@@ -158,7 +158,7 @@ export default function ClinicSettingsView({
             <Stethoscope size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
           </h3>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Médicos, Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas
+            Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>

@@ -27,7 +27,7 @@ export default function NewAppointmentModal({
   const [doctorId, setDoctorId] = useState(doctors[0]?.id || '');
   const [date, setDate] = useState('2026-09-28');
   const [time, setTime] = useState(initialTime);
-  const [type, setType] = useState('Sessão Médica Domiciliar');
+  const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [notes, setNotes] = useState('');
 
@@ -300,7 +300,7 @@ export default function NewAppointmentModal({
                   <option value="Avaliação Nutricional Clínica & Cálculo Calórico Domiciliar" />
                   <option value="Sessão de Psicoterapia Domiciliar & Apoio à Família / Cuidador" />
                   <option value="Terapia Ocupacional, Tecnologia Assistiva & Adaptação no Lar" />
-                  <option value="Consulta Médica Domiciliar Especializada & Prescrição Global" />
+                  <option value="Sessão Multidisciplinar Domiciliar Integrada" />
                   <option value="Avaliação Multidisciplinar Inicial para Internação Domiciliar" />
                 </datalist>
               </div>

@@ -3,30 +3,6 @@
 
 export const PROFESSIONALS = [
   {
-    id: 'doc-1',
-    name: 'Dr. Lucas Silveira',
-    profession: 'Medicina',
-    specialty: 'Medicina de Família & Atenção Domiciliar (EMAD)',
-    councilNumber: 'CRM/SP 142.890',
-    crm: 'CRM/SP 142.890',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    color: '#0284c7',
-    baseAddress: 'Av. Paulista, 1000 - Bela Vista, São Paulo - SP',
-    baseCoordinates: { latitude: -23.561684, longitude: -46.655981 }
-  },
-  {
-    id: 'doc-2',
-    name: 'Dra. Beatriz Albuquerque',
-    profession: 'Medicina',
-    specialty: 'Clínica Geral & Cuidados Paliativos Domiciliares',
-    councilNumber: 'CRM/SP 98.412',
-    crm: 'CRM/SP 98.412',
-    avatar: 'https://images.unsplash.com/photo-1594824813689-53748f572a15?w=150&auto=format&fit=crop&q=80',
-    color: '#059669',
-    baseAddress: 'Rua Vergueiro, 1500 - Vila Mariana, São Paulo - SP',
-    baseCoordinates: { latitude: -23.578100, longitude: -46.640200 }
-  },
-  {
     id: 'doc-3',
     name: 'Dr. Rafael Fontes',
     profession: 'Fisioterapia',
@@ -229,44 +205,44 @@ export const INITIAL_APPOINTMENTS = [
   {
     id: 'apt-1',
     patientId: 'pat-1',
-    doctorId: 'doc-1',
+    doctorId: 'doc-4',
     time: '09:00',
     date: '2026-09-28',
-    type: 'Sessão Domiciliar Médica & Curativo',
+    type: 'Visita de Enfermagem & Avaliação de Ferida',
     durationMinutes: 45,
     status: 'completed', // 'waiting' | 'in_progress' | 'completed' | 'scheduled' | 'cancelled'
     distanceFromPrevKm: 0.8,
     transitTimeMinutes: 12,
     address: 'Alameda Santos, 1000 - Apto 82, Cerqueira César',
-    notes: 'Avaliação da ferida operatória e aferição de sinais vitais no leito.'
+    notes: 'Avaliação da ferida operatória, curativo estéril e aferição de sinais vitais no leito.'
   },
   {
     id: 'apt-2',
     patientId: 'pat-2',
-    doctorId: 'doc-1',
+    doctorId: 'doc-4',
     time: '11:00',
     date: '2026-09-28',
-    type: 'Atendimento Domiciliar de Controle Metabólico',
+    type: 'Atendimento de Estomaterapia & Curativo Especial',
     durationMinutes: 45,
     status: 'in_progress', // Atendimento em andamento na casa do paciente
     distanceFromPrevKm: 3.9,
     transitTimeMinutes: 18,
     address: 'Rua Fradique Coutinho, 500 - Casa 3, Pinheiros',
-    notes: 'Desbridamento de lesão plantar e ajuste de dose de insulina.'
+    notes: 'Desbridamento de lesão plantar e curativo estéril com hidrogel e alginato.'
   },
   {
     id: 'apt-3',
     patientId: 'pat-3',
-    doctorId: 'doc-1',
+    doctorId: 'doc-3',
     time: '14:00',
     date: '2026-09-28',
-    type: 'Visita Domiciliar Respiratória',
+    type: 'Fisioterapia Respiratória Domiciliar',
     durationMinutes: 45,
     status: 'scheduled',
     distanceFromPrevKm: 4.6,
     transitTimeMinutes: 20,
     address: 'Av. Moema, 350 - Bloco B, Moema',
-    notes: 'Checagem de cilindro de O2, oximetria e ausculta pulmonar.'
+    notes: 'Checagem de cilindro de O2, oximetria, cinesioterapia respiratória e ausculta pulmonar.'
   },
   {
     id: 'apt-4',
@@ -285,16 +261,16 @@ export const INITIAL_APPOINTMENTS = [
   {
     id: 'apt-5',
     patientId: 'pat-5',
-    doctorId: 'doc-1',
+    doctorId: 'doc-5',
     time: '17:30',
     date: '2026-09-28',
-    type: 'Revisão Domiciliar Pós-AVC',
+    type: 'Reabilitação Fonoaudiológica Domiciliar',
     durationMinutes: 45,
     status: 'scheduled',
     distanceFromPrevKm: 2.1,
     transitTimeMinutes: 14,
     address: 'Rua Oscar Freire, 1800 - Apto 31, Pinheiros',
-    notes: 'Prevenção de úlceras por pressão e orientação ao cuidador.'
+    notes: 'Treino de deglutição segura, prevenção de broncoaspiração e orientação ao cuidador.'
   }
 ];
 
@@ -338,14 +314,14 @@ export const INITIAL_CLINICAL_RECORDS = {
       {
         id: 'rec-1',
         date: '28/09/2026 - 09:00',
-        doctor: 'Dr. Lucas Silveira',
-        profession: 'Medicina',
-        crm: 'CRM/SP 142.890',
-        subject: 'Avaliação Clínica Domiciliar - Revisão Pós-Artroplastia',
+        doctor: 'Dra. Camila Nogueira',
+        profession: 'Enfermagem',
+        crm: 'COREN/SP 230.110',
+        subject: 'Visita de Enfermagem - Revisão Pós-Artroplastia',
         chiefComplaint: 'Atendimento domiciliar de rotina no 12º DPO.',
         hda: 'Paciente encontrada no leito em bom estado geral. Relata melhora progressiva da dor. Nega febre. Cuidadora informa boa ingesta hídrica e alimentar.',
         physicalExam: 'PA: 120/78 mmHg, FC: 72 bpm, SpO2: 99% em ar ambiente. Ferida cirúrgica em quadril direito limpa, bordas aproximadas sem flogose. Sem empastamento de panturrilhas.',
-        conduct: 'Liberada para sessões de fisioterapia motora com carga parcial. Retirada de pontos programada.',
+        conduct: 'Liberada para continuidade das sessões de fisioterapia motora. Retirada de pontos programada.',
         cid: 'Z96.6',
         requestedExams: ['Hemograma Completo', 'PCR']
       }
