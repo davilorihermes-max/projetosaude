@@ -18,6 +18,7 @@ dist-ssr
 build/
 .next/
 out/
+*.tsbuildinfo
 
 # Variáveis de ambiente e segredos
 .env
