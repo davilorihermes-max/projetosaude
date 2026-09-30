@@ -11,7 +11,7 @@ export default function NotificationsModal({ isOpen, onClose, notifications = []
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Bell size={18} color="var(--primary)" />
-            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Notificações da Clínica</h3>
+            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Notificações Operacionais</h3>
           </div>
           <button className="btn-icon" onClick={onClose}>
             <X size={18} />

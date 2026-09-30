@@ -1,6 +1,6 @@
 // src/components/ClinicSettingsView.jsx
 import React, { useState } from 'react';
-import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Stethoscope, BellRing } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Users, BellRing } from 'lucide-react';
 import { CLINIC_INFO } from '../data/mockData';
 
 export default function ClinicSettingsView({
@@ -141,7 +141,7 @@ export default function ClinicSettingsView({
             />
             <div>
               <strong style={{ fontSize: '0.9rem', color: 'var(--text-headline)' }}>
-                Lembrete de Sessão & Retorno Clínico
+                Lembrete de Sessão & Retorno Domiciliar
               </strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Notifica o paciente e familiares próximo à data indicada para nova visita domiciliar.
@@ -155,7 +155,7 @@ export default function ClinicSettingsView({
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Stethoscope size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
+            <Users size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
           </h3>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas
@@ -205,7 +205,7 @@ export default function ClinicSettingsView({
           <div>
             <h4 style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Restaurar Dados de Exemplo</h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Reinicia todos os agendamentos, pacientes e prontuários para os valores de demonstração padrão.
+              Reinicia todos os agendamentos e pacientes para os valores de demonstração padrão.
             </p>
           </div>
           <button className="btn btn-danger" onClick={onResetData}>

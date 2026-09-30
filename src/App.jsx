@@ -5,7 +5,6 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
-import MedicalRecordView from './components/MedicalRecordView';
 import ClinicSettingsView from './components/ClinicSettingsView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
@@ -15,8 +14,7 @@ import LoginModal from './components/LoginModal';
 import {
   DOCTORS,
   INITIAL_PATIENTS,
-  INITIAL_APPOINTMENTS,
-  INITIAL_CLINICAL_RECORDS
+  INITIAL_APPOINTMENTS
 } from './data/mockData';
 
 export default function App() {
@@ -49,12 +47,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
   });
 
-  const [clinicalRecords, setClinicalRecords] = useState(() => {
-    const saved = localStorage.getItem('omnihome_records_v3');
-    return saved ? JSON.parse(saved) : INITIAL_CLINICAL_RECORDS;
-  });
-
-  // Active Professional & Selected Patient for PEP
+  // Active Professional & Selected Patient
   const [selectedDoctorId, setSelectedDoctorId] = useState(DOCTORS[0]?.id || 'doc-3');
   const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
 
@@ -66,8 +59,8 @@ export default function App() {
     }
     return {
       id: 'cmukamckz000112nvi9obl3j5',
-      name: 'Dr. Rafael Fontes',
-      email: 'rafael@omnisaude.com.br',
+      name: 'Rafael Fontes',
+      email: 'rafael@omnihomecare.com.br',
       role: 'PROFESSIONAL'
     };
   });
@@ -89,22 +82,22 @@ export default function App() {
     {
       id: 'notif-1',
       type: 'alert',
-      title: 'Alergia Grave no Domicílio',
-      description: 'Mariana Souza Lima possui alergia severa a Penicilina e Dipirona.',
+      title: 'Acesso Restrito ao Condomínio',
+      description: 'Mariana Souza Lima: Portaria exige aviso prévio de 15 min e cadastro na guarita.',
       time: 'Há 15 min'
     },
     {
       id: 'notif-2',
       type: 'lab',
       title: 'Check-in Realizado com Sucesso',
-      description: 'Dr. Rafael Fontes iniciou sessão de fisioterapia domiciliar em Pinheiros (Roberto Carlos).',
+      description: 'Rafael Fontes iniciou atendimento domiciliar em Pinheiros (Roberto Carlos).',
       time: 'Há 25 min'
     },
     {
       id: 'notif-3',
       type: 'info',
       title: 'Confirmação do Cuidador',
-      description: 'Cuidadora de Juliana confirmou presença para a sessão respiratória das 14:00.',
+      description: 'Cuidadora de Juliana confirmou presença e autorizou entrada para as 14:00.',
       time: 'Há 1 hora'
     }
   ]);
@@ -118,11 +111,7 @@ export default function App() {
     localStorage.setItem('omnihome_appointments_v3', JSON.stringify(appointments));
   }, [appointments]);
 
-  useEffect(() => {
-    localStorage.setItem('omnihome_records_v3', JSON.stringify(clinicalRecords));
-  }, [clinicalRecords]);
-
-  // Active doctor object
+  // Active professional object
   const activeDoctor = DOCTORS.find((d) => d.id === selectedDoctorId) || DOCTORS[0];
   const activePatient = patients.find((p) => p.id === activePatientId) || patients[0];
 
@@ -137,7 +126,7 @@ export default function App() {
     if (patientId) {
       setActivePatientId(patientId);
     }
-    setActiveTab('records');
+    setActiveTab('patients');
   };
 
   const handleOpenNewAppointment = (patientId = null, time = '09:00') => {
@@ -155,27 +144,13 @@ export default function App() {
     setActivePatientId(newPatient.id);
   };
 
-  const handleSaveNewEvolution = (patientId, newRecordItem) => {
-    setClinicalRecords((prev) => {
-      const existing = prev[patientId] || { timeline: [], diagnoses: [], currentMedications: [] };
-      return {
-        ...prev,
-        [patientId]: {
-          ...existing,
-          timeline: [newRecordItem, ...(existing.timeline || [])]
-        }
-      };
-    });
-  };
-
   const handleResetData = () => {
     if (window.confirm('Deseja restaurar todos os dados para os valores de demonstração padrão?')) {
       setPatients(INITIAL_PATIENTS);
       setAppointments(INITIAL_APPOINTMENTS);
-      setClinicalRecords(INITIAL_CLINICAL_RECORDS);
-      localStorage.removeItem('omnisaude_patients');
-      localStorage.removeItem('omnisaude_appointments');
-      localStorage.removeItem('omnisaude_records');
+      localStorage.removeItem('omnihome_patients_v3');
+      localStorage.removeItem('omnihome_appointments_v3');
+      localStorage.removeItem('omnihome_records_v3');
       alert('Dados restaurados com sucesso!');
     }
   };
@@ -246,17 +221,6 @@ export default function App() {
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               onOpenNewAppointment={handleOpenNewAppointment}
-            />
-          )}
-
-          {activeTab === 'records' && (
-            <MedicalRecordView
-              patient={activePatient}
-              allPatients={patients}
-              onSelectPatient={(p) => setActivePatientId(p.id)}
-              clinicalRecords={clinicalRecords}
-              onSaveNewEvolution={handleSaveNewEvolution}
-              activeDoctor={activeDoctor}
             />
           )}
 

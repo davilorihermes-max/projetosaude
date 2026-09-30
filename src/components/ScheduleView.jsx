@@ -6,7 +6,6 @@ import {
   Clock,
   CheckCircle2,
   Video,
-  FileHeart,
   Plus,
   Play,
   XCircle,
@@ -205,7 +204,7 @@ export default function ScheduleView({
                     style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem' }}
                     onClick={() => onOpenPatientRecord(patient?.id)}
                   >
-                    <FileHeart size={14} /> PEP
+                    <UserCheck size={14} /> Detalhes
                   </button>
 
                   {aptInSlot.status !== 'cancelled' && aptInSlot.status !== 'completed' && (

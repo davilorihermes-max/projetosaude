@@ -1,6 +1,6 @@
 // src/components/Header.jsx
 import React from 'react';
-import { Search, Bell, Plus, UserPlus, CalendarPlus, Stethoscope, KeyRound, ShieldCheck } from 'lucide-react';
+import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck } from 'lucide-react';
 import './Header.css';
 
 export default function Header({
@@ -24,7 +24,7 @@ export default function Header({
           <input
             type="text"
             className="search-input"
-            placeholder="Buscar por paciente, endereço residencial, CPF ou procedimento domiciliar..."
+            placeholder="Buscar por paciente, endereço residencial, CPF ou bairro..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -58,7 +58,7 @@ export default function Header({
         </button>
 
         <div className="doctor-select-wrapper">
-          <Stethoscope size={16} color="var(--primary)" />
+          <UserCheck size={16} color="var(--primary)" />
           <span className="doctor-select-label">Profissional em Rota:</span>
           <select
             className="doctor-select"

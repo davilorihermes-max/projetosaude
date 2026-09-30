@@ -10,7 +10,6 @@ import {
   MapPin,
   Car,
   Home,
-  FileHeart,
   Play,
   Navigation,
   ShieldAlert,
@@ -25,7 +24,6 @@ export default function Dashboard({
   patients = [],
   doctors = [],
   onUpdateAppointmentStatus,
-  onOpenPatientRecord,
   onOpenNewAppointment,
   activeDoctor
 }) {
@@ -70,14 +68,14 @@ export default function Dashboard({
       {/* Welcome Banner */}
       <div className="welcome-banner">
         <div className="welcome-text">
-          <h1>Roteiro Domiciliar: {activeDoctor?.name || 'Dr. Lucas Silveira'}</h1>
+          <h1>Roteiro Domiciliar: {activeDoctor?.name || 'Rafael Fontes'}</h1>
           <p>
             Você possui <strong>{totalSessions} sessões domiciliares</strong> programadas hoje. Rota estimada em <strong>{totalDistanceKm} km</strong> de deslocamento urbano com cálculo geodésico.
           </p>
         </div>
         <div className="welcome-badge-date">
           <Navigation size={15} />
-          <span>Central Operacional EMAD • São Paulo</span>
+          <span>Central Operacional • São Paulo</span>
         </div>
       </div>
 
@@ -131,7 +129,7 @@ export default function Dashboard({
           </div>
           <div className="kpi-value">{completedCount}</div>
           <div className="kpi-trend" style={{ background: 'var(--success-subtle)', color: 'var(--success)' }}>
-            Evoluções salvas no PEP
+            Finalizadas com sucesso
           </div>
         </div>
       </div>
@@ -241,10 +239,7 @@ export default function Dashboard({
                             <button
                               className="btn btn-primary"
                               style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}
-                              onClick={() => {
-                                onUpdateAppointmentStatus(apt.id, 'in_progress');
-                                onOpenPatientRecord(patient?.id);
-                              }}
+                              onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
                             >
                               <MapPin size={14} /> Check-in no Domicílio
                             </button>
@@ -259,15 +254,6 @@ export default function Dashboard({
                               <CheckCircle2 size={14} /> Finalizar Sessão Domiciliar
                             </button>
                           )}
-
-                          <button
-                            className="btn btn-outline-primary"
-                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
-                            onClick={() => onOpenPatientRecord(patient?.id)}
-                            title="Abrir Prontuário Domiciliar"
-                          >
-                            <FileHeart size={14} /> PEP Domiciliar
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -287,15 +273,15 @@ export default function Dashboard({
                 <ShieldAlert size={18} color="var(--danger)" />
                 Alertas da Atenção Domiciliar
               </h2>
-              <span className="badge badge-waiting">2 Atenções</span>
+              <span className="badge badge-waiting">2 Avisos de Acesso</span>
             </div>
 
             <div className="alert-card-item alert-danger-soft">
               <AlertCircle size={20} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Alerta de Atenção Clínica: Mariana Souza Lima</strong>
+                <strong>Instrução de Portaria: Mariana Souza Lima</strong>
                 <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
-                  Restrições clínicas registradas no PEP domiciliar. Conferir conduta antes de procedimentos invasivos.
+                  Portaria 24h, interfone 82. Vaga de visitante liberada para atendimento.
                 </p>
               </div>
             </div>
@@ -303,9 +289,9 @@ export default function Dashboard({
             <div className="alert-card-item alert-warning-soft">
               <AlertCircle size={20} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Oxigenoterapia Domiciliar: Juliana Mendes Prado</strong>
+                <strong>Acesso Residencial: Roberto Carlos Peixoto</strong>
                 <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
-                  Verificar manômetro do concentrador de O2 e saturação em repouso durante a sessão.
+                  Vila fechada. Portão de ferro manual, acionar interfone na Casa 3.
                 </p>
               </div>
             </div>
@@ -321,52 +307,52 @@ export default function Dashboard({
             </div>
           </div>
 
-          {/* Perfil Clínico e Níveis de Complexidade */}
+          {/* Modalidades de Atendimento Domiciliar */}
           <div className="card">
             <div className="section-header">
               <h2 className="section-title">
                 <Home size={18} color="var(--accent)" />
-                Perfil Clínico & Complexidade Domiciliar
+                Distribuição Operacional por Modalidade
               </h2>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Alta Complexidade & Suporte Ventilatório (BiPAP/VM)</span>
-                <span style={{ color: '#0284c7' }}>30%</span>
+                <span>Fisioterapia e Reabilitação Motora Domiciliar</span>
+                <span style={{ color: '#0284c7' }}>35%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '30%', background: '#0284c7' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '35%', background: '#0284c7' }}></div>
               </div>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Doenças Neurodegenerativas, Raras & Reabilitação</span>
-                <span style={{ color: '#9333ea' }}>25%</span>
+                <span>Enfermagem e Cuidados no Domicílio</span>
+                <span style={{ color: '#9333ea' }}>30%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '25%', background: '#9333ea' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '30%', background: '#9333ea' }}></div>
               </div>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Oncologia & Cuidados Paliativos Domiciliares</span>
-                <span style={{ color: '#d97706' }}>25%</span>
+                <span>Fonoaudiologia e Terapia Ocupacional</span>
+                <span style={{ color: '#d97706' }}>20%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '25%', background: '#d97706' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '20%', background: '#d97706' }}></div>
               </div>
             </div>
 
             <div className="specialty-row">
               <div className="specialty-meta">
-                <span>Pós-Cirúrgico Complexo, Feridas & Doenças Crônicas</span>
-                <span style={{ color: '#059669' }}>20%</span>
+                <span>Avaliação Inicial e Treinamento de Cuidador</span>
+                <span style={{ color: '#059669' }}>15%</span>
               </div>
               <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '20%', background: '#059669' }}></div>
+                <div className="specialty-bar-fill" style={{ width: '15%', background: '#059669' }}></div>
               </div>
             </div>
           </div>
