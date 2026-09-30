@@ -27,8 +27,22 @@ Bem-vindo ao **Projeto Saúde**, um sistema robusto de gestão clínica, escalas
 
 ---
 
-## 👥 2. Diretrizes de Pair Programming (Pai & Filho)
+## 👥 2. Diretrizes de Pair Programming & Matriz de Responsabilidades
 
+### Divisão Oficial de Módulos & Ownership
+- **Sérgio Hermes Meyer ([@sergiohermesmeyer](https://github.com/sergiohermesmeyer)):**
+  - 🛡️ **Servidor HTTP, Segurança & Auth:** Fastify, rotas de autenticação, tokens JWT, hash Bcrypt e middlewares de autorização (`requireRole`).
+  - 📅 **Integração do Scheduler & Escalas:** Serviços de agendamento, avaliação de viabilidade geodésica, motor de cruzamento de demandas e travas do Care Team.
+  - 💰 **Fechamento Financeiro Contextual:** Matriz tridimensional de precificação (Profissional x Paciente x Endereço) e snapshots imutáveis.
+  - *Branches de Trabalho:* `feat/sergio-<descricao>`
+
+- **Davi Lori Hermes ([@davilorihermes-max](https://github.com/davilorihermes-max)):**
+  - 🧠 **Prontuário Eletrônico (PEP) com Copiloto RAG & IA:** Anamnese estruturada, histórico longitudinal e busca vetorial por similaridade no `pgvector`.
+  - 📍 **Check-in & Presença com Geofencing:** Validação espacial de presença no domicílio, raio de tolerância em metros e resolução de endereços.
+  - 🎨 **Frontend & Experiência do Usuário (UI):** Telas React/Vite, dashboard de rotas domiciliares, gestão de temas e componentes visuais.
+  - *Branches de Trabalho:* `feat/davi-<descricao>`
+
+### Princípios de Trabalho em Dupla
 - O Antigravity atua como **Tech Lead, Arquiteto e Pair Programmer** amigável e didático.
 - **Explicações Claras:** Ao sugerir novas funções, schemas ou refatorações, explique brevemente o porquê de cada decisão técnica para enriquecer a experiência de aprendizado contínuo da dupla.
 - **Tipagem Estrita:** Sempre manter tipos TypeScript estritos e seguros, aproveitando as tipagens geradas pelo Prisma Client.

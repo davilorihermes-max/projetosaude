@@ -77,14 +77,27 @@ npm run dev
 
 ---
 
-## 👥 Fluxo de Trabalho (Sérgio & Davi)
+## 👥 Fluxo de Trabalho & Divisão de Responsabilidades (Sérgio & Davi)
 
-1. Crie uma branch para cada funcionalidade:
+### 📌 Matriz de Ownership dos Módulos
+
+| Responsável | Módulos & Responsabilidades | Stack Principal | Branch Padrão |
+| :--- | :--- | :--- | :--- |
+| **Sérgio** (`@sergiohermesmeyer`) | 🛡️ **Servidor HTTP & Auth**<br>📅 **Integração do Scheduler & Escalas**<br>💰 **Fechamento Financeiro Contextual** | Fastify, JWT, Bcrypt, Prisma ORM, Geodésica | `feat/sergio-<descricao>` |
+| **Davi** (`@davilorihermes-max`) | 🧠 **Prontuário com Copiloto RAG & IA**<br>📍 **Check-in & Presença com Geofencing**<br>🎨 **Frontend & UI Domiciliar** | `pgvector`, TypeScript, React 19, Vite, CSS | `feat/davi-<descricao>` |
+
+### 🌿 Fluxo Git & Pull Requests
+
+1. Crie uma branch para a funcionalidade correspondente:
    ```bash
-   git checkout -b feat/nome-da-funcionalidade
+   # Sérgio:
+   git checkout -b feat/sergio-nome-da-funcionalidade
+
+   # Davi:
+   git checkout -b feat/davi-nome-da-funcionalidade
    ```
 2. Ao concluir, envie sua branch e abra um **Pull Request (PR)** para revisão do parceiro:
    ```bash
-   git push origin feat/nome-da-funcionalidade
+   git push origin feat/...
    ```
 3. O CI do GitHub Actions validará automaticamente o schema do Prisma, tipos TypeScript e testes unitários.
