@@ -21,14 +21,16 @@ export default function NewAppointmentModal({
   doctors = [],
   onSaveAppointment,
   initialPatientId = null,
-  initialTime = '14:00'
+  initialTime = '14:00',
+  initialDate = '2026-09-28',
+  initialDuration = 45
 }) {
   const [patientId, setPatientId] = useState(initialPatientId || patients[0]?.id || '');
   const [doctorId, setDoctorId] = useState(doctors[0]?.id || '');
-  const [date, setDate] = useState('2026-09-28');
+  const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
   const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
-  const [durationMinutes, setDurationMinutes] = useState(45);
+  const [durationMinutes, setDurationMinutes] = useState(initialDuration || 45);
   const [notes, setNotes] = useState('');
 
   // Live evaluation state
@@ -42,9 +44,11 @@ export default function NewAppointmentModal({
     if (isOpen) {
       if (initialPatientId) setPatientId(initialPatientId);
       if (initialTime) setTime(initialTime);
+      if (initialDate) setDate(initialDate);
+      if (initialDuration) setDurationMinutes(Number(initialDuration) || 45);
       setSubmitError('');
     }
-  }, [isOpen, initialPatientId, initialTime]);
+  }, [isOpen, initialPatientId, initialTime, initialDate, initialDuration]);
 
   // Live check with backend scheduler evaluation
   useEffect(() => {
@@ -120,30 +124,42 @@ export default function NewAppointmentModal({
     const proposedIso = `${date}T${time}:00.000Z`;
 
     try {
-      // 1. Persist in database if token is available
+      // 1. Persistir no banco de dados se houver token disponível
       if (token) {
-        const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            professionalId: doctorId,
-            patientId,
-            scheduledTime: proposedIso,
-            durationMinutes: Number(durationMinutes) || 45,
-            notes
-          })
-        });
+        try {
+          const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              professionalId: doctorId,
+              patientId,
+              scheduledTime: proposedIso,
+              durationMinutes: Number(durationMinutes) || 45,
+              notes
+            })
+          });
 
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Falha ao agendar sessão no servidor.');
+          if (!res.ok) {
+            if (res.status === 401) {
+              throw new Error('Sessão expirada. Por favor, faça login novamente no topo da página.');
+            }
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Falha ao agendar sessão no servidor.');
+          }
+        } catch (fetchErr) {
+          // Se for erro de rede/conexão (backend offline), permite prosseguir com salvamento local
+          if (fetchErr.name === 'TypeError' || fetchErr.message?.toLowerCase().includes('fetch')) {
+            console.warn('Servidor Fastify (porta 3001) inacessível. Agendamento registrado localmente:', fetchErr);
+          } else {
+            throw fetchErr;
+          }
         }
       }
 
-      // 2. Add to frontend state
+      // 2. Salvar no estado local do frontend (LocalStorage)
       const newApt = {
         id: `apt-${Date.now()}`,
         patientId,
@@ -159,7 +175,7 @@ export default function NewAppointmentModal({
 
       onSaveAppointment(newApt);
 
-      // Trigger celebratory confetti
+      // Disparar confetes de celebração
       confetti({
         particleCount: 40,
         spread: 60,
@@ -168,7 +184,11 @@ export default function NewAppointmentModal({
 
       onClose();
     } catch (err) {
-      setSubmitError(err.message || 'Erro ao agendar.');
+      setSubmitError(
+        err.message?.toLowerCase().includes('fetch')
+          ? 'Não foi possível conectar ao servidor Fastify (porta 3001).'
+          : (err.message || 'Erro ao agendar.')
+      );
     } finally {
       setSaving(false);
     }
@@ -325,6 +345,35 @@ export default function NewAppointmentModal({
                 </select>
               </div>
             </div>
+
+            {time && (
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '-0.35rem',
+                  marginBottom: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Clock size={14} color="var(--primary)" />
+                <span>
+                  Janela da Sessão: <strong>{time}</strong> às{' '}
+                  <strong>
+                    {(() => {
+                      const [h, m] = time.split(':').map(Number);
+                      const totalMin = (h || 0) * 60 + (m || 0) + (Number(durationMinutes) || 45);
+                      const endH = Math.floor(totalMin / 60) % 24;
+                      const endM = totalMin % 60;
+                      return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+                    })()}
+                  </strong>{' '}
+                  ({durationMinutes} min de atendimento)
+                </span>
+              </div>
+            )}
 
             {/* Live Scheduler Viability Feedback Card */}
             <div

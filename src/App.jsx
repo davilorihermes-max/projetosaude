@@ -73,6 +73,8 @@ export default function App() {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [modalInitialPatientId, setModalInitialPatientId] = useState(null);
   const [modalInitialTime, setModalInitialTime] = useState('09:00');
+  const [modalInitialDate, setModalInitialDate] = useState('2026-09-28');
+  const [modalInitialDuration, setModalInitialDuration] = useState(45);
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -111,6 +113,58 @@ export default function App() {
     localStorage.setItem('omnihome_appointments_v3', JSON.stringify(appointments));
   }, [appointments]);
 
+  // Sincroniza agendamentos do backend Prisma quando houver sessão autenticada
+  useEffect(() => {
+    const syncBackendAppointments = async () => {
+      try {
+        const token = localStorage.getItem('omnihome_jwt');
+        if (!token) return;
+
+        const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.appointments && Array.isArray(data.appointments)) {
+            const mapped = data.appointments.map((a) => {
+              const dateObj = new Date(a.scheduledTime);
+              const dateStr = dateObj.toISOString().slice(0, 10);
+              const timeStr = dateObj.toISOString().slice(11, 16);
+              const doctorId =
+                a.professionalId === 'doc-3' || a.professional?.user?.name?.includes('Rafael')
+                  ? 'doc-3'
+                  : a.professionalId;
+
+              return {
+                id: a.id,
+                patientId: a.patientId,
+                doctorId,
+                date: dateStr,
+                time: timeStr,
+                type: a.notes || 'Sessão Domiciliar',
+                durationMinutes: a.durationMinutes || 45,
+                address: a.patient?.address || 'São Paulo - SP',
+                notes: a.notes || '',
+                status: a.status ? a.status.toLowerCase() : 'scheduled'
+              };
+            });
+
+            setAppointments((prev) => {
+              const backendIds = new Set(mapped.map((m) => m.id));
+              const localOnly = prev.filter((p) => !backendIds.has(p.id));
+              return [...mapped, ...localOnly];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Sincronização com backend ignorada:', err);
+      }
+    };
+
+    syncBackendAppointments();
+  }, [currentUser]);
+
   // Active professional object
   const activeDoctor = DOCTORS.find((d) => d.id === selectedDoctorId) || DOCTORS[0];
   const activePatient = patients.find((p) => p.id === activePatientId) || patients[0];
@@ -129,9 +183,11 @@ export default function App() {
     setActiveTab('patients');
   };
 
-  const handleOpenNewAppointment = (patientId = null, time = '09:00') => {
+  const handleOpenNewAppointment = (patientId = null, time = '09:00', date = '2026-09-28', duration = 45) => {
     setModalInitialPatientId(patientId);
     setModalInitialTime(time);
+    setModalInitialDate(date);
+    setModalInitialDuration(duration);
     setIsAppointmentModalOpen(true);
   };
 
@@ -157,7 +213,7 @@ export default function App() {
 
   // Waiting in reception count
   const waitingCount = appointments.filter(
-    (a) => a.date === '2026-09-27' && a.status === 'waiting'
+    (a) => a.date === '2026-09-28' && a.status === 'waiting'
   ).length;
 
   return (
@@ -212,6 +268,7 @@ export default function App() {
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewAppointment={handleOpenNewAppointment}
               selectedDoctorId={selectedDoctorId}
+              setSelectedDoctorId={setSelectedDoctorId}
             />
           )}
 
@@ -242,6 +299,8 @@ export default function App() {
         onSaveAppointment={handleSaveAppointment}
         initialPatientId={modalInitialPatientId}
         initialTime={modalInitialTime}
+        initialDate={modalInitialDate}
+        initialDuration={modalInitialDuration}
       />
 
       <NewPatientModal

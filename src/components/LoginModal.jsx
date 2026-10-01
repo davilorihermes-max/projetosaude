@@ -60,7 +60,10 @@ export default function LoginModal({
         onClose();
       }, 1200);
     } catch (err) {
-      setErrorMsg(err.message || 'Erro ao conectar ao servidor HTTP Fastify (porta 3001).');
+      const msg = err.message?.toLowerCase().includes('fetch')
+        ? 'Servidor Fastify inacessível na porta 3001. Verifique se o backend está em execução.'
+        : (err.message || 'Erro ao conectar ao servidor HTTP Fastify (porta 3001).');
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
