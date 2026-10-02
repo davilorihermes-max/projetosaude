@@ -32,6 +32,7 @@ model Professional {
   updatedAt    DateTime         @updatedAt
   careTeams    CareTeamMember[]
   appointments Appointment[]
+  attendances  Attendance[]
 }
 
 model Patient {
@@ -47,6 +48,7 @@ model Patient {
   updatedAt       DateTime         @updatedAt
   careTeamMembers CareTeamMember[]
   appointments    Appointment[]
+  attendances     Attendance[]
 }
 
 model CareTeamMember {
@@ -77,4 +79,31 @@ model Appointment {
   notes           String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+  attendance      Attendance?
+}
+
+model Attendance {
+  id                    String        @id @default(cuid())
+  appointmentId         String        @unique
+  appointment           Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  professionalId        String
+  professional          Professional  @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  patientId             String
+  patient               Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  checkInAt             DateTime      @default(now())
+  checkInLatitude       Float?
+  checkInLongitude      Float?
+  checkInDistanceMeters Float?
+  checkInStatus         String        @default("ON_SITE_VALIDATED") // "ON_SITE_VALIDATED", "OUT_OF_BOUNDS_ACCEPTED", "MANUAL_OVERRIDE"
+  overrideReason        String?
+  checkOutAt            DateTime?
+  checkOutLatitude      Float?
+  checkOutLongitude     Float?
+  actualDurationMin     Int?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([appointmentId])
+  @@index([professionalId])
+  @@index([patientId])
 }

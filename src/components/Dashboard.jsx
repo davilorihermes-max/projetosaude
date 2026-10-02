@@ -1,5 +1,5 @@
 // src/components/Dashboard.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Calendar,
@@ -13,10 +13,12 @@ import {
   Play,
   Navigation,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Phone,
   Compass
 } from 'lucide-react';
+import CheckInModal from './CheckInModal';
 import './Dashboard.css';
 
 export default function Dashboard({
@@ -39,7 +41,28 @@ export default function Dashboard({
     .reduce((acc, apt) => acc + (apt.distanceFromPrevKm || 2.5), 0)
     .toFixed(1);
 
-  const handleCompleteWithCelebration = (aptId) => {
+  const [checkInModalAppointment, setCheckInModalAppointment] = useState(null);
+  const activeCheckInPatient = patients.find((p) => p.id === checkInModalAppointment?.patientId);
+
+  const handleCheckInSuccess = (appointmentId, attendanceRecord) => {
+    onUpdateAppointmentStatus(appointmentId, 'in_progress', attendanceRecord);
+  };
+
+  const handleCompleteWithCelebration = async (aptId) => {
+    try {
+      const token = localStorage.getItem('omnihome_jwt');
+      if (token) {
+        await fetch('http://localhost:3001/api/attendance/check-out', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ appointmentId: aptId })
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
     onUpdateAppointmentStatus(aptId, 'completed');
     confetti({
       particleCount: 80,
@@ -48,11 +71,25 @@ export default function Dashboard({
     });
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, attendance = null) => {
     switch (status) {
       case 'waiting':
         return <span className="badge badge-waiting"><span className="badge-dot"></span>A Caminho do Domicílio</span>;
       case 'in_progress':
+        if (attendance?.checkInStatus === 'ON_SITE_VALIDATED') {
+          return (
+            <span className="badge badge-completed" style={{ gap: '0.35rem', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)' }}>
+              <ShieldCheck size={13} /> GPS no Domicílio ({attendance.checkInDistanceMeters || 35}m)
+            </span>
+          );
+        }
+        if (attendance?.checkInStatus === 'OUT_OF_BOUNDS_ACCEPTED') {
+          return (
+            <span className="badge badge-waiting" style={{ gap: '0.35rem', background: 'rgba(245, 158, 11, 0.15)', color: '#b45309' }}>
+              <AlertCircle size={13} /> Fora do Raio ({attendance.checkInDistanceMeters || 780}m - Justificado)
+            </span>
+          );
+        }
         return <span className="badge badge-in_progress"><span className="badge-dot"></span>Na Residência (Em Atendimento)</span>;
       case 'completed':
         return <span className="badge badge-completed"><span className="badge-dot"></span>Sessão Concluída</span>;
@@ -196,7 +233,7 @@ export default function Dashboard({
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                               <span className="queue-patient-name">{patient?.name}</span>
-                              {getStatusBadge(apt.status)}
+                              {getStatusBadge(apt.status, apt.attendance)}
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--primary)', marginTop: '0.25rem', fontWeight: 600 }}>
@@ -226,20 +263,31 @@ export default function Dashboard({
 
                         <div className="queue-actions" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
                           {apt.status === 'scheduled' && (
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
-                              onClick={() => onUpdateAppointmentStatus(apt.id, 'waiting')}
-                            >
-                              <Car size={13} /> A Caminho (Iniciar Rota)
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              <button
+                                className="btn btn-secondary"
+                                style={{ padding: '0.4rem 0.65rem', fontSize: '0.78rem' }}
+                                onClick={() => onUpdateAppointmentStatus(apt.id, 'waiting')}
+                                title="Iniciar deslocamento até o domicílio"
+                              >
+                                <Car size={13} /> A Caminho
+                              </button>
+                              <button
+                                className="btn btn-primary"
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
+                                onClick={() => setCheckInModalAppointment(apt)}
+                                title="Fazer check-in GPS no domicílio"
+                              >
+                                <MapPin size={13} /> Check-in GPS
+                              </button>
+                            </div>
                           )}
 
                           {apt.status === 'waiting' && (
                             <button
                               className="btn btn-primary"
                               style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}
-                              onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
+                              onClick={() => setCheckInModalAppointment(apt)}
                             >
                               <MapPin size={14} /> Check-in no Domicílio
                             </button>
@@ -358,6 +406,15 @@ export default function Dashboard({
           </div>
         </div>
       </div>
+
+      {/* Geofencing Check-in Modal */}
+      <CheckInModal
+        isOpen={!!checkInModalAppointment}
+        onClose={() => setCheckInModalAppointment(null)}
+        appointment={checkInModalAppointment}
+        patient={activeCheckInPatient}
+        onCheckInSuccess={handleCheckInSuccess}
+      />
     </div>
   );
 }

@@ -170,9 +170,17 @@ export default function App() {
   const activePatient = patients.find((p) => p.id === activePatientId) || patients[0];
 
   // Actions
-  const handleUpdateAppointmentStatus = (aptId, newStatus) => {
+  const handleUpdateAppointmentStatus = (aptId, newStatus, attendanceData = null) => {
     setAppointments((prev) =>
-      prev.map((apt) => (apt.id === aptId ? { ...apt, status: newStatus } : apt))
+      prev.map((apt) =>
+        apt.id === aptId
+          ? {
+              ...apt,
+              status: newStatus,
+              ...(attendanceData ? { attendance: attendanceData } : {})
+            }
+          : apt
+      )
     );
   };
 
