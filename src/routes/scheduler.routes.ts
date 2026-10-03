@@ -145,6 +145,58 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     });
     return reply.status(200).send({ success: true, patients: list });
   });
+
+  /**
+   * POST /api/scheduler/monthly-plan/generate
+   * Gera o plano de escala mensal automatizado cruzando demandas, disponibilidades e Care Team
+   */
+  app.post<{
+    Body: {
+      year?: number;
+      month?: number;
+      demands?: any[];
+      availabilities?: any[];
+      careTeams?: any[];
+    };
+  }>('/monthly-plan/generate', async (request, reply) => {
+    const { year, month, demands, availabilities, careTeams } = request.body || {};
+
+    const plan = await SchedulingService.generateMonthlyScalePlan({
+      year,
+      month,
+      demands,
+      availabilities,
+      careTeams
+    });
+
+    return reply.status(200).send({
+      success: true,
+      plan
+    });
+  });
+
+  /**
+   * POST /api/scheduler/monthly-plan/commit
+   * Grava em lote as sessões aprovadas da escala mensal no banco de dados Prisma
+   */
+  app.post<{
+    Body: {
+      sessions: any[];
+    };
+  }>('/monthly-plan/commit', { preHandler: [authenticate] }, async (request, reply) => {
+    const { sessions } = request.body || {};
+
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'A lista de sessões para commit é obrigatória.'
+      });
+    }
+
+    const result = await SchedulingService.commitMonthlyPlan(sessions);
+    return reply.status(201).send(result);
+  });
 };
 
 
