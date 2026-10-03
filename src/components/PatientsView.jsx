@@ -7,17 +7,13 @@ import {
   Phone,
   Mail,
   Calendar,
-  FileHeart,
   CalendarPlus,
-  AlertCircle,
-  ShieldCheck,
-  Heart
+  ShieldCheck
 } from 'lucide-react';
 import './PatientsView.css';
 
 export default function PatientsView({
   patients = [],
-  onOpenPatientRecord,
   onOpenNewPatient,
   onOpenNewAppointment
 }) {
@@ -87,7 +83,6 @@ export default function PatientsView({
           </div>
         ) : (
           filteredPatients.map((patient) => {
-            const latestVitals = patient.vitalsHistory?.[patient.vitalsHistory.length - 1];
             return (
               <div key={patient.id} className="patient-card">
                 <div className="patient-card-header">
@@ -125,35 +120,23 @@ export default function PatientsView({
                     </div>
                   )}
                   <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>Última PA aferida:</span>
-                    <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                      {latestVitals ? `${latestVitals.bpSystolic}/${latestVitals.bpDiastolic} mmHg` : 'N/A'}
-                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>📞 Contato:</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{patient.phone}</span>
                   </div>
-                  {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== 'Nenhuma conhecida' && (
-                    <div style={{ marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#e11d48', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <AlertCircle size={13} /> Alergias: {patient.allergies.join(', ')}
-                      </span>
+                  {patient.accessNotes && (
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      🔑 {patient.accessNotes}
                     </div>
                   )}
                 </div>
 
                 <div className="patient-card-actions">
                   <button
-                    className="btn btn-outline-primary"
-                    style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem' }}
-                    onClick={() => onOpenPatientRecord(patient.id)}
-                  >
-                    <FileHeart size={15} /> PEP Domiciliar
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem' }}
+                    className="btn btn-primary"
+                    style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                     onClick={() => onOpenNewAppointment(patient.id)}
-                    title="Agendar Sessão Domiciliar"
                   >
-                    <CalendarPlus size={15} />
+                    <CalendarPlus size={15} /> Agendar Sessão Domiciliar
                   </button>
                 </div>
               </div>

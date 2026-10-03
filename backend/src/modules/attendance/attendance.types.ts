@@ -1,4 +1,8 @@
-import { CheckInStatus } from '@prisma/client';
+export enum CheckInStatus {
+  ON_SITE_VALIDATED = 'ON_SITE_VALIDATED',
+  OUT_OF_BOUNDS_ACCEPTED = 'OUT_OF_BOUNDS_ACCEPTED',
+  MANUAL_OVERRIDE = 'MANUAL_OVERRIDE'
+}
 
 export interface GeoPoint {
   latitude: number;

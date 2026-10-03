@@ -158,16 +158,18 @@ export function evaluateScheduleViability(
 
     transitTimeMinutes = estimateTransitTimeMinutes(distanceKm, averageSpeedKmh, bufferMinutes);
 
-    const availableTransitTimeMinutes = (proposedStart - originDepartureTime) / (60 * 1000);
+    if (prevAppt) {
+      const availableTransitTimeMinutes = (proposedStart - originDepartureTime) / (60 * 1000);
 
-    if (availableTransitTimeMinutes < transitTimeMinutes) {
-      return {
-        viable: false,
-        reason: `Tempo de deslocamento insuficiente vindo do compromisso anterior (${distanceKm} km). Necessário: ${transitTimeMinutes} min, disponível: ${Math.round(availableTransitTimeMinutes)} min.`,
-        distanceKm,
-        transitTimeMinutes,
-        conflictWithAppointmentId: prevAppt?.id
-      };
+      if (availableTransitTimeMinutes < transitTimeMinutes) {
+        return {
+          viable: false,
+          reason: `Tempo de deslocamento insuficiente vindo do compromisso anterior (${distanceKm} km). Necessário: ${transitTimeMinutes} min, disponível: ${Math.round(availableTransitTimeMinutes)} min.`,
+          distanceKm,
+          transitTimeMinutes,
+          conflictWithAppointmentId: prevAppt?.id
+        };
+      }
     }
   }
 

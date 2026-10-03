@@ -1,5 +1,4 @@
-import { CheckInStatus } from '@prisma/client';
-import { CheckInAssessment, GeoPoint } from './attendance.types';
+import { CheckInAssessment, GeoPoint, CheckInStatus } from './attendance.types';
 
 export class GeofencingCalculator {
   // Raio de tolerância padrão para validação de presença no local (150 metros)

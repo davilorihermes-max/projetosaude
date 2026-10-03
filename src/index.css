@@ -272,42 +272,44 @@ button, input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.725rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   border-radius: var(--radius-full);
-  line-height: 1.2;
+  line-height: 1.25;
+  transition: all var(--transition-fast);
 }
 
 .badge-waiting {
   background: var(--warning-subtle);
   color: #b45309;
-  border: 1px solid var(--warning-border);
+  border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .badge-in_progress {
   background: var(--info-subtle);
   color: #4338ca;
-  border: 1px solid var(--info-border);
+  border: 1px solid rgba(99, 102, 241, 0.25);
   animation: pulse-border 2s infinite ease-in-out;
 }
 
 .badge-completed {
   background: var(--success-subtle);
   color: #065f46;
-  border: 1px solid var(--success-border);
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .badge-scheduled {
   background: var(--primary-subtle);
   color: #0369a1;
-  border: 1px solid var(--primary-border);
+  border: 1px solid rgba(2, 132, 199, 0.2);
 }
 
 .badge-cancelled {
   background: var(--danger-subtle);
   color: #b91c1c;
-  border: 1px solid var(--danger-border);
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .badge-dot {

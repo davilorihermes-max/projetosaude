@@ -1,6 +1,6 @@
 // src/components/ClinicSettingsView.jsx
 import React, { useState } from 'react';
-import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Stethoscope, BellRing } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Users, BellRing } from 'lucide-react';
 import { CLINIC_INFO } from '../data/mockData';
 
 export default function ClinicSettingsView({
@@ -141,47 +141,58 @@ export default function ClinicSettingsView({
             />
             <div>
               <strong style={{ fontSize: '0.9rem', color: 'var(--text-headline)' }}>
-                Lembrete de Medicamentos & Retorno Clínico
+                Lembrete de Sessão & Retorno Domiciliar
               </strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Notifica o paciente próximo à data indicada pelo médico para novo check-up.
+                Notifica o paciente e familiares próximo à data indicada para nova visita domiciliar.
               </p>
             </div>
           </label>
         </div>
       </div>
 
-      {/* Registered Medical Staff */}
+      {/* Registered Multidisciplinary Staff */}
       <div className="card">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Stethoscope size={18} color="var(--primary)" /> Corpo Clínico Ativo
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Users size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
+          </h3>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
           {doctors.map((doc) => (
             <div
               key={doc.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem',
+                gap: '0.85rem',
+                padding: '0.85rem 1rem',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-page)'
+                background: 'var(--bg-page)',
+                transition: 'all 0.15s ease'
               }}
             >
               <img
                 src={doc.avatar}
                 alt={doc.name}
-                style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover' }}
               />
-              <div>
-                <strong style={{ fontSize: '0.875rem', color: 'var(--text-headline)', display: 'block' }}>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--text-headline)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {doc.name}
                 </strong>
-                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
-                  {doc.crm}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+                  <span className="badge badge-scheduled" style={{ fontSize: '0.675rem', padding: '0.1rem 0.4rem' }}>
+                    {doc.profession || 'Especialista'}
+                  </span>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                    {doc.councilNumber || doc.crm}
+                  </span>
+                </div>
               </div>
             </div>
           ))}
@@ -194,7 +205,7 @@ export default function ClinicSettingsView({
           <div>
             <h4 style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Restaurar Dados de Exemplo</h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Reinicia todos os agendamentos, pacientes e prontuários para os valores de demonstração padrão.
+              Reinicia todos os agendamentos e pacientes para os valores de demonstração padrão.
             </p>
           </div>
           <button className="btn btn-danger" onClick={onResetData}>
