@@ -67,7 +67,7 @@ export default function MonthlyScalePlannerView({
   onCommitScaleToAppointments
 }) {
   const [selectedMonth, setSelectedMonth] = useState('2026-10');
-  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'coverage', 'demands', 'bottlenecks'
+  const [activeTab, setActiveTab] = useState('demands'); // Inicia diretamente na aba de configuração de demandas e horários
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
   const [selectedPatientFilter, setSelectedPatientFilter] = useState('all');
@@ -76,6 +76,14 @@ export default function MonthlyScalePlannerView({
   // Modais de Criação
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const [isNewTherapistModalOpen, setIsNewTherapistModalOpen] = useState(false);
+
+  // Modal para editar dados básicos do paciente (nome e bairro)
+  const [editPatientModalState, setEditPatientModalState] = useState({
+    isOpen: false,
+    patientId: null,
+    patientName: '',
+    neighborhood: 'Cerqueira César (Alameda Santos)'
+  });
 
   // Modal para adicionar nova demanda a um paciente existente
   const [addDemandModalState, setAddDemandModalState] = useState({
@@ -383,9 +391,76 @@ export default function MonthlyScalePlannerView({
     runGeneration(patientsWithDemands, updated, careTeams);
   };
 
+  // Aplicar preset rápido de horário (ex: 08:00 às 13:00)
+  const handleApplyTimePreset = (profId, dayNum, startTime, endTime) => {
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === profId) {
+        const currentWin = prof.weekdayWindows?.[dayNum] || { enabled: true, startTime: '08:00', endTime: '18:00' };
+        return {
+          ...prof,
+          weekdayWindows: {
+            ...prof.weekdayWindows,
+            [dayNum]: {
+              ...currentWin,
+              enabled: true,
+              startTime,
+              endTime
+            }
+          }
+        };
+      }
+      return prof;
+    });
+
+    setProfessionalAvailabilities(updated);
+    runGeneration(patientsWithDemands, updated, careTeams);
+  };
+
   // ----------------------------------------------------
   // GESTÃO DE DEMANDAS DOS PACIENTES (ATÉ 3 POR PACIENTE)
   // ----------------------------------------------------
+  // Alterar especialidade terapêutica de uma demanda existente
+  const handleUpdateTherapyType = (patientId, demandId, newType) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          demands: pat.demands.map((d) => (d.id === demandId ? { ...d, therapyType: newType } : d))
+        };
+      }
+      return pat;
+    });
+
+    setPatientsWithDemands(updated);
+    runGeneration(updated, professionalAvailabilities, careTeams);
+  };
+
+  // Salvar edição de dados básicos do paciente (nome e bairro)
+  const handleSaveEditPatient = (e) => {
+    e.preventDefault();
+    const { patientId, patientName, neighborhood } = editPatientModalState;
+    if (!patientId || !patientName.trim()) return;
+
+    const coords = SP_PRESET_LOCATIONS[neighborhood] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'];
+
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          patientName: patientName.trim(),
+          neighborhood,
+          address: neighborhood,
+          location: coords
+        };
+      }
+      return pat;
+    });
+
+    setPatientsWithDemands(updated);
+    setEditPatientModalState({ isOpen: false, patientId: null, patientName: '', neighborhood: '' });
+    runGeneration(updated, professionalAvailabilities, careTeams);
+  };
+
   // Alterar frequência semanal de uma terapia específica do paciente
   const handleUpdateWeeklySessions = (patientId, demandId, delta) => {
     const updated = patientsWithDemands.map((pat) => {
@@ -775,14 +850,74 @@ export default function MonthlyScalePlannerView({
         </div>
       )}
 
+      {/* Banner de Direcionamento Operacional */}
+      <div style={{
+        background: activeTab === 'demands' ? '#eff6ff' : '#f8fafc',
+        border: activeTab === 'demands' ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '0.9rem 1.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            background: activeTab === 'demands' ? '#2563eb' : '#059669',
+            color: '#fff',
+            borderRadius: '8px',
+            padding: '4px 8px',
+            fontWeight: 800,
+            fontSize: '0.8rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem'
+          }}>
+            {activeTab === 'demands' ? '⚙️ ETAPA 1 (CONFIGURAÇÃO)' : '📅 ETAPA 2 (RESULTADO)'}
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+              {activeTab === 'demands'
+                ? 'Definição de Horários dos Terapeutas & Demandas dos Pacientes'
+                : 'Grade de Escala Mensal Gerada pelo Motor de Roteirização Urbana'}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+              {activeTab === 'demands'
+                ? 'Indique o horário de início e fim da jornada diária dos terapeutas (sem limite artificial de atendimentos) e até 3 demandas por paciente abaixo.'
+                : 'Acompanhe as sessões agendadas dia a dia, horários exatos e tempos de trânsito em rota geodésica urbana.'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-secondary"
+          style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+          onClick={() => setActiveTab(activeTab === 'demands' ? 'calendar' : 'demands')}
+        >
+          {activeTab === 'demands' ? 'Ver Grade Mensal Gerada ➡️' : '⬅️ Ajustar Horários & Demandas'}
+        </button>
+      </div>
+
       {/* Navegação de Abas do Módulo */}
       <div className="planner-tabs">
+        <button
+          className={`planner-tab-btn ${activeTab === 'demands' ? 'active' : ''}`}
+          onClick={() => setActiveTab('demands')}
+        >
+          <Sliders size={18} />
+          ⚙️ 1. Horários & Demandas (Entrada)
+          <span className="tab-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
+            {patientsWithDemands.length} pacientes | {professionalAvailabilities.length} terapeutas
+          </span>
+        </button>
+
         <button
           className={`planner-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`}
           onClick={() => setActiveTab('calendar')}
         >
           <CalendarDays size={18} />
-          Grade Mensal de Sessões
+          📅 2. Grade Mensal de Sessões (Resultado)
           {scaleResult && (
             <span className="tab-badge">{scaleResult.plannedSessions.length}</span>
           )}
@@ -793,7 +928,7 @@ export default function MonthlyScalePlannerView({
           onClick={() => setActiveTab('coverage')}
         >
           <TrendingUp size={18} />
-          Metas Terapêuticas & Cobertura
+          📊 3. Metas Terapêuticas & Cobertura
         </button>
 
         <button
@@ -801,21 +936,10 @@ export default function MonthlyScalePlannerView({
           onClick={() => setActiveTab('bottlenecks')}
         >
           <AlertTriangle size={18} />
-          Gargalos & Ações do Gestor
+          ⚠️ 4. Gargalos & Ações do Gestor
           {scaleResult?.bottlenecks?.length > 0 && (
             <span className="tab-badge badge-amber">{scaleResult.bottlenecks.length}</span>
           )}
-        </button>
-
-        <button
-          className={`planner-tab-btn ${activeTab === 'demands' ? 'active' : ''}`}
-          onClick={() => setActiveTab('demands')}
-        >
-          <Sliders size={18} />
-          Horários dos Terapeutas & Demandas dos Pacientes
-          <span className="tab-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
-            {patientsWithDemands.length} pacientes | {professionalAvailabilities.length} terapeutas
-          </span>
         </button>
       </div>
 
@@ -1221,21 +1345,49 @@ export default function MonthlyScalePlannerView({
                             </label>
 
                             {win.enabled ? (
-                              <div className="time-range-inputs">
-                                <span>das</span>
-                                <input
-                                  type="time"
-                                  className="time-input-compact"
-                                  value={win.startTime}
-                                  onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'startTime', e.target.value)}
-                                />
-                                <span>às</span>
-                                <input
-                                  type="time"
-                                  className="time-input-compact"
-                                  value={win.endTime}
-                                  onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'endTime', e.target.value)}
-                                />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <div className="time-range-inputs">
+                                  <span>das</span>
+                                  <input
+                                    type="time"
+                                    className="time-input-compact"
+                                    value={win.startTime}
+                                    onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'startTime', e.target.value)}
+                                  />
+                                  <span>às</span>
+                                  <input
+                                    type="time"
+                                    className="time-input-compact"
+                                    value={win.endTime}
+                                    onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'endTime', e.target.value)}
+                                  />
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                  <button
+                                    type="button"
+                                    className="preset-btn"
+                                    title="08:00 às 13:00"
+                                    onClick={() => handleApplyTimePreset(prof.professionalId, dayNum, '08:00', '13:00')}
+                                  >
+                                    08h-13h
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="preset-btn"
+                                    title="13:00 às 18:00"
+                                    onClick={() => handleApplyTimePreset(prof.professionalId, dayNum, '13:00', '18:00')}
+                                  >
+                                    13h-18h
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="preset-btn"
+                                    title="08:00 às 18:00"
+                                    onClick={() => handleApplyTimePreset(prof.professionalId, dayNum, '08:00', '18:00')}
+                                  >
+                                    08h-18h
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
@@ -1284,13 +1436,26 @@ export default function MonthlyScalePlannerView({
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
                             {patient.patientName}
                           </span>
                           <span className="demand-counter-badge">
                             {patient.demands.length}/3 Terapias
                           </span>
+                          <button
+                            type="button"
+                            className="btn-edit-patient-inline"
+                            title="Editar Nome e Bairro do Paciente"
+                            onClick={() => setEditPatientModalState({
+                              isOpen: true,
+                              patientId: patient.patientId,
+                              patientName: patient.patientName,
+                              neighborhood: patient.neighborhood || 'Cerqueira César (Alameda Santos)'
+                            })}
+                          >
+                            ✏️ Editar Paciente
+                          </button>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
                           📍 {patient.address}
@@ -1311,9 +1476,20 @@ export default function MonthlyScalePlannerView({
                       {patient.demands.map((demand, idx) => (
                         <div key={demand.id || idx} className="single-demand-card">
                           <div className="single-demand-header">
-                            <span style={{ fontWeight: 700, color: '#1e3a8a', fontSize: '0.82rem' }}>
-                              #{idx + 1} {demand.therapyType}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
+                              <span style={{ fontWeight: 800, color: '#1e3a8a', fontSize: '0.75rem' }}>
+                                #{idx + 1}
+                              </span>
+                              <select
+                                className="therapy-select-compact"
+                                value={demand.therapyType}
+                                onChange={(e) => handleUpdateTherapyType(patient.patientId, demand.id, e.target.value)}
+                              >
+                                {THERAPY_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
                             {patient.demands.length > 1 && (
                               <button
                                 className="btn-danger-icon"
@@ -1794,6 +1970,70 @@ export default function MonthlyScalePlannerView({
                   style={{ background: '#059669' }}
                 >
                   Cadastrar Terapeuta & Recalcular
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: Editar Dados Básicos do Paciente (Nome e Bairro/Região) */}
+      {editPatientModalState.isOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setEditPatientModalState({ ...editPatientModalState, isOpen: false })}>
+          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <Users size={20} color="#2563eb" />
+                Editar Dados do Paciente
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setEditPatientModalState({ ...editPatientModalState, isOpen: false })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditPatient}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Nome do Paciente *</label>
+                  <input
+                    type="text"
+                    required
+                    className="planner-input"
+                    value={editPatientModalState.patientName}
+                    onChange={(e) => setEditPatientModalState({ ...editPatientModalState, patientName: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Região / Bairro do Domicílio *</label>
+                  <select
+                    className="planner-select"
+                    value={editPatientModalState.neighborhood}
+                    onChange={(e) => setEditPatientModalState({ ...editPatientModalState, neighborhood: e.target.value })}
+                  >
+                    {Object.keys(SP_PRESET_LOCATIONS).map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                  <small style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                    As coordenadas geodésicas da rota serão recalculadas automaticamente para este bairro.
+                  </small>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditPatientModalState({ ...editPatientModalState, isOpen: false })}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">
+                  Salvar Alterações & Recalcular
                 </button>
               </div>
             </form>

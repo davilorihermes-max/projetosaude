@@ -777,4 +777,54 @@
   color: #1d4ed8;
 }
 
+.preset-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-btn:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.therapy-select-compact {
+  font-weight: 700;
+  color: #1e3a8a;
+  font-size: 0.8rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: #eff6ff;
+  outline: none;
+  cursor: pointer;
+}
+
+.btn-edit-patient-inline {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  transition: all 0.15s ease;
+}
+
+.btn-edit-patient-inline:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #93c5fd;
+}
+
 

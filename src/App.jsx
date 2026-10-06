@@ -290,6 +290,7 @@ export default function App() {
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               onOpenNewAppointment={handleOpenNewAppointment}
+              onNavigateToPlanner={() => setActiveTab('monthly-planner')}
             />
           )}
 
