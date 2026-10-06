@@ -6,24 +6,36 @@ import {
 } from './scheduler-engine.js';
 
 export interface PatientTherapyDemand {
+  id?: string;
   patientId: string;
   patientName: string;
-  therapyType: string; // Ex: 'Fisioterapia Motora', 'Fisioterapia Respiratória', 'Fonoaudiologia', 'Enfermagem'
-  sessionsPerWeek: number; // Ex: 2 ou 3 vezes por semana
+  therapyType: string; // Ex: 'Fisioterapia Cardiorrespiratória & Motora', 'Fisioterapia Motora', 'Fonoaudiologia'
+  sessionsPerWeek: number; // Ex: 1 a 5 vezes por semana
   durationMinutes: number; // Ex: 45 ou 60 minutos
   preferredShift: 'morning' | 'afternoon' | 'any';
   location: Coordinates;
   address: string;
 }
 
+export interface DayTimeWindow {
+  enabled: boolean;
+  startTime: string; // Formato "HH:mm", ex: "08:00"
+  endTime: string;   // Formato "HH:mm", ex: "13:30" ou "18:00"
+}
+
 export interface ProfessionalAvailability {
   professionalId: string;
   professionalName: string;
   specialty: string;
-  availableDaysOfWeek: number[]; // 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex
-  shifts: ('morning' | 'afternoon')[];
   baseLocation: Coordinates;
-  maxDailySessions: number;
+  // Disponibilidade por horário em cada dia da semana (1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex)
+  weekdayWindows?: { [dayOfWeek: number]: DayTimeWindow };
+  // Variação por dia específico do mês (ex: '2026-10-14' com compromisso particular)
+  dateOverrides?: { [dateStr: string]: DayTimeWindow };
+  // Campos legados para compatibilidade reversa
+  availableDaysOfWeek?: number[];
+  shifts?: ('morning' | 'afternoon')[];
+  maxDailySessions?: number;
 }
 
 export interface CareTeamRelation {
@@ -93,12 +105,30 @@ const MONTH_NAMES = [
 ];
 
 /**
+ * Converte string "HH:mm" em minutos desde 00:00
+ */
+export function timeStringToMinutes(timeStr: string): number {
+  if (!timeStr || !timeStr.includes(':')) return 8 * 60; // Default 08:00
+  const [h, m] = timeStr.split(':').map((v) => parseInt(v, 10));
+  return (h || 0) * 60 + (m || 0);
+}
+
+/**
+ * Converte minutos em string "HH:mm"
+ */
+export function minutesToTimeString(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
  * Motor Inteligente de Geração de Escala Mensal Domiciliar
- * Cruza:
- * 1. Necessidades terapêuticas dos pacientes (Plano Terapêutico)
- * 2. Disponibilidade dos profissionais de saúde
- * 3. Regra de Ouro: Vínculo estrito de Care Team
- * 4. Roteirização Urbana: Cálculo de Haversine + tempo de trânsito entre domicílios
+ * Atualizado com:
+ * 1. Disponibilidade por JANELA DE HORÁRIO real (Início e Fim por dia da semana) sem limites artificiais
+ * 2. Suporte para até 3 demandas terapêuticas por paciente sem sobreposição de horários
+ * 3. Regra de Ouro: Restrição estrita de Care Team
+ * 4. Roteirização Urbana Geodésica (Haversine + Trânsito)
  */
 export class MonthlyScaleGenerator {
   private averageSpeedKmh: number;
@@ -107,6 +137,56 @@ export class MonthlyScaleGenerator {
   constructor(averageSpeedKmh: number = 28, bufferMinutes: number = 15) {
     this.averageSpeedKmh = averageSpeedKmh;
     this.bufferMinutes = bufferMinutes;
+  }
+
+  /**
+   * Obtém a janela de horário de trabalho do profissional em uma data específica
+   */
+  public getProfessionalDayWindow(
+    professional: ProfessionalAvailability,
+    dateStr: string,
+    dayOfWeek: number
+  ): DayTimeWindow | null {
+    // 1. Checa se há override específico para esta data do mês
+    if (professional.dateOverrides && professional.dateOverrides[dateStr]) {
+      const override = professional.dateOverrides[dateStr];
+      return override.enabled ? override : null;
+    }
+
+    // 2. Checa configuração por dia da semana
+    if (professional.weekdayWindows && professional.weekdayWindows[dayOfWeek]) {
+      const window = professional.weekdayWindows[dayOfWeek];
+      return window.enabled ? window : null;
+    }
+
+    // 3. Fallback para campos legados (se existirem)
+    if (professional.availableDaysOfWeek) {
+      if (!professional.availableDaysOfWeek.includes(dayOfWeek)) {
+        return null;
+      }
+      const hasMorning = professional.shifts?.includes('morning') ?? true;
+      const hasAfternoon = professional.shifts?.includes('afternoon') ?? true;
+
+      const startTime = hasMorning ? '08:00' : '13:00';
+      const endTime = hasAfternoon ? '18:00' : '12:30';
+
+      return {
+        enabled: true,
+        startTime,
+        endTime
+      };
+    }
+
+    // Default se nada foi definido: Seg a Sex das 08:00 às 18:00
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      return {
+        enabled: true,
+        startTime: '08:00',
+        endTime: '18:00'
+      };
+    }
+
+    return null;
   }
 
   /**
@@ -129,7 +209,6 @@ export class MonthlyScaleGenerator {
       const d = new Date(year, month - 1, day);
       const dayOfWeek = d.getDay(); // 0 = Domingo, 6 = Sábado
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        // Semana do mês (1 a 5)
         const weekNumber = Math.min(Math.ceil(day / 7), 5);
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         workingDays.push({
@@ -143,7 +222,7 @@ export class MonthlyScaleGenerator {
 
     const totalWeeksInMonth = Math.max(...workingDays.map((w) => w.weekNumber), 4);
 
-    // Mapeamento rápido do Care Team por Paciente
+    // Mapeamento do Care Team por Paciente
     const careTeamMap = new Map<string, Set<string>>();
     for (const ct of careTeams) {
       careTeamMap.set(ct.patientId, new Set(ct.professionalIds));
@@ -155,29 +234,23 @@ export class MonthlyScaleGenerator {
       Map<string, { startMinutes: number; endMinutes: number; location: Coordinates }[]>
     >();
 
+    // NOVO: Mapa de agenda de cada paciente por dia: 'YYYY-MM-DD' -> Map<patientId, Array de horários ocupados>
+    // Garante que o mesmo paciente nunca tenha duas terapias no mesmo horário
+    const dailyPatientSchedule = new Map<
+      string,
+      Map<string, { startMinutes: number; endMinutes: number }[]>
+    >();
+
     const plannedSessions: PlannedSession[] = [];
     const bottlenecks: ScaleBottleneck[] = [];
 
-    // Janelas de horários padrão para slots domiciliares
-    const morningSlots = [
-      { start: '08:30', startMin: 8 * 60 + 30 },
-      { start: '10:00', startMin: 10 * 60 },
-      { start: '11:15', startMin: 11 * 60 + 15 }
-    ];
-
-    const afternoonSlots = [
-      { start: '13:30', startMin: 13 * 60 + 30 },
-      { start: '15:00', startMin: 15 * 60 },
-      { start: '16:30', startMin: 16 * 60 + 30 }
-    ];
-
-    // Para cada demanda terapêutica de cada paciente
+    // Para cada demanda terapêutica cadastrada (suporta até 3 por paciente)
     for (const demand of demands) {
       const allowedProfessionals = careTeamMap.get(demand.patientId) || new Set<string>();
 
-      // Candidatos da equipe de cuidado que atendem a especialidade/demanda
+      // Candidatos da equipe de cuidado que atendem a especialidade
       const eligibleProfessionals = availabilities.filter((prof) => {
-        // Regra 1: Deve pertencer ao Care Team
+        // Regra 1: Deve pertencer ao Care Team do paciente
         if (!allowedProfessionals.has(prof.professionalId)) {
           return false;
         }
@@ -186,7 +259,7 @@ export class MonthlyScaleGenerator {
       });
 
       if (eligibleProfessionals.length === 0) {
-        // Gargalo crítico imediato: Não há nenhum profissional no Care Team com essa especialidade
+        // Gargalo crítico imediato: Sem profissional com essa especialidade no Care Team
         for (let w = 1; w <= totalWeeksInMonth; w++) {
           bottlenecks.push({
             patientId: demand.patientId,
@@ -195,7 +268,7 @@ export class MonthlyScaleGenerator {
             weekNumber: w,
             missingSessions: demand.sessionsPerWeek,
             reason: 'NO_CARE_TEAM_SPECIALIST',
-            suggestedAction: `Cadastrar ou associar um profissional com especialidade em ${demand.therapyType} à Equipe de Cuidado (Care Team) de ${demand.patientName}.`
+            suggestedAction: `Cadastrar ou autorizar um profissional com especialidade em ${demand.therapyType} na Equipe de Cuidado (Care Team) de ${demand.patientName}.`
           });
         }
         continue;
@@ -206,14 +279,13 @@ export class MonthlyScaleGenerator {
         const weekDays = workingDays.filter((w) => w.weekNumber === week);
         let sessionsAllocatedInWeek = 0;
 
-        // Dias sugeridos com espaçamento para evitar dias consecutivos (ex: Seg/Qua ou Ter/Qui)
-        const targetDayPatterns = demand.sessionsPerWeek >= 3 
+        // Padrão de espaçamento sugerido para evitar dias colados
+        const targetDayPatterns = demand.sessionsPerWeek >= 3
           ? [1, 3, 5] // Seg, Qua, Sex
-          : demand.sessionsPerWeek === 2 
+          : demand.sessionsPerWeek === 2
             ? [2, 4]  // Ter, Qui
             : [3];    // Qua
 
-        // Tenta primeiro os dias com melhor espaçamento
         const candidateDays = [
           ...weekDays.filter((d) => targetDayPatterns.includes(d.dayOfWeek)),
           ...weekDays.filter((d) => !targetDayPatterns.includes(d.dayOfWeek))
@@ -222,11 +294,11 @@ export class MonthlyScaleGenerator {
         for (const day of candidateDays) {
           if (sessionsAllocatedInWeek >= demand.sessionsPerWeek) break;
 
-          // Já possui sessão desta mesma terapia neste mesmo dia?
-          const alreadyHasSessionToday = plannedSessions.some(
+          // Já possui sessão desta MESMA terapia neste mesmo dia?
+          const alreadyHasSameTherapyToday = plannedSessions.some(
             (s) => s.patientId === demand.patientId && s.therapyType === demand.therapyType && s.date === day.dateStr
           );
-          if (alreadyHasSessionToday) continue;
+          if (alreadyHasSameTherapyToday) continue;
 
           let allocatedForThisDay = false;
 
@@ -234,10 +306,17 @@ export class MonthlyScaleGenerator {
           for (const professional of eligibleProfessionals) {
             if (allocatedForThisDay) break;
 
-            // Profissional atende neste dia da semana?
-            if (!professional.availableDaysOfWeek.includes(day.dayOfWeek)) continue;
+            // 1. Obtém a janela de horário real do profissional para este dia da semana
+            const dayWindow = this.getProfessionalDayWindow(professional, day.dateStr, day.dayOfWeek);
+            if (!dayWindow || !dayWindow.enabled) continue;
 
-            // Inicializa agenda do dia do profissional
+            const windowStartMin = timeStringToMinutes(dayWindow.startTime);
+            const windowEndMin = timeStringToMinutes(dayWindow.endTime);
+
+            // Se a duração da sessão não cabe na janela do dia, pula
+            if (windowEndMin - windowStartMin < demand.durationMinutes) continue;
+
+            // Inicializa mapas diários
             if (!dailyProfessionalSchedule.has(day.dateStr)) {
               dailyProfessionalSchedule.set(day.dateStr, new Map());
             }
@@ -247,123 +326,168 @@ export class MonthlyScaleGenerator {
             }
             const profDaySessions = dayProfMap.get(professional.professionalId)!;
 
-            if (profDaySessions.length >= professional.maxDailySessions) continue;
-
-            // Determinar turnos elegíveis
-            const shiftsToTry: ('morning' | 'afternoon')[] = [];
-            if (demand.preferredShift === 'morning' || demand.preferredShift === 'any') {
-              if (professional.shifts.includes('morning')) shiftsToTry.push('morning');
+            if (!dailyPatientSchedule.has(day.dateStr)) {
+              dailyPatientSchedule.set(day.dateStr, new Map());
             }
-            if (demand.preferredShift === 'afternoon' || demand.preferredShift === 'any') {
-              if (professional.shifts.includes('afternoon')) shiftsToTry.push('afternoon');
+            const dayPatMap = dailyPatientSchedule.get(day.dateStr)!;
+            if (!dayPatMap.has(demand.patientId)) {
+              dayPatMap.set(demand.patientId, []);
+            }
+            const patientDaySessions = dayPatMap.get(demand.patientId)!;
+
+            // 2. Gera horários candidatos dentro da jornada diária do profissional
+            // Sem limite artificial de sessões: testa slots ao longo da janela [windowStartMin, windowEndMin]
+            const candidateStartMinutes: number[] = [];
+
+            // Adiciona horários a cada 30 minutos dentro da janela
+            for (let t = windowStartMin; t <= windowEndMin - demand.durationMinutes; t += 30) {
+              candidateStartMinutes.push(t);
             }
 
-            for (const shift of shiftsToTry) {
-              if (allocatedForThisDay) break;
-              const slots = shift === 'morning' ? morningSlots : afternoonSlots;
-
-              for (const slot of slots) {
-                const sessionStartMin = slot.startMin;
-                const sessionEndMin = sessionStartMin + demand.durationMinutes;
-
-                // 1. Checa sobreposição direta de horário
-                const hasTimeOverlap = profDaySessions.some(
-                  (s) => Math.max(sessionStartMin, s.startMinutes) < Math.min(sessionEndMin, s.endMinutes)
-                );
-                if (hasTimeOverlap) continue;
-
-                // 2. Checa viabilidade de deslocamento com o atendimento anterior do profissional no dia
-                const prevSession = [...profDaySessions]
-                  .filter((s) => s.endMinutes <= sessionStartMin)
-                  .sort((a, b) => b.endMinutes - a.endMinutes)[0];
-
-                let originLocation = professional.baseLocation;
-                let originEndMin = 8 * 60; // Início do expediente padrão
-
-                if (prevSession) {
-                  originLocation = prevSession.location;
-                  originEndMin = prevSession.endMinutes;
+            // Também tenta encaixar imediatamente após cada sessão já existente do profissional (+ trânsito)
+            for (const existing of profDaySessions) {
+              const afterExisting = existing.endMinutes + this.bufferMinutes;
+              if (afterExisting >= windowStartMin && afterExisting <= windowEndMin - demand.durationMinutes) {
+                if (!candidateStartMinutes.includes(afterExisting)) {
+                  candidateStartMinutes.push(afterExisting);
                 }
+              }
+            }
 
-                const distanceKm = calculateHaversineDistance(
-                  originLocation.latitude,
-                  originLocation.longitude,
+            candidateStartMinutes.sort((a, b) => a - b);
+
+            // Filtra conforme o turno preferencial do paciente (se aplicável)
+            const filteredSlots = candidateStartMinutes.filter((slotMin) => {
+              if (demand.preferredShift === 'morning') {
+                return slotMin < 12 * 60; // Inicia antes do meio-dia
+              }
+              if (demand.preferredShift === 'afternoon') {
+                return slotMin >= 12 * 60; // Inicia a partir do meio-dia
+              }
+              return true; // 'any'
+            });
+
+            // Se nenhum slot coincidir com o turno preferido, tenta os demais slots dentro da jornada do terapeuta
+            const slotsToTest = filteredSlots.length > 0 ? filteredSlots : candidateStartMinutes;
+
+            for (const sessionStartMin of slotsToTest) {
+              const sessionEndMin = sessionStartMin + demand.durationMinutes;
+
+              // A sessão precisa caber estritamente dentro da janela de jornada diária do profissional
+              if (sessionStartMin < windowStartMin || sessionEndMin > windowEndMin) {
+                continue;
+              }
+
+              // Checagem A: Conflito de horário na agenda do profissional
+              const hasProfOverlap = profDaySessions.some(
+                (s) => Math.max(sessionStartMin, s.startMinutes) < Math.min(sessionEndMin, s.endMinutes)
+              );
+              if (hasProfOverlap) continue;
+
+              // Checagem B (NOVO): Conflito de horário com OUTRAS terapias do próprio paciente hoje!
+              const hasPatientOverlap = patientDaySessions.some(
+                (s) => Math.max(sessionStartMin, s.startMinutes) < Math.min(sessionEndMin, s.endMinutes)
+              );
+              if (hasPatientOverlap) continue;
+
+              // Checagem C: Deslocamento urbano vindo do atendimento anterior do profissional
+              const prevSession = [...profDaySessions]
+                .filter((s) => s.endMinutes <= sessionStartMin)
+                .sort((a, b) => b.endMinutes - a.endMinutes)[0];
+
+              let originLocation = professional.baseLocation;
+              let originEndMin = windowStartMin;
+
+              if (prevSession) {
+                originLocation = prevSession.location;
+                originEndMin = prevSession.endMinutes;
+              }
+
+              const distanceKm = calculateHaversineDistance(
+                originLocation.latitude,
+                originLocation.longitude,
+                demand.location.latitude,
+                demand.location.longitude
+              );
+
+              const transitMinutes = estimateTransitTimeMinutes(
+                distanceKm,
+                this.averageSpeedKmh,
+                this.bufferMinutes
+              );
+
+              const availableGapMinutes = sessionStartMin - originEndMin;
+
+              if (prevSession && availableGapMinutes < transitMinutes) {
+                continue; // Trânsito insuficiente entre compromissos
+              }
+
+              // Checagem D: Deslocamento para alcançar o próximo compromisso do profissional (se houver)
+              const nextSession = [...profDaySessions]
+                .filter((s) => s.startMinutes >= sessionEndMin)
+                .sort((a, b) => a.startMinutes - b.startMinutes)[0];
+
+              if (nextSession) {
+                const distToNextKm = calculateHaversineDistance(
                   demand.location.latitude,
-                  demand.location.longitude
+                  demand.location.longitude,
+                  nextSession.location.latitude,
+                  nextSession.location.longitude
                 );
-
-                const transitMinutes = estimateTransitTimeMinutes(
-                  distanceKm,
+                const transitToNext = estimateTransitTimeMinutes(
+                  distToNextKm,
                   this.averageSpeedKmh,
                   this.bufferMinutes
                 );
-
-                const availableGapMinutes = sessionStartMin - originEndMin;
-
-                // Se houver atendimento anterior, o intervalo deve cobrir o tempo de trânsito
-                if (prevSession && availableGapMinutes < transitMinutes) {
-                  continue; // Trânsito insuficiente
+                const gapToNext = nextSession.startMinutes - sessionEndMin;
+                if (gapToNext < transitToNext) {
+                  continue; // Trânsito para o próximo inviável
                 }
-
-                // 3. Checa viabilidade com o próximo atendimento (se houver)
-                const nextSession = [...profDaySessions]
-                  .filter((s) => s.startMinutes >= sessionEndMin)
-                  .sort((a, b) => a.startMinutes - b.startMinutes)[0];
-
-                if (nextSession) {
-                  const distToNextKm = calculateHaversineDistance(
-                    demand.location.latitude,
-                    demand.location.longitude,
-                    nextSession.location.latitude,
-                    nextSession.location.longitude
-                  );
-                  const transitToNext = estimateTransitTimeMinutes(
-                    distToNextKm,
-                    this.averageSpeedKmh,
-                    this.bufferMinutes
-                  );
-                  const gapToNext = nextSession.startMinutes - sessionEndMin;
-                  if (gapToNext < transitToNext) {
-                    continue; // Trânsito para o próximo inviável
-                  }
-                }
-
-                // SUCESSO! Alocação viável encontrada
-                const sessionId = `plan-${day.dateStr}-${professional.professionalId}-${demand.patientId}-${sessionStartMin}`;
-
-                plannedSessions.push({
-                  id: sessionId,
-                  patientId: demand.patientId,
-                  patientName: demand.patientName,
-                  professionalId: professional.professionalId,
-                  professionalName: professional.professionalName,
-                  therapyType: demand.therapyType,
-                  date: day.dateStr,
-                  time: slot.start,
-                  durationMinutes: demand.durationMinutes,
-                  location: demand.location,
-                  address: demand.address,
-                  transitKmFromPrevious: distanceKm,
-                  transitTimeMinutes: transitMinutes,
-                  weekNumber: week
-                });
-
-                profDaySessions.push({
-                  startMinutes: sessionStartMin,
-                  endMinutes: sessionEndMin,
-                  location: demand.location
-                });
-
-                profDaySessions.sort((a, b) => a.startMinutes - b.startMinutes);
-                allocatedForThisDay = true;
-                sessionsAllocatedInWeek++;
-                break;
               }
+
+              // SUCESSO! Alocação viável na janela real do profissional
+              const sessionId = `plan-${day.dateStr}-${professional.professionalId}-${demand.patientId}-${sessionStartMin}`;
+
+              plannedSessions.push({
+                id: sessionId,
+                patientId: demand.patientId,
+                patientName: demand.patientName,
+                professionalId: professional.professionalId,
+                professionalName: professional.professionalName,
+                therapyType: demand.therapyType,
+                date: day.dateStr,
+                time: minutesToTimeString(sessionStartMin),
+                durationMinutes: demand.durationMinutes,
+                location: demand.location,
+                address: demand.address,
+                transitKmFromPrevious: distanceKm,
+                transitTimeMinutes: transitMinutes,
+                weekNumber: week
+              });
+
+              // Grava na agenda do profissional
+              profDaySessions.push({
+                startMinutes: sessionStartMin,
+                endMinutes: sessionEndMin,
+                location: demand.location
+              });
+              profDaySessions.sort((a, b) => a.startMinutes - b.startMinutes);
+
+              // Grava na agenda do paciente (para não colidir com outras terapias dele)
+              patientDaySessions.push({
+                startMinutes: sessionStartMin,
+                endMinutes: sessionEndMin
+              });
+              patientDaySessions.sort((a, b) => a.startMinutes - b.startMinutes);
+
+              allocatedForThisDay = true;
+              sessionsAllocatedInWeek++;
+              break;
             }
           }
         }
 
-        // Se a semana não atingiu a meta do paciente, registra o gargalo com ação sugerida
+        // Se a semana não atingiu a meta, registra o gargalo com ação sugerida
         if (sessionsAllocatedInWeek < demand.sessionsPerWeek) {
           const missing = demand.sessionsPerWeek - sessionsAllocatedInWeek;
           bottlenecks.push({
@@ -373,7 +497,7 @@ export class MonthlyScaleGenerator {
             weekNumber: week,
             missingSessions: missing,
             reason: 'PROFESSIONAL_CAPACITY_EXCEEDED',
-            suggestedAction: `Os profissionais autorizados do Care Team (${eligibleProfessionals.map((p) => p.professionalName).join(', ')}) atingiram o limite de vagas na Semana ${week}. Sugestão: autorizar profissional adicional no Care Team ou flexibilizar o turno preferencial.`
+            suggestedAction: `As janelas de horário dos terapeutas autorizados (${eligibleProfessionals.map((p) => p.professionalName).join(', ')}) não possuem tempo hábil para a demanda de ${demand.therapyType} na Semana ${week}. Sugestão: ampliar a janela de horário de trabalho diário do profissional ou autorizar terapeuta adicional no Care Team.`
           });
         }
       }
@@ -386,7 +510,7 @@ export class MonthlyScaleGenerator {
       return a.time.localeCompare(b.time);
     });
 
-    // 4. Calcular Relatórios de Cobertura por Paciente
+    // 4. Calcular Relatórios de Cobertura por Paciente e Demanda
     const coverageReports: PatientCoverageReport[] = demands.map((demand) => {
       const demandedMonthly = demand.sessionsPerWeek * totalWeeksInMonth;
       const allocatedMonthly = plannedSessions.filter(

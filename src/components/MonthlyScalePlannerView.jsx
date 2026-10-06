@@ -24,12 +24,13 @@ import {
   Stethoscope,
   Activity,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Sliders
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
 
-// Bairros padrão de São Paulo para facilitar coordenadas automáticas
+// Bairros padrão de São Paulo para facilitar coordenadas geodésicas automáticas
 const SP_PRESET_LOCATIONS = {
   'Cerqueira César (Alameda Santos)': { latitude: -23.563099, longitude: -46.654271 },
   'Pinheiros (Rua Fradique Coutinho)': { latitude: -23.567300, longitude: -46.693400 },
@@ -41,6 +42,24 @@ const SP_PRESET_LOCATIONS = {
   'Morumbi (Av. Giovanni Gronchi)': { latitude: -23.618400, longitude: -46.728900 },
   'Tatuapé (Rua Tuiuti)': { latitude: -23.538000, longitude: -46.578000 }
 };
+
+const THERAPY_OPTIONS = [
+  'Fisioterapia Cardiorrespiratória & Motora',
+  'Fisioterapia Motora & Neuroreabilitação',
+  'Fonoaudiologia Domiciliar',
+  'Enfermagem Estomaterapeuta & Curativos',
+  'Terapia Ocupacional Domiciliar'
+];
+
+const WEEKDAY_NAMES = {
+  1: 'Segunda-feira',
+  2: 'Terça-feira',
+  3: 'Quarta-feira',
+  4: 'Quinta-feira',
+  5: 'Sexta-feira'
+};
+
+const WEEKDAY_SHORT = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
 
 export default function MonthlyScalePlannerView({
   patients = [],
@@ -55,123 +74,205 @@ export default function MonthlyScalePlannerView({
   const [committedSuccess, setCommittedSuccess] = useState(false);
 
   // Modais de Criação
-  const [isNewDemandModalOpen, setIsNewDemandModalOpen] = useState(false);
+  const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const [isNewTherapistModalOpen, setIsNewTherapistModalOpen] = useState(false);
 
-  // Form State: Nova Demanda de Paciente
-  const [newDemandForm, setNewDemandForm] = useState({
+  // Modal para adicionar nova demanda a um paciente existente
+  const [addDemandModalState, setAddDemandModalState] = useState({
+    isOpen: false,
+    patientId: null,
     patientName: '',
-    therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+    therapyType: 'Fonoaudiologia Domiciliar',
     sessionsPerWeek: 2,
     durationMinutes: 45,
-    preferredShift: 'morning',
-    neighborhood: 'Cerqueira César (Alameda Santos)'
+    preferredShift: 'any'
   });
 
-  // Form State: Novo Fisioterapeuta / Terapeuta
+  // Form State: Novo Paciente
+  const [newPatientForm, setNewPatientForm] = useState({
+    patientName: '',
+    neighborhood: 'Cerqueira César (Alameda Santos)',
+    initialTherapy: 'Fisioterapia Cardiorrespiratória & Motora',
+    sessionsPerWeek: 2,
+    durationMinutes: 45,
+    preferredShift: 'morning'
+  });
+
+  // Form State: Novo Profissional (com janelas de horário)
   const [newTherapistForm, setNewTherapistForm] = useState({
     professionalName: '',
     specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-    availableDays: [1, 2, 3, 4, 5], // Seg a Sex
-    shifts: ['morning', 'afternoon'],
-    maxDailySessions: 4,
     neighborhood: 'Bela Vista (Av. Paulista)',
+    weekdayWindows: {
+      1: { enabled: true, startTime: '08:00', endTime: '13:00' },
+      2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+      3: { enabled: true, startTime: '08:00', endTime: '13:00' },
+      4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+      5: { enabled: false, startTime: '08:00', endTime: '12:00' }
+    },
     assignedPatientIds: []
   });
 
-  // 1. Estado Dinâmico: Demandas Terapêuticas dos Pacientes
-  const [therapyDemands, setTherapyDemands] = useState([
+  // 1. Estado Dinâmico: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS cada
+  const [patientsWithDemands, setPatientsWithDemands] = useState([
     {
       patientId: 'pat-1',
       patientName: 'Mariana Souza Lima',
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-      sessionsPerWeek: 2,
-      durationMinutes: 45,
-      preferredShift: 'morning',
+      neighborhood: 'Cerqueira César (Alameda Santos)',
+      address: 'Alameda Santos, 1000 - Cerqueira César',
       location: { latitude: -23.563099, longitude: -46.654271 },
-      address: 'Alameda Santos, 1000 - Cerqueira César'
+      demands: [
+        {
+          id: 'dem-pat-1-1',
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          sessionsPerWeek: 2,
+          durationMinutes: 45,
+          preferredShift: 'morning'
+        },
+        {
+          id: 'dem-pat-1-2',
+          therapyType: 'Fisioterapia Motora & Neuroreabilitação',
+          sessionsPerWeek: 1,
+          durationMinutes: 45,
+          preferredShift: 'afternoon'
+        }
+      ]
     },
     {
       patientId: 'pat-2',
       patientName: 'Roberto Carlos Peixoto',
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-      sessionsPerWeek: 2,
-      durationMinutes: 45,
-      preferredShift: 'morning',
+      neighborhood: 'Pinheiros (Rua Fradique Coutinho)',
+      address: 'Rua Fradique Coutinho, 500 - Pinheiros',
       location: { latitude: -23.567300, longitude: -46.693400 },
-      address: 'Rua Fradique Coutinho, 500 - Pinheiros'
+      demands: [
+        {
+          id: 'dem-pat-2-1',
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          sessionsPerWeek: 2,
+          durationMinutes: 45,
+          preferredShift: 'morning'
+        }
+      ]
     },
     {
       patientId: 'pat-3',
       patientName: 'Juliana Mendes Prado',
-      therapyType: 'Fonoaudiologia Domiciliar',
-      sessionsPerWeek: 2,
-      durationMinutes: 45,
-      preferredShift: 'afternoon',
+      neighborhood: 'Moema (Av. Moema)',
+      address: 'Av. Moema, 350 - Moema',
       location: { latitude: -23.602200, longitude: -46.662100 },
-      address: 'Av. Moema, 350 - Moema'
+      demands: [
+        {
+          id: 'dem-pat-3-1',
+          therapyType: 'Fonoaudiologia Domiciliar',
+          sessionsPerWeek: 2,
+          durationMinutes: 45,
+          preferredShift: 'afternoon'
+        }
+      ]
     },
     {
       patientId: 'pat-4',
       patientName: 'Gabriel Santos Oliveira',
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-      sessionsPerWeek: 3,
-      durationMinutes: 45,
-      preferredShift: 'afternoon',
+      neighborhood: 'Cerqueira César (Alameda Santos)',
+      address: 'Rua Bela Cintra, 1400 - Cerqueira César',
       location: { latitude: -23.558000, longitude: -46.662000 },
-      address: 'Rua Bela Cintra, 1400 - Cerqueira César'
+      demands: [
+        {
+          id: 'dem-pat-4-1',
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          sessionsPerWeek: 3,
+          durationMinutes: 45,
+          preferredShift: 'afternoon'
+        }
+      ]
     },
     {
       patientId: 'pat-5',
       patientName: 'Helena Vasconcelos',
-      therapyType: 'Enfermagem Estomaterapeuta & Curativos',
-      sessionsPerWeek: 2,
-      durationMinutes: 45,
-      preferredShift: 'any',
+      neighborhood: 'Pinheiros (Rua Fradique Coutinho)',
+      address: 'Rua Oscar Freire, 1800 - Pinheiros',
       location: { latitude: -23.559000, longitude: -46.678000 },
-      address: 'Rua Oscar Freire, 1800 - Pinheiros'
+      demands: [
+        {
+          id: 'dem-pat-5-1',
+          therapyType: 'Enfermagem Estomaterapeuta & Curativos',
+          sessionsPerWeek: 2,
+          durationMinutes: 45,
+          preferredShift: 'any'
+        }
+      ]
     }
   ]);
 
-  // 2. Estado Dinâmico: Disponibilidade dos Profissionais
+  // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA
+  // Sem limites arbitrários de sessões - apenas caber na janela de início e fim da jornada
   const [professionalAvailabilities, setProfessionalAvailabilities] = useState([
     {
       professionalId: 'doc-3',
       professionalName: 'Dr. Rafael Fontes',
       specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-      availableDaysOfWeek: [1, 2, 3, 4, 5], // Seg a Sex
-      shifts: ['morning', 'afternoon'],
       baseLocation: { latitude: -23.585000, longitude: -46.638000 },
-      maxDailySessions: 4
+      weekdayWindows: {
+        1: { enabled: true, startTime: '08:00', endTime: '14:00' },
+        2: { enabled: true, startTime: '08:00', endTime: '18:30' },
+        3: { enabled: true, startTime: '08:00', endTime: '14:00' },
+        4: { enabled: true, startTime: '08:00', endTime: '18:30' },
+        5: { enabled: true, startTime: '08:00', endTime: '15:00' }
+      }
     },
     {
       professionalId: 'doc-4',
       professionalName: 'Dra. Camila Nogueira',
       specialty: 'Enfermagem Estomaterapeuta & Curativos Complexos',
-      availableDaysOfWeek: [2, 4], // Ter e Qui
-      shifts: ['morning', 'afternoon'],
       baseLocation: { latitude: -23.565000, longitude: -46.657000 },
-      maxDailySessions: 4
+      weekdayWindows: {
+        1: { enabled: false, startTime: '08:00', endTime: '12:00' },
+        2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        3: { enabled: false, startTime: '08:00', endTime: '12:00' },
+        4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        5: { enabled: false, startTime: '08:00', endTime: '12:00' }
+      }
     },
     {
       professionalId: 'doc-1',
       professionalName: 'Dr. Lucas Silveira',
       specialty: 'Medicina de Família & Atenção Domiciliar (EMAD)',
-      availableDaysOfWeek: [1, 3, 5], // Seg, Qua, Sex
-      shifts: ['morning'],
       baseLocation: { latitude: -23.561684, longitude: -46.655981 },
-      maxDailySessions: 3
+      weekdayWindows: {
+        1: { enabled: true, startTime: '08:00', endTime: '13:00' },
+        2: { enabled: false, startTime: '08:00', endTime: '12:00' },
+        3: { enabled: true, startTime: '08:00', endTime: '13:00' },
+        4: { enabled: false, startTime: '08:00', endTime: '12:00' },
+        5: { enabled: true, startTime: '08:00', endTime: '13:00' }
+      }
     }
   ]);
 
-  // 3. Estado Dinâmico: Care Teams (Vínculo Restrito de Equipe de Cuidado)
+  // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState([
     { patientId: 'pat-1', professionalIds: ['doc-1', 'doc-3'] },
     { patientId: 'pat-2', professionalIds: ['doc-1', 'doc-3'] },
-    { patientId: 'pat-3', professionalIds: ['doc-1'] }, // Juliana sem fonoaudióloga autorizada no Care Team -> gera bottleneck
+    { patientId: 'pat-3', professionalIds: ['doc-1'] }, // Juliana sem fono no Care Team -> gera bottleneck
     { patientId: 'pat-4', professionalIds: ['doc-3'] },
     { patientId: 'pat-5', professionalIds: ['doc-4'] }
   ]);
+
+  // Transforma os pacientes e suas demandas na lista plana consumida pelo motor
+  const flatDemands = useMemo(() => {
+    return patientsWithDemands.flatMap((p) =>
+      p.demands.map((d) => ({
+        id: d.id,
+        patientId: p.patientId,
+        patientName: p.patientName,
+        therapyType: d.therapyType,
+        sessionsPerWeek: d.sessionsPerWeek,
+        durationMinutes: d.durationMinutes,
+        preferredShift: d.preferredShift,
+        location: p.location,
+        address: p.address
+      }))
+    );
+  }, [patientsWithDemands]);
 
   // Estado da escala gerada
   const [scaleResult, setScaleResult] = useState(() => {
@@ -179,16 +280,34 @@ export default function MonthlyScalePlannerView({
     return generator.generateMonthlyScale({
       year: 2026,
       month: 10,
-      demands: therapyDemands,
+      demands: flatDemands,
       availabilities: professionalAvailabilities,
       careTeams
     });
   });
 
   // Executa o cálculo da escala mensal
-  const runGeneration = (demands = therapyDemands, avails = professionalAvailabilities, cts = careTeams) => {
+  const runGeneration = (
+    currentPatients = patientsWithDemands,
+    currentAvails = professionalAvailabilities,
+    currentCareTeams = careTeams
+  ) => {
     setIsGenerating(true);
     setCommittedSuccess(false);
+
+    const demandsToRun = currentPatients.flatMap((p) =>
+      p.demands.map((d) => ({
+        id: d.id,
+        patientId: p.patientId,
+        patientName: p.patientName,
+        therapyType: d.therapyType,
+        sessionsPerWeek: d.sessionsPerWeek,
+        durationMinutes: d.durationMinutes,
+        preferredShift: d.preferredShift,
+        location: p.location,
+        address: p.address
+      }))
+    );
 
     setTimeout(() => {
       const [yearStr, monthStr] = selectedMonth.split('-');
@@ -199,9 +318,9 @@ export default function MonthlyScalePlannerView({
       const result = generator.generateMonthlyScale({
         year,
         month,
-        demands,
-        availabilities: avails,
-        careTeams: cts
+        demands: demandsToRun,
+        availabilities: currentAvails,
+        careTeams: currentCareTeams
       });
 
       setScaleResult(result);
@@ -215,59 +334,146 @@ export default function MonthlyScalePlannerView({
     }, 300);
   };
 
-  // Alterar frequência semanal de um paciente (+ ou -)
-  const handleUpdateWeeklySessions = (patientId, delta) => {
-    const updated = therapyDemands.map((d) => {
-      if (d.patientId === patientId) {
-        const nextSessions = Math.max(1, Math.min(7, d.sessionsPerWeek + delta));
-        return { ...d, sessionsPerWeek: nextSessions };
+  // ----------------------------------------------------
+  // GESTÃO DE HORÁRIOS DOS PROFISSIONAIS
+  // ----------------------------------------------------
+  // Alternar se o profissional atende naquele dia da semana
+  const handleToggleDayEnabled = (profId, dayNum) => {
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === profId) {
+        const currentWin = prof.weekdayWindows?.[dayNum] || { enabled: false, startTime: '08:00', endTime: '18:00' };
+        return {
+          ...prof,
+          weekdayWindows: {
+            ...prof.weekdayWindows,
+            [dayNum]: {
+              ...currentWin,
+              enabled: !currentWin.enabled
+            }
+          }
+        };
       }
-      return d;
+      return prof;
     });
-    setTherapyDemands(updated);
+
+    setProfessionalAvailabilities(updated);
+    runGeneration(patientsWithDemands, updated, careTeams);
+  };
+
+  // Atualizar horário de início ou fim do profissional em um dia da semana
+  const handleUpdateDayTime = (profId, dayNum, field, value) => {
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === profId) {
+        const currentWin = prof.weekdayWindows?.[dayNum] || { enabled: true, startTime: '08:00', endTime: '18:00' };
+        return {
+          ...prof,
+          weekdayWindows: {
+            ...prof.weekdayWindows,
+            [dayNum]: {
+              ...currentWin,
+              [field]: value
+            }
+          }
+        };
+      }
+      return prof;
+    });
+
+    setProfessionalAvailabilities(updated);
+    runGeneration(patientsWithDemands, updated, careTeams);
+  };
+
+  // ----------------------------------------------------
+  // GESTÃO DE DEMANDAS DOS PACIENTES (ATÉ 3 POR PACIENTE)
+  // ----------------------------------------------------
+  // Alterar frequência semanal de uma terapia específica do paciente
+  const handleUpdateWeeklySessions = (patientId, demandId, delta) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          demands: pat.demands.map((d) => {
+            if (d.id === demandId) {
+              const next = Math.max(1, Math.min(6, d.sessionsPerWeek + delta));
+              return { ...d, sessionsPerWeek: next };
+            }
+            return d;
+          })
+        };
+      }
+      return pat;
+    });
+
+    setPatientsWithDemands(updated);
     runGeneration(updated, professionalAvailabilities, careTeams);
   };
 
-  // Alterar turno preferencial de um paciente
-  const handleUpdateShift = (patientId, shift) => {
-    const updated = therapyDemands.map((d) => (d.patientId === patientId ? { ...d, preferredShift: shift } : d));
-    setTherapyDemands(updated);
+  // Alterar turno de uma terapia específica
+  const handleUpdateShift = (patientId, demandId, shift) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          demands: pat.demands.map((d) => (d.id === demandId ? { ...d, preferredShift: shift } : d))
+        };
+      }
+      return pat;
+    });
+
+    setPatientsWithDemands(updated);
     runGeneration(updated, professionalAvailabilities, careTeams);
   };
 
-  // Alternar dia da semana de trabalho do profissional (ex: Terça ligada/desligada)
-  const handleToggleProfDay = (profId, dayNum) => {
-    const updated = professionalAvailabilities.map((p) => {
-      if (p.professionalId === profId) {
-        const hasDay = p.availableDaysOfWeek.includes(dayNum);
-        const nextDays = hasDay
-          ? p.availableDaysOfWeek.filter((d) => d !== dayNum)
-          : [...p.availableDaysOfWeek, dayNum].sort();
-        return { ...p, availableDaysOfWeek: nextDays.length > 0 ? nextDays : [dayNum] };
+  // Remover uma demanda específica de um paciente
+  const handleRemoveSingleDemand = (patientId, demandId) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          demands: pat.demands.filter((d) => d.id !== demandId)
+        };
       }
-      return p;
+      return pat;
     });
-    setProfessionalAvailabilities(updated);
-    runGeneration(therapyDemands, updated, careTeams);
+
+    setPatientsWithDemands(updated);
+    runGeneration(updated, professionalAvailabilities, careTeams);
   };
 
-  // Alternar turno do profissional (Manhã / Tarde)
-  const handleToggleProfShift = (profId, shift) => {
-    const updated = professionalAvailabilities.map((p) => {
-      if (p.professionalId === profId) {
-        const hasShift = p.shifts.includes(shift);
-        const nextShifts = hasShift
-          ? p.shifts.filter((s) => s !== shift)
-          : [...p.shifts, shift];
-        return { ...p, shifts: nextShifts.length > 0 ? nextShifts : [shift] };
+  // Adicionar uma nova demanda (até 3) a um paciente existente
+  const handleAddDemandToPatient = (e) => {
+    e.preventDefault();
+    const { patientId, therapyType, sessionsPerWeek, durationMinutes, preferredShift } = addDemandModalState;
+    if (!patientId) return;
+
+    const newDemandItem = {
+      id: `dem-${patientId}-${Date.now()}`,
+      therapyType,
+      sessionsPerWeek: Number(sessionsPerWeek),
+      durationMinutes: Number(durationMinutes),
+      preferredShift
+    };
+
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        if (pat.demands.length >= 3) {
+          alert('Cada paciente pode ter no máximo 3 demandas terapêuticas ativas.');
+          return pat;
+        }
+        return {
+          ...pat,
+          demands: [...pat.demands, newDemandItem]
+        };
       }
-      return p;
+      return pat;
     });
-    setProfessionalAvailabilities(updated);
-    runGeneration(therapyDemands, updated, careTeams);
+
+    setPatientsWithDemands(updated);
+    setAddDemandModalState({ ...addDemandModalState, isOpen: false });
+    runGeneration(updated, professionalAvailabilities, careTeams);
   };
 
-  // Alternar vínculo de Care Team (adicionar ou remover terapeuta da equipe do paciente)
+  // Alternar vínculo de Care Team
   const handleToggleCareTeamMember = (patientId, profId) => {
     const updated = careTeams.map((ct) => {
       if (ct.patientId === patientId) {
@@ -279,24 +485,25 @@ export default function MonthlyScalePlannerView({
       }
       return ct;
     });
+
     setCareTeams(updated);
-    runGeneration(therapyDemands, professionalAvailabilities, updated);
+    runGeneration(patientsWithDemands, professionalAvailabilities, updated);
   };
 
-  // Remover Demanda de Paciente
-  const handleDeleteDemand = (patientId) => {
-    if (window.confirm('Deseja remover este paciente e sua demanda da escala?')) {
-      const nextDemands = therapyDemands.filter((d) => d.patientId !== patientId);
+  // Remover Paciente Inteiro
+  const handleDeletePatient = (patientId) => {
+    if (window.confirm('Deseja remover este paciente e todas as suas demandas terapêuticas?')) {
+      const nextPatients = patientsWithDemands.filter((p) => p.patientId !== patientId);
       const nextCareTeams = careTeams.filter((ct) => ct.patientId !== patientId);
-      setTherapyDemands(nextDemands);
+      setPatientsWithDemands(nextPatients);
       setCareTeams(nextCareTeams);
-      runGeneration(nextDemands, professionalAvailabilities, nextCareTeams);
+      runGeneration(nextPatients, professionalAvailabilities, nextCareTeams);
     }
   };
 
   // Remover Profissional
   const handleDeleteProfessional = (profId) => {
-    if (window.confirm('Deseja remover este profissional e sua disponibilidade?')) {
+    if (window.confirm('Deseja remover este profissional?')) {
       const nextProfs = professionalAvailabilities.filter((p) => p.professionalId !== profId);
       const nextCareTeams = careTeams.map((ct) => ({
         ...ct,
@@ -304,53 +511,60 @@ export default function MonthlyScalePlannerView({
       }));
       setProfessionalAvailabilities(nextProfs);
       setCareTeams(nextCareTeams);
-      runGeneration(therapyDemands, nextProfs, nextCareTeams);
+      runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
     }
   };
 
-  // Criar Nova Demanda de Paciente
-  const handleCreateNewDemand = (e) => {
+  // Cadastrar Novo Paciente (com 1ª demanda)
+  const handleCreateNewPatient = (e) => {
     e.preventDefault();
-    if (!newDemandForm.patientName.trim()) return;
+    if (!newPatientForm.patientName.trim()) return;
 
     const newId = `pat-${Date.now()}`;
-    const coords = SP_PRESET_LOCATIONS[newDemandForm.neighborhood] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'];
+    const coords = SP_PRESET_LOCATIONS[newPatientForm.neighborhood] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'];
 
-    const newDemand = {
+    const newPatient = {
       patientId: newId,
-      patientName: newDemandForm.patientName.trim(),
-      therapyType: newDemandForm.therapyType,
-      sessionsPerWeek: Number(newDemandForm.sessionsPerWeek),
-      durationMinutes: Number(newDemandForm.durationMinutes),
-      preferredShift: newDemandForm.preferredShift,
+      patientName: newPatientForm.patientName.trim(),
+      neighborhood: newPatientForm.neighborhood,
+      address: newPatientForm.neighborhood,
       location: coords,
-      address: newDemandForm.neighborhood
+      demands: [
+        {
+          id: `dem-${newId}-1`,
+          therapyType: newPatientForm.initialTherapy,
+          sessionsPerWeek: Number(newPatientForm.sessionsPerWeek),
+          durationMinutes: Number(newPatientForm.durationMinutes),
+          preferredShift: newPatientForm.preferredShift
+        }
+      ]
     };
 
     // Auto-vincula profissionais que tenham especialidade compatível no Care Team
     const autoDocIds = professionalAvailabilities
-      .filter((p) => p.specialty.toLowerCase().includes(newDemandForm.therapyType.toLowerCase().split(' ')[0]))
+      .filter((p) => p.specialty.toLowerCase().includes(newPatientForm.initialTherapy.toLowerCase().split(' ')[0]))
       .map((p) => p.professionalId);
 
-    const nextDemands = [...therapyDemands, newDemand];
+    const nextPatients = [...patientsWithDemands, newPatient];
     const nextCareTeams = [...careTeams, { patientId: newId, professionalIds: autoDocIds }];
 
-    setTherapyDemands(nextDemands);
+    setPatientsWithDemands(nextPatients);
     setCareTeams(nextCareTeams);
-    setIsNewDemandModalOpen(false);
-    setNewDemandForm({
+    setIsNewPatientModalOpen(false);
+
+    setNewPatientForm({
       patientName: '',
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+      neighborhood: 'Cerqueira César (Alameda Santos)',
+      initialTherapy: 'Fisioterapia Cardiorrespiratória & Motora',
       sessionsPerWeek: 2,
       durationMinutes: 45,
-      preferredShift: 'morning',
-      neighborhood: 'Cerqueira César (Alameda Santos)'
+      preferredShift: 'morning'
     });
 
-    runGeneration(nextDemands, professionalAvailabilities, nextCareTeams);
+    runGeneration(nextPatients, professionalAvailabilities, nextCareTeams);
   };
 
-  // Criar Novo Fisioterapeuta / Terapeuta
+  // Cadastrar Novo Fisioterapeuta com janelas de horário
   const handleCreateNewTherapist = (e) => {
     e.preventDefault();
     if (!newTherapistForm.professionalName.trim()) return;
@@ -362,10 +576,8 @@ export default function MonthlyScalePlannerView({
       professionalId: newDocId,
       professionalName: newTherapistForm.professionalName.trim(),
       specialty: newTherapistForm.specialty,
-      availableDaysOfWeek: newTherapistForm.availableDays,
-      shifts: newTherapistForm.shifts,
       baseLocation: baseCoords,
-      maxDailySessions: Number(newTherapistForm.maxDailySessions)
+      weekdayWindows: newTherapistForm.weekdayWindows
     };
 
     // Atualiza care teams selecionados para incluir o novo profissional
@@ -384,17 +596,7 @@ export default function MonthlyScalePlannerView({
     setCareTeams(nextCareTeams);
     setIsNewTherapistModalOpen(false);
 
-    setNewTherapistForm({
-      professionalName: '',
-      specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-      availableDays: [1, 2, 3, 4, 5],
-      shifts: ['morning', 'afternoon'],
-      maxDailySessions: 4,
-      neighborhood: 'Bela Vista (Av. Paulista)',
-      assignedPatientIds: []
-    });
-
-    runGeneration(therapyDemands, nextProfs, nextCareTeams);
+    runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
   };
 
   // Grava as sessões geradas no estado de agendamentos principal
@@ -410,7 +612,7 @@ export default function MonthlyScalePlannerView({
         time: s.time,
         status: 'waiting',
         type: 'home',
-        notes: `Plano Terapêutico Mensal: ${s.therapyType} (${s.transitKmFromPrevious.toFixed(1)} km da parada anterior)`,
+        notes: `Plano Terapêutico: ${s.therapyType} (${s.transitKmFromPrevious.toFixed(1)} km da parada anterior)`,
         address: s.address,
         accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
         transitTime: `${s.transitTimeMinutes} min de trânsito estimado`
@@ -454,8 +656,6 @@ export default function MonthlyScalePlannerView({
     return dates;
   }, [scaleResult]);
 
-  const DAY_LABELS = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
-
   return (
     <div className="planner-container">
       {/* Header Principal */}
@@ -466,7 +666,7 @@ export default function MonthlyScalePlannerView({
             Planejador de Escala Mensal & Alocação Inteligente
           </h1>
           <p>
-            Cruzamento automatizado de metas terapêuticas, disponibilidade da equipe de saúde e travas do Care Team.
+            Cruzamento automatizado: horários reais de jornada diária dos profissionais x até 3 demandas por paciente x travas de Care Team.
           </p>
         </div>
 
@@ -547,7 +747,7 @@ export default function MonthlyScalePlannerView({
             <div className="kpi-data">
               <div className="kpi-label">Sessões Domiciliares Alocadas</div>
               <div className="kpi-value">{scaleResult.plannedSessions.length}</div>
-              <div className="kpi-subtext">Distribuídas em 5 semanas úteis</div>
+              <div className="kpi-subtext">Distribuídas ao longo das semanas úteis</div>
             </div>
           </div>
 
@@ -611,10 +811,10 @@ export default function MonthlyScalePlannerView({
           className={`planner-tab-btn ${activeTab === 'demands' ? 'active' : ''}`}
           onClick={() => setActiveTab('demands')}
         >
-          <Users size={18} />
-          Gerenciar Demandas, Fisioterapeutas & Care Team
+          <Sliders size={18} />
+          Horários dos Terapeutas & Demandas dos Pacientes
           <span className="tab-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
-            {therapyDemands.length} pacientes | {professionalAvailabilities.length} terapeutas
+            {patientsWithDemands.length} pacientes | {professionalAvailabilities.length} terapeutas
           </span>
         </button>
       </div>
@@ -652,9 +852,9 @@ export default function MonthlyScalePlannerView({
                 onChange={(e) => setSelectedPatientFilter(e.target.value)}
               >
                 <option value="all">Todos os Pacientes</option>
-                {therapyDemands.map((d) => (
-                  <option key={d.patientId} value={d.patientId}>
-                    {d.patientName}
+                {patientsWithDemands.map((p) => (
+                  <option key={p.patientId} value={p.patientId}>
+                    {p.patientName}
                   </option>
                 ))}
               </select>
@@ -771,7 +971,7 @@ export default function MonthlyScalePlannerView({
               </tr>
             </thead>
             <tbody>
-              {scaleResult?.coverageReports.map((report) => {
+              {scaleResult?.coverageReports.map((report, idx) => {
                 const fillClass =
                   report.coveragePercent >= 100
                     ? 'progress-fill-green'
@@ -780,7 +980,7 @@ export default function MonthlyScalePlannerView({
                     : 'progress-fill-red';
 
                 return (
-                  <tr key={report.patientId}>
+                  <tr key={`${report.patientId}-${idx}`}>
                     <td style={{ fontWeight: 600 }}>{report.patientName}</td>
                     <td>{report.therapyType}</td>
                     <td>{report.weeklyTarget}x / semana</td>
@@ -855,7 +1055,7 @@ export default function MonthlyScalePlannerView({
               Diagnóstico de Gargalos & Otimizações do Gestor
             </h3>
             <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-              Demandas que não puderam ser 100% preenchidas por restrição de equipe ou capacidade.
+              Demandas que não puderam ser 100% preenchidas por restrição de equipe ou capacidade de agenda.
             </p>
           </div>
 
@@ -870,7 +1070,7 @@ export default function MonthlyScalePlannerView({
               <CheckCircle2 size={40} color="#059669" style={{ margin: '0 auto 0.75rem auto' }} />
               <h4 style={{ margin: '0 0 0.25rem 0' }}>Escala Sem Gargalos!</h4>
               <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                Todas as metas terapêuticas do mês foram 100% alocadas com viabilidade de trânsito e Care Team.
+                Todas as metas terapêuticas do mês foram 100% alocadas dentro das janelas de horário e Care Team.
               </p>
             </div>
           ) : (
@@ -889,7 +1089,7 @@ export default function MonthlyScalePlannerView({
                       <strong>Motivo: Nenhum profissional com especialidade em {b.therapyType} está cadastrado na Equipe de Cuidado autorizada deste paciente.</strong>
                     )}
                     {b.reason === 'PROFESSIONAL_CAPACITY_EXCEEDED' && (
-                      <span>Motivo: Os profissionais do Care Team atingiram o limite de vagas disponíveis para este turno/dia.</span>
+                      <span>Motivo: As janelas de horário de trabalho dos terapeutas autorizados não comportam mais atendimentos nos dias/turnos solicitados.</span>
                     )}
                   </div>
                   <div className="bottleneck-solution">
@@ -903,7 +1103,7 @@ export default function MonthlyScalePlannerView({
         </div>
       )}
 
-      {/* Conteúdo da Aba 4: GERENCIAR DEMANDAS, FISIOTERAPEUTAS & CARE TEAM */}
+      {/* Conteúdo da Aba 4: GERENCIAR HORÁRIOS DOS TERAPEUTAS & DEMANDAS DOS PACIENTES */}
       {activeTab === 'demands' && (
         <div className="tab-content">
           <div style={{
@@ -916,21 +1116,21 @@ export default function MonthlyScalePlannerView({
           }}>
             <div>
               <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.2rem', color: '#1e293b' }}>
-                Laboratório de Escalas: Pacientes, Fisioterapeutas & Care Team
+                Parâmetros Reais: Janelas de Horário Diárias & Múltiplas Terapias
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-                Adicione e altere as necessidades terapêuticas dos pacientes e disponibilidades dos profissionais para testar o motor.
+                Profissionais com horário de início e fim variável por dia (sem limite artificial de atendimentos) e pacientes com até 3 demandas terapêuticas.
               </p>
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <button
                 className="btn-primary"
-                onClick={() => setIsNewDemandModalOpen(true)}
+                onClick={() => setIsNewPatientModalOpen(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
               >
                 <Plus size={16} />
-                + Nova Demanda de Paciente
+                + Novo Paciente
               </button>
 
               <button
@@ -950,7 +1150,7 @@ export default function MonthlyScalePlannerView({
             </div>
           </div>
 
-          {/* Seção 1: Pacientes e Demandas Terapêuticas */}
+          {/* Seção 1: Profissionais de Saúde com Janelas de Horário por Dia da Semana */}
           <div style={{ marginBottom: '2.5rem' }}>
             <div style={{
               display: 'flex',
@@ -961,148 +1161,11 @@ export default function MonthlyScalePlannerView({
               color: '#1e293b',
               fontSize: '1rem'
             }}>
-              <Users size={20} color="#2563eb" />
-              Demandas Terapêuticas dos Pacientes ({therapyDemands.length})
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem' }}>
-              {therapyDemands.map((demand) => {
-                const patientCareTeam = careTeams.find((ct) => ct.patientId === demand.patientId) || { professionalIds: [] };
-
-                return (
-                  <div key={demand.patientId} style={{
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    padding: '1.25rem',
-                    background: '#ffffff',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
-                          {demand.patientName}
-                        </div>
-                        <div style={{ fontSize: '0.82rem', color: '#2563eb', fontWeight: 600, marginTop: '0.2rem' }}>
-                          🩺 {demand.therapyType}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                          📍 {demand.address}
-                        </div>
-                      </div>
-
-                      <button
-                        className="btn-danger-icon"
-                        title="Remover Demanda"
-                        onClick={() => handleDeleteDemand(demand.patientId)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-
-                    {/* Controles de Frequência e Turno */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: '#f8fafc',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem'
-                    }}>
-                      <span style={{ fontWeight: 600, color: '#334155' }}>Sessões por Semana:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button
-                          className="stepper-btn"
-                          disabled={demand.sessionsPerWeek <= 1}
-                          onClick={() => handleUpdateWeeklySessions(demand.patientId, -1)}
-                        >
-                          -
-                        </button>
-                        <span style={{ fontWeight: 700, fontSize: '0.95rem', minWidth: '22px', textAlign: 'center' }}>
-                          {demand.sessionsPerWeek}x
-                        </span>
-                        <button
-                          className="stepper-btn"
-                          disabled={demand.sessionsPerWeek >= 6}
-                          onClick={() => handleUpdateWeeklySessions(demand.patientId, 1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: '0.82rem'
-                    }}>
-                      <span style={{ fontWeight: 600, color: '#334155' }}>Turno Preferencial:</span>
-                      <div className="chips-row">
-                        {['morning', 'afternoon', 'any'].map((sh) => (
-                          <button
-                            key={sh}
-                            className={`chip-btn ${demand.preferredShift === sh ? 'active' : ''}`}
-                            onClick={() => handleUpdateShift(demand.patientId, sh)}
-                            style={{ padding: '2px 8px', fontSize: '0.74rem' }}
-                          >
-                            {sh === 'morning' ? 'Manhã' : sh === 'afternoon' ? 'Tarde' : 'Qualquer'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Vínculo de Care Team Interativo */}
-                    <div style={{
-                      borderTop: '1px solid #f1f5f9',
-                      paddingTop: '0.65rem',
-                      fontSize: '0.78rem'
-                    }}>
-                      <div style={{ fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>
-                        Equipe Autorizada (Care Team) — Clique para alternar:
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        {professionalAvailabilities.map((prof) => {
-                          const isMember = patientCareTeam.professionalIds.includes(prof.professionalId);
-                          return (
-                            <button
-                              key={prof.professionalId}
-                              className={`careteam-select-pill ${isMember ? 'active' : ''}`}
-                              onClick={() => handleToggleCareTeamMember(demand.patientId, prof.professionalId)}
-                              title={isMember ? 'Remover do Care Team' : 'Adicionar ao Care Team'}
-                            >
-                              {isMember ? <CheckCircle2 size={12} color="#2563eb" /> : <Plus size={12} />}
-                              {prof.professionalName.split(' ')[0]} {prof.professionalName.split(' ')[1] || ''}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Seção 2: Fisioterapeutas & Grade de Disponibilidade */}
-          <div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              marginBottom: '1rem',
-              fontWeight: 700,
-              color: '#1e293b',
-              fontSize: '1rem'
-            }}>
               <Stethoscope size={20} color="#059669" />
-              Equipe de Fisioterapeutas & Disponibilidades ({professionalAvailabilities.length})
+              Equipe de Profissionais — Janelas de Horário Diárias ({professionalAvailabilities.length})
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
               {professionalAvailabilities.map((prof) => (
                 <div key={prof.professionalId} style={{
                   border: '1px solid #e2e8f0',
@@ -1123,7 +1186,7 @@ export default function MonthlyScalePlannerView({
                         🩺 {prof.specialty}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        📍 Base: {prof.baseLocation.latitude.toFixed(4)}, {prof.baseLocation.longitude.toFixed(4)}
+                        📍 Base de Partida: {prof.baseLocation.latitude.toFixed(4)}, {prof.baseLocation.longitude.toFixed(4)}
                       </div>
                     </div>
 
@@ -1136,79 +1199,252 @@ export default function MonthlyScalePlannerView({
                     </button>
                   </div>
 
-                  {/* Dias da Semana Interativos */}
+                  {/* Janelas de Horário Diárias (Segunda a Sexta) */}
                   <div style={{ fontSize: '0.82rem' }}>
-                    <div style={{ fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      Dias de Atendimento na Semana:
+                    <div style={{ fontWeight: 600, color: '#334155', marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Horário de Jornada por Dia da Semana:</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 400 }}>Capacidade: O que couber na janela</span>
                     </div>
-                    <div className="chips-row">
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       {[1, 2, 3, 4, 5].map((dayNum) => {
-                        const isDayActive = prof.availableDaysOfWeek.includes(dayNum);
+                        const win = prof.weekdayWindows?.[dayNum] || { enabled: false, startTime: '08:00', endTime: '18:00' };
                         return (
-                          <button
-                            key={dayNum}
-                            className={`chip-btn ${isDayActive ? 'active' : ''}`}
-                            onClick={() => handleToggleProfDay(prof.professionalId, dayNum)}
-                          >
-                            {DAY_LABELS[dayNum]}
-                          </button>
+                          <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
+                            <label className="day-check-label">
+                              <input
+                                type="checkbox"
+                                checked={win.enabled}
+                                onChange={() => handleToggleDayEnabled(prof.professionalId, dayNum)}
+                              />
+                              {WEEKDAY_SHORT[dayNum]}
+                            </label>
+
+                            {win.enabled ? (
+                              <div className="time-range-inputs">
+                                <span>das</span>
+                                <input
+                                  type="time"
+                                  className="time-input-compact"
+                                  value={win.startTime}
+                                  onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'startTime', e.target.value)}
+                                />
+                                <span>às</span>
+                                <input
+                                  type="time"
+                                  className="time-input-compact"
+                                  value={win.endTime}
+                                  onChange={(e) => handleUpdateDayTime(prof.professionalId, dayNum, 'endTime', e.target.value)}
+                                />
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                Indisponível (Outros compromissos/pacientes externos)
+                              </span>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
-                  </div>
-
-                  {/* Turnos Interativos */}
-                  <div style={{ fontSize: '0.82rem' }}>
-                    <div style={{ fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      Turnos Habilitados:
-                    </div>
-                    <div className="chips-row">
-                      {['morning', 'afternoon'].map((sh) => {
-                        const isShiftActive = prof.shifts.includes(sh);
-                        return (
-                          <button
-                            key={sh}
-                            className={`chip-btn ${isShiftActive ? 'active' : ''}`}
-                            onClick={() => handleToggleProfShift(prof.professionalId, sh)}
-                          >
-                            {sh === 'morning' ? '🌅 Manhã (08:30 - 12:00)' : '🌇 Tarde (13:30 - 17:30)'}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    fontSize: '0.78rem',
-                    color: '#64748b',
-                    background: '#f8fafc',
-                    padding: '0.45rem 0.65rem',
-                    borderRadius: '6px'
-                  }}>
-                    Capacidade máxima: <strong>{prof.maxDailySessions} sessões/dia</strong>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Seção 2: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS CADA */}
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '1rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              fontSize: '1rem'
+            }}>
+              <Users size={20} color="#2563eb" />
+              Pacientes & Demandas Terapêuticas (Até 3 por Paciente) ({patientsWithDemands.length})
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
+              {patientsWithDemands.map((patient) => {
+                const patientCareTeam = careTeams.find((ct) => ct.patientId === patient.patientId) || { professionalIds: [] };
+
+                return (
+                  <div key={patient.patientId} style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    background: '#ffffff',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
+                            {patient.patientName}
+                          </span>
+                          <span className="demand-counter-badge">
+                            {patient.demands.length}/3 Terapias
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
+                          📍 {patient.address}
+                        </div>
+                      </div>
+
+                      <button
+                        className="btn-danger-icon"
+                        title="Remover Paciente"
+                        onClick={() => handleDeletePatient(patient.patientId)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {/* Lista das até 3 demandas deste paciente */}
+                    <div className="patient-demands-container">
+                      {patient.demands.map((demand, idx) => (
+                        <div key={demand.id || idx} className="single-demand-card">
+                          <div className="single-demand-header">
+                            <span style={{ fontWeight: 700, color: '#1e3a8a', fontSize: '0.82rem' }}>
+                              #{idx + 1} {demand.therapyType}
+                            </span>
+                            {patient.demands.length > 1 && (
+                              <button
+                                className="btn-danger-icon"
+                                title="Remover esta terapia"
+                                onClick={() => handleRemoveSingleDemand(patient.patientId, demand.id)}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '0.8rem'
+                          }}>
+                            <span style={{ color: '#475569' }}>Frequência semanal:</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <button
+                                className="stepper-btn"
+                                disabled={demand.sessionsPerWeek <= 1}
+                                onClick={() => handleUpdateWeeklySessions(patient.patientId, demand.id, -1)}
+                              >
+                                -
+                              </button>
+                              <span style={{ fontWeight: 700, minWidth: '22px', textAlign: 'center' }}>
+                                {demand.sessionsPerWeek}x
+                              </span>
+                              <button
+                                className="stepper-btn"
+                                disabled={demand.sessionsPerWeek >= 6}
+                                onClick={() => handleUpdateWeeklySessions(patient.patientId, demand.id, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '0.78rem'
+                          }}>
+                            <span style={{ color: '#475569' }}>Turno preferencial:</span>
+                            <div className="chips-row">
+                              {['morning', 'afternoon', 'any'].map((sh) => (
+                                <button
+                                  key={sh}
+                                  className={`chip-btn ${demand.preferredShift === sh ? 'active' : ''}`}
+                                  onClick={() => handleUpdateShift(patient.patientId, demand.id, sh)}
+                                  style={{ padding: '2px 7px', fontSize: '0.72rem' }}
+                                >
+                                  {sh === 'morning' ? 'Manhã' : sh === 'afternoon' ? 'Tarde' : 'Qualquer'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Botão para adicionar mais uma terapia se tiver menos de 3 */}
+                      {patient.demands.length < 3 && (
+                        <button
+                          className="btn-add-demand-inline"
+                          onClick={() => setAddDemandModalState({
+                            isOpen: true,
+                            patientId: patient.patientId,
+                            patientName: patient.patientName,
+                            therapyType: 'Fonoaudiologia Domiciliar',
+                            sessionsPerWeek: 2,
+                            durationMinutes: 45,
+                            preferredShift: 'any'
+                          })}
+                        >
+                          <Plus size={14} />
+                          + Adicionar Nova Demanda Terapêutica ({patient.demands.length}/3)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Vínculo de Care Team Interativo */}
+                    <div style={{
+                      borderTop: '1px solid #f1f5f9',
+                      paddingTop: '0.65rem',
+                      fontSize: '0.78rem'
+                    }}>
+                      <div style={{ fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>
+                        Equipe Autorizada (Care Team) — Clique para alternar:
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {professionalAvailabilities.map((prof) => {
+                          const isMember = patientCareTeam.professionalIds.includes(prof.professionalId);
+                          return (
+                            <button
+                              key={prof.professionalId}
+                              className={`careteam-select-pill ${isMember ? 'active' : ''}`}
+                              onClick={() => handleToggleCareTeamMember(patient.patientId, prof.professionalId)}
+                              title={isMember ? 'Remover do Care Team' : 'Adicionar ao Care Team'}
+                            >
+                              {isMember ? <CheckCircle2 size={12} color="#2563eb" /> : <Plus size={12} />}
+                              {prof.professionalName.split(' ')[0]} {prof.professionalName.split(' ')[1] || ''}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* MODAL 1: Adicionar Demanda de Paciente */}
-      {isNewDemandModalOpen && (
-        <div className="planner-modal-backdrop" onClick={() => setIsNewDemandModalOpen(false)}>
+      {/* MODAL 1: Cadastrar Novo Paciente */}
+      {isNewPatientModalOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setIsNewPatientModalOpen(false)}>
           <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
                 <UserPlus size={20} color="#2563eb" />
-                Cadastrar Demanda Terapêutica de Paciente
+                Cadastrar Novo Paciente
               </h3>
-              <button className="modal-close-btn" onClick={() => setIsNewDemandModalOpen(false)}>
+              <button className="modal-close-btn" onClick={() => setIsNewPatientModalOpen(false)}>
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewDemand}>
+            <form onSubmit={handleCreateNewPatient}>
               <div className="modal-body">
                 <div className="form-group">
                   <label>Nome Completo do Paciente *</label>
@@ -1217,23 +1453,122 @@ export default function MonthlyScalePlannerView({
                     required
                     placeholder="Ex: Carlos Eduardo de Oliveira"
                     className="planner-input"
-                    value={newDemandForm.patientName}
-                    onChange={(e) => setNewDemandForm({ ...newDemandForm, patientName: e.target.value })}
+                    value={newPatientForm.patientName}
+                    onChange={(e) => setNewPatientForm({ ...newPatientForm, patientName: e.target.value })}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Especialidade Terapêutica Necessária *</label>
+                  <label>Região / Endereço Domiciliar em SP *</label>
                   <select
                     className="planner-select"
-                    value={newDemandForm.therapyType}
-                    onChange={(e) => setNewDemandForm({ ...newDemandForm, therapyType: e.target.value })}
+                    value={newPatientForm.neighborhood}
+                    onChange={(e) => setNewPatientForm({ ...newPatientForm, neighborhood: e.target.value })}
                   >
-                    <option value="Fisioterapia Cardiorrespiratória & Motora">Fisioterapia Cardiorrespiratória & Motora</option>
-                    <option value="Fisioterapia Motora & Neuroreabilitação">Fisioterapia Motora & Neuroreabilitação</option>
-                    <option value="Fonoaudiologia Domiciliar">Fonoaudiologia Domiciliar</option>
-                    <option value="Enfermagem Estomaterapeuta & Curativos">Enfermagem Estomaterapeuta & Curativos</option>
-                    <option value="Terapia Ocupacional Domiciliar">Terapia Ocupacional Domiciliar</option>
+                    {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
+                      <option key={neigh} value={neigh}>{neigh}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e3a8a', marginBottom: '0.5rem' }}>
+                    1ª Demanda Terapêutica Inicial (poderá adicionar até 3):
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label>Especialidade Terapêutica *</label>
+                    <select
+                      className="planner-select"
+                      value={newPatientForm.initialTherapy}
+                      onChange={(e) => setNewPatientForm({ ...newPatientForm, initialTherapy: e.target.value })}
+                    >
+                      {THERAPY_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group">
+                      <label>Sessões / Semana</label>
+                      <select
+                        className="planner-select"
+                        value={newPatientForm.sessionsPerWeek}
+                        onChange={(e) => setNewPatientForm({ ...newPatientForm, sessionsPerWeek: Number(e.target.value) })}
+                      >
+                        <option value={1}>1x / semana</option>
+                        <option value={2}>2x / semana</option>
+                        <option value={3}>3x / semana</option>
+                        <option value={4}>4x / semana</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Turno Preferencial</label>
+                      <select
+                        className="planner-select"
+                        value={newPatientForm.preferredShift}
+                        onChange={(e) => setNewPatientForm({ ...newPatientForm, preferredShift: e.target.value })}
+                      >
+                        <option value="morning">Manhã</option>
+                        <option value="afternoon">Tarde</option>
+                        <option value="any">Qualquer</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsNewPatientModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                >
+                  Salvar Paciente & Recalcular
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Adicionar Demanda Adicional a Paciente Existente (Até 3) */}
+      {addDemandModalState.isOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}>
+          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <Plus size={20} color="#2563eb" />
+                Nova Demanda Terapêutica — {addDemandModalState.patientName}
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDemandToPatient}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Especialidade Terapêutica *</label>
+                  <select
+                    className="planner-select"
+                    value={addDemandModalState.therapyType}
+                    onChange={(e) => setAddDemandModalState({ ...addDemandModalState, therapyType: e.target.value })}
+                  >
+                    {THERAPY_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1242,45 +1577,32 @@ export default function MonthlyScalePlannerView({
                     <label>Sessões / Semana *</label>
                     <select
                       className="planner-select"
-                      value={newDemandForm.sessionsPerWeek}
-                      onChange={(e) => setNewDemandForm({ ...newDemandForm, sessionsPerWeek: Number(e.target.value) })}
+                      value={addDemandModalState.sessionsPerWeek}
+                      onChange={(e) => setAddDemandModalState({ ...addDemandModalState, sessionsPerWeek: Number(e.target.value) })}
                     >
                       <option value={1}>1x por semana</option>
                       <option value={2}>2x por semana</option>
                       <option value={3}>3x por semana</option>
                       <option value={4}>4x por semana</option>
-                      <option value={5}>5x por semana</option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label>Turno Preferencial *</label>
+                    <label>Turno Preferencial</label>
                     <select
                       className="planner-select"
-                      value={newDemandForm.preferredShift}
-                      onChange={(e) => setNewDemandForm({ ...newDemandForm, preferredShift: e.target.value })}
+                      value={addDemandModalState.preferredShift}
+                      onChange={(e) => setAddDemandModalState({ ...addDemandModalState, preferredShift: e.target.value })}
                     >
-                      <option value="morning">Manhã (08:30 - 12:00)</option>
-                      <option value="afternoon">Tarde (13:30 - 17:30)</option>
-                      <option value="any">Qualquer Turno</option>
+                      <option value="morning">Manhã</option>
+                      <option value="afternoon">Tarde</option>
+                      <option value="any">Qualquer</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Região / Endereço Domiciliar em SP *</label>
-                  <select
-                    className="planner-select"
-                    value={newDemandForm.neighborhood}
-                    onChange={(e) => setNewDemandForm({ ...newDemandForm, neighborhood: e.target.value })}
-                  >
-                    {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
-                      <option key={neigh} value={neigh}>{neigh}</option>
-                    ))}
-                  </select>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    O motor utilizará as coordenadas desta região para calcular o deslocamento na rota urbana.
-                  </span>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', background: '#eff6ff', padding: '0.65rem', borderRadius: '6px' }}>
+                  💡 O motor garantirá que esta terapia não tenha choque de horário com as demais terapias de {addDemandModalState.patientName}.
                 </div>
               </div>
 
@@ -1288,15 +1610,12 @@ export default function MonthlyScalePlannerView({
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setIsNewDemandModalOpen(false)}
+                  onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Salvar Demanda & Recalcular
+                <button type="submit" className="btn-primary">
+                  Adicionar Demanda & Recalcular
                 </button>
               </div>
             </form>
@@ -1304,7 +1623,7 @@ export default function MonthlyScalePlannerView({
         </div>
       )}
 
-      {/* MODAL 2: Adicionar Fisioterapeuta / Terapeuta */}
+      {/* MODAL 3: Cadastrar Fisioterapeuta com Janelas de Horário Diárias */}
       {isNewTherapistModalOpen && (
         <div className="planner-modal-backdrop" onClick={() => setIsNewTherapistModalOpen(false)}>
           <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1325,7 +1644,7 @@ export default function MonthlyScalePlannerView({
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Dr. Thiago Mendes"
+                    placeholder="Ex: Dra. Larissa Prado"
                     className="planner-input"
                     value={newTherapistForm.professionalName}
                     onChange={(e) => setNewTherapistForm({ ...newTherapistForm, professionalName: e.target.value })}
@@ -1339,100 +1658,102 @@ export default function MonthlyScalePlannerView({
                     value={newTherapistForm.specialty}
                     onChange={(e) => setNewTherapistForm({ ...newTherapistForm, specialty: e.target.value })}
                   >
-                    <option value="Fisioterapia Cardiorrespiratória & Motora">Fisioterapia Cardiorrespiratória & Motora</option>
-                    <option value="Fisioterapia Motora & Neuroreabilitação">Fisioterapia Motora & Neuroreabilitação</option>
-                    <option value="Fonoaudiologia Domiciliar">Fonoaudiologia Domiciliar</option>
-                    <option value="Enfermagem Estomaterapeuta & Curativos Complexos">Enfermagem Estomaterapeuta & Curativos Complexos</option>
-                    <option value="Terapia Ocupacional Domiciliar">Terapia Ocupacional Domiciliar</option>
+                    {THERAPY_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Dias Disponíveis na Semana *</label>
-                  <div className="chips-row">
-                    {[1, 2, 3, 4, 5].map((d) => {
-                      const active = newTherapistForm.availableDays.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          className={`chip-btn ${active ? 'active' : ''}`}
-                          onClick={() => {
-                            const next = active
-                              ? newTherapistForm.availableDays.filter((x) => x !== d)
-                              : [...newTherapistForm.availableDays, d];
-                            setNewTherapistForm({ ...newTherapistForm, availableDays: next.length ? next : [d] });
-                          }}
-                        >
-                          {DAY_LABELS[d]}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <label>Região da Base de Saída (Ponto de Partida em SP)</label>
+                  <select
+                    className="planner-select"
+                    value={newTherapistForm.neighborhood}
+                    onChange={(e) => setNewTherapistForm({ ...newTherapistForm, neighborhood: e.target.value })}
+                  >
+                    {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
+                      <option key={neigh} value={neigh}>{neigh}</option>
+                    ))}
+                  </select>
                 </div>
 
+                {/* Janela de Horário Diária (Segunda a Sexta) */}
                 <div className="form-group">
-                  <label>Turnos Disponíveis *</label>
-                  <div className="chips-row">
-                    {['morning', 'afternoon'].map((sh) => {
-                      const active = newTherapistForm.shifts.includes(sh);
+                  <label>Jornada Diária por Dia da Semana (Horário de Início e Fim):</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {[1, 2, 3, 4, 5].map((dayNum) => {
+                      const win = newTherapistForm.weekdayWindows[dayNum];
                       return (
-                        <button
-                          key={sh}
-                          type="button"
-                          className={`chip-btn ${active ? 'active' : ''}`}
-                          onClick={() => {
-                            const next = active
-                              ? newTherapistForm.shifts.filter((x) => x !== sh)
-                              : [...newTherapistForm.shifts, sh];
-                            setNewTherapistForm({ ...newTherapistForm, shifts: next.length ? next : [sh] });
-                          }}
-                        >
-                          {sh === 'morning' ? 'Manhã' : 'Tarde'}
-                        </button>
+                        <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
+                          <label className="day-check-label">
+                            <input
+                              type="checkbox"
+                              checked={win.enabled}
+                              onChange={() => {
+                                setNewTherapistForm({
+                                  ...newTherapistForm,
+                                  weekdayWindows: {
+                                    ...newTherapistForm.weekdayWindows,
+                                    [dayNum]: { ...win, enabled: !win.enabled }
+                                  }
+                                });
+                              }}
+                            />
+                            {WEEKDAY_NAMES[dayNum]}
+                          </label>
+
+                          {win.enabled ? (
+                            <div className="time-range-inputs">
+                              <span>das</span>
+                              <input
+                                type="time"
+                                className="time-input-compact"
+                                value={win.startTime}
+                                onChange={(e) => {
+                                  setNewTherapistForm({
+                                    ...newTherapistForm,
+                                    weekdayWindows: {
+                                      ...newTherapistForm.weekdayWindows,
+                                      [dayNum]: { ...win, startTime: e.target.value }
+                                    }
+                                  });
+                                }}
+                              />
+                              <span>às</span>
+                              <input
+                                type="time"
+                                className="time-input-compact"
+                                value={win.endTime}
+                                onChange={(e) => {
+                                  setNewTherapistForm({
+                                    ...newTherapistForm,
+                                    weekdayWindows: {
+                                      ...newTherapistForm.weekdayWindows,
+                                      [dayNum]: { ...win, endTime: e.target.value }
+                                    }
+                                  });
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                              Folga / Outros pacientes externos
+                            </span>
+                          )}
+                        </div>
                       );
                     })}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div className="form-group">
-                    <label>Máximo de Sessões / Dia</label>
-                    <select
-                      className="planner-select"
-                      value={newTherapistForm.maxDailySessions}
-                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, maxDailySessions: Number(e.target.value) })}
-                    >
-                      <option value={2}>2 sessões</option>
-                      <option value={3}>3 sessões</option>
-                      <option value={4}>4 sessões</option>
-                      <option value={5}>5 sessões</option>
-                      <option value={6}>6 sessões</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Base de Saída Geográfica</label>
-                    <select
-                      className="planner-select"
-                      value={newTherapistForm.neighborhood}
-                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, neighborhood: e.target.value })}
-                    >
-                      {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
-                        <option key={neigh} value={neigh}>{neigh}</option>
-                      ))}
-                    </select>
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label>Vincular Imediatamente aos Pacientes no Care Team:</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {therapyDemands.map((dem) => {
-                      const isSelected = newTherapistForm.assignedPatientIds.includes(dem.patientId);
+                    {patientsWithDemands.map((pat) => {
+                      const isSelected = newTherapistForm.assignedPatientIds.includes(pat.patientId);
                       return (
                         <label
-                          key={dem.patientId}
+                          key={pat.patientId}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1446,12 +1767,12 @@ export default function MonthlyScalePlannerView({
                             checked={isSelected}
                             onChange={(e) => {
                               const nextIds = e.target.checked
-                                ? [...newTherapistForm.assignedPatientIds, dem.patientId]
-                                : newTherapistForm.assignedPatientIds.filter((id) => id !== dem.patientId);
+                                ? [...newTherapistForm.assignedPatientIds, pat.patientId]
+                                : newTherapistForm.assignedPatientIds.filter((id) => id !== pat.patientId);
                               setNewTherapistForm({ ...newTherapistForm, assignedPatientIds: nextIds });
                             }}
                           />
-                          {dem.patientName} ({dem.therapyType})
+                          {pat.patientName} ({pat.demands.map((d) => d.therapyType).join(', ')})
                         </label>
                       );
                     })}
