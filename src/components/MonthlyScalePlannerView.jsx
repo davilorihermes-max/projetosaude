@@ -1,6 +1,5 @@
 // src/components/MonthlyScalePlannerView.jsx
 import React, { useState, useMemo } from 'react';
-import confetti from 'canvas-confetti';
 import {
   CalendarDays,
   Sparkles,
@@ -25,7 +24,8 @@ import {
   Activity,
   Layers,
   ArrowRight,
-  Sliders
+  Sliders,
+  Ban
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
@@ -96,6 +96,18 @@ export default function MonthlyScalePlannerView({
     preferredShift: 'any'
   });
 
+  // Modal para adicionar bloco de indisponibilidade (profissional ou paciente)
+  const [addBlockModalState, setAddBlockModalState] = useState({
+    isOpen: false,
+    targetType: 'professional', // 'professional' | 'patient'
+    targetId: null,
+    targetName: '',
+    dayOfWeek: 2,
+    startTime: '09:00',
+    endTime: '10:30',
+    reason: 'Paciente particular externo'
+  });
+
   // Form State: Novo Paciente
   const [newPatientForm, setNewPatientForm] = useState({
     patientName: '',
@@ -121,7 +133,7 @@ export default function MonthlyScalePlannerView({
     assignedPatientIds: []
   });
 
-  // 1. Estado Dinâmico: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS cada
+  // 1. Estado Dinâmico: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS cada e BLOQUEIOS DE HORÁRIO
   const [patientsWithDemands, setPatientsWithDemands] = useState([
     {
       patientId: 'pat-1',
@@ -129,6 +141,9 @@ export default function MonthlyScalePlannerView({
       neighborhood: 'Cerqueira César (Alameda Santos)',
       address: 'Alameda Santos, 1000 - Cerqueira César',
       location: { latitude: -23.563099, longitude: -46.654271 },
+      unavailabilityBlocks: [
+        { id: 'blk-pat-1', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', reason: 'Consulta Médica Externa' }
+      ],
       demands: [
         {
           id: 'dem-pat-1-1',
@@ -152,6 +167,9 @@ export default function MonthlyScalePlannerView({
       neighborhood: 'Pinheiros (Rua Fradique Coutinho)',
       address: 'Rua Fradique Coutinho, 500 - Pinheiros',
       location: { latitude: -23.567300, longitude: -46.693400 },
+      unavailabilityBlocks: [
+        { id: 'blk-pat-2', dayOfWeek: 5, startTime: '14:30', endTime: '17:00', reason: 'Fisiatria / Exames' }
+      ],
       demands: [
         {
           id: 'dem-pat-2-1',
@@ -212,7 +230,7 @@ export default function MonthlyScalePlannerView({
     }
   ]);
 
-  // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA
+  // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
   // Sem limites arbitrários de sessões - apenas caber na janela de início e fim da jornada
   const [professionalAvailabilities, setProfessionalAvailabilities] = useState([
     {
@@ -220,6 +238,9 @@ export default function MonthlyScalePlannerView({
       professionalName: 'Dr. Rafael Fontes',
       specialty: 'Fisioterapia Cardiorrespiratória & Motora',
       baseLocation: { latitude: -23.585000, longitude: -46.638000 },
+      unavailabilityBlocks: [
+        { id: 'blk-doc-1', dayOfWeek: 2, startTime: '09:00', endTime: '10:30', reason: 'Paciente particular externo' }
+      ],
       weekdayWindows: {
         1: { enabled: true, startTime: '08:00', endTime: '14:00' },
         2: { enabled: true, startTime: '08:00', endTime: '18:30' },
@@ -233,6 +254,9 @@ export default function MonthlyScalePlannerView({
       professionalName: 'Dra. Camila Nogueira',
       specialty: 'Enfermagem Estomaterapeuta & Curativos Complexos',
       baseLocation: { latitude: -23.565000, longitude: -46.657000 },
+      unavailabilityBlocks: [
+        { id: 'blk-doc-2', dayOfWeek: 5, startTime: '14:30', endTime: '17:00', reason: 'Plantão hospitalar / Reunião' }
+      ],
       weekdayWindows: {
         1: { enabled: false, startTime: '08:00', endTime: '12:00' },
         2: { enabled: true, startTime: '08:00', endTime: '18:00' },
@@ -277,7 +301,8 @@ export default function MonthlyScalePlannerView({
         durationMinutes: d.durationMinutes,
         preferredShift: d.preferredShift,
         location: p.location,
-        address: p.address
+        address: p.address,
+        unavailabilityBlocks: p.unavailabilityBlocks || []
       }))
     );
   }, [patientsWithDemands]);
@@ -313,7 +338,8 @@ export default function MonthlyScalePlannerView({
         durationMinutes: d.durationMinutes,
         preferredShift: d.preferredShift,
         location: p.location,
-        address: p.address
+        address: p.address,
+        unavailabilityBlocks: p.unavailabilityBlocks || []
       }))
     );
 
@@ -333,12 +359,6 @@ export default function MonthlyScalePlannerView({
 
       setScaleResult(result);
       setIsGenerating(false);
-
-      confetti({
-        particleCount: 45,
-        spread: 60,
-        origin: { y: 0.6 }
-      });
     }, 300);
   };
 
@@ -513,6 +533,89 @@ export default function MonthlyScalePlannerView({
 
     setPatientsWithDemands(updated);
     runGeneration(updated, professionalAvailabilities, careTeams);
+  };
+
+  // ----------------------------------------------------
+  // GESTÃO DE BLOQUEIOS DE INDISPONIBILIDADE
+  // ----------------------------------------------------
+  const handleAddTherapistBlock = (profId, block) => {
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === profId) {
+        const blocks = prof.unavailabilityBlocks || [];
+        return {
+          ...prof,
+          unavailabilityBlocks: [...blocks, block]
+        };
+      }
+      return prof;
+    });
+    setProfessionalAvailabilities(updated);
+    runGeneration(patientsWithDemands, updated, careTeams);
+  };
+
+  const handleRemoveTherapistBlock = (profId, blockId) => {
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === profId) {
+        return {
+          ...prof,
+          unavailabilityBlocks: (prof.unavailabilityBlocks || []).filter((b) => b.id !== blockId)
+        };
+      }
+      return prof;
+    });
+    setProfessionalAvailabilities(updated);
+    runGeneration(patientsWithDemands, updated, careTeams);
+  };
+
+  const handleAddPatientBlock = (patientId, block) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        const blocks = pat.unavailabilityBlocks || [];
+        return {
+          ...pat,
+          unavailabilityBlocks: [...blocks, block]
+        };
+      }
+      return pat;
+    });
+    setPatientsWithDemands(updated);
+    runGeneration(updated, professionalAvailabilities, careTeams);
+  };
+
+  const handleRemovePatientBlock = (patientId, blockId) => {
+    const updated = patientsWithDemands.map((pat) => {
+      if (pat.patientId === patientId) {
+        return {
+          ...pat,
+          unavailabilityBlocks: (pat.unavailabilityBlocks || []).filter((b) => b.id !== blockId)
+        };
+      }
+      return pat;
+    });
+    setPatientsWithDemands(updated);
+    runGeneration(updated, professionalAvailabilities, careTeams);
+  };
+
+  const handleSaveBlock = (e) => {
+    e.preventDefault();
+    const { targetType, targetId, dayOfWeek, startTime, endTime, reason } = addBlockModalState;
+    if (!targetId) return;
+
+    const newBlock = {
+      id: `blk-${Date.now()}`,
+      dayOfWeek: Number(dayOfWeek),
+      startTime,
+      endTime,
+      reason: reason.trim() || (targetType === 'professional' ? 'Paciente particular' : 'Compromisso pessoal')
+    };
+
+    if (targetType === 'professional') {
+      handleAddTherapistBlock(targetId, newBlock);
+    } else {
+      handleAddPatientBlock(targetId, newBlock);
+    }
+
+    setAddBlockModalState({ ...addBlockModalState, isOpen: false });
   };
 
   // Adicionar uma nova demanda (até 3) a um paciente existente
@@ -695,12 +798,6 @@ export default function MonthlyScalePlannerView({
 
       onCommitScaleToAppointments(appointmentsToSave);
       setCommittedSuccess(true);
-
-      confetti({
-        particleCount: 90,
-        spread: 70,
-        origin: { y: 0.5 }
-      });
     }
   };
 
@@ -1399,6 +1496,56 @@ export default function MonthlyScalePlannerView({
                       })}
                     </div>
                   </div>
+
+                  {/* Seção de Bloqueios de Indisponibilidade do Terapeuta */}
+                  <div className="unavailability-section">
+                    <div className="unavailability-header">
+                      <span className="unavailability-title">
+                        <Ban size={13} color="#d97706" />
+                        Bloqueios de Horário / Indisponibilidades ({prof.unavailabilityBlocks?.length || 0})
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-add-block"
+                        onClick={() => setAddBlockModalState({
+                          isOpen: true,
+                          targetType: 'professional',
+                          targetId: prof.professionalId,
+                          targetName: prof.professionalName,
+                          dayOfWeek: 2,
+                          startTime: '09:00',
+                          endTime: '10:30',
+                          reason: 'Paciente particular externo'
+                        })}
+                      >
+                        + Bloquear Horário
+                      </button>
+                    </div>
+
+                    {(!prof.unavailabilityBlocks || prof.unavailabilityBlocks.length === 0) ? (
+                      <div className="unavailability-empty">
+                        Nenhum bloqueio cadastrado (disponibilidade livre na jornada).
+                      </div>
+                    ) : (
+                      <div className="unavailability-list">
+                        {prof.unavailabilityBlocks.map((b) => (
+                          <div key={b.id} className="unavailability-chip">
+                            <span className="unavailability-day">{WEEKDAY_SHORT[b.dayOfWeek] || 'Dia'}</span>
+                            <span className="unavailability-time">{b.startTime} - {b.endTime}</span>
+                            {b.reason && <span className="unavailability-reason">({b.reason})</span>}
+                            <button
+                              type="button"
+                              className="btn-remove-block"
+                              title="Remover bloqueio"
+                              onClick={() => handleRemoveTherapistBlock(prof.professionalId, b.id)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1597,6 +1744,56 @@ export default function MonthlyScalePlannerView({
                           );
                         })}
                       </div>
+                    </div>
+
+                    {/* Seção de Bloqueios de Indisponibilidade do Paciente */}
+                    <div className="unavailability-section">
+                      <div className="unavailability-header">
+                        <span className="unavailability-title title-patient">
+                          <Ban size={13} color="#ea580c" />
+                          Bloqueios de Horário do Paciente ({patient.unavailabilityBlocks?.length || 0})
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-add-block"
+                          onClick={() => setAddBlockModalState({
+                            isOpen: true,
+                            targetType: 'patient',
+                            targetId: patient.patientId,
+                            targetName: patient.patientName,
+                            dayOfWeek: 3,
+                            startTime: '10:00',
+                            endTime: '12:00',
+                            reason: 'Consulta médica externa'
+                          })}
+                        >
+                          + Bloquear Horário
+                        </button>
+                      </div>
+
+                      {(!patient.unavailabilityBlocks || patient.unavailabilityBlocks.length === 0) ? (
+                        <div className="unavailability-empty">
+                          Nenhum bloqueio cadastrado (disponível para terapias).
+                        </div>
+                      ) : (
+                        <div className="unavailability-list">
+                          {patient.unavailabilityBlocks.map((b) => (
+                            <div key={b.id} className="unavailability-chip chip-patient">
+                              <span className="unavailability-day">{WEEKDAY_SHORT[b.dayOfWeek] || 'Dia'}</span>
+                              <span className="unavailability-time">{b.startTime} - {b.endTime}</span>
+                              {b.reason && <span className="unavailability-reason">({b.reason})</span>}
+                              <button
+                                type="button"
+                                className="btn-remove-block"
+                                title="Remover bloqueio"
+                                onClick={() => handleRemovePatientBlock(patient.patientId, b.id)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -2034,6 +2231,100 @@ export default function MonthlyScalePlannerView({
                 </button>
                 <button type="submit" className="btn-primary">
                   Salvar Alterações & Recalcular
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Adicionar Bloco de Indisponibilidade / Bloqueio de Horário */}
+      {addBlockModalState.isOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setAddBlockModalState({ ...addBlockModalState, isOpen: false })}>
+          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <Ban size={20} color="#d97706" />
+                Bloquear Horário — {addBlockModalState.targetName}
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setAddBlockModalState({ ...addBlockModalState, isOpen: false })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBlock}>
+              <div className="modal-body">
+                <div style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '0.75rem', background: '#fffbeb', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #fef08a' }}>
+                  {addBlockModalState.targetType === 'professional'
+                    ? `Durante este intervalo, o profissional ${addBlockModalState.targetName} não poderá receber atendimentos da clínica (ex: compromissos pessoais, pacientes particulares externos).`
+                    : `Durante este intervalo, nenhuma sessão domiciliar será agendada para ${addBlockModalState.targetName} (ex: consultas médicas externas, exames laboratoriais, diálise).`}
+                </div>
+
+                <div className="form-group">
+                  <label>Dia da Semana *</label>
+                  <select
+                    className="planner-select"
+                    value={addBlockModalState.dayOfWeek}
+                    onChange={(e) => setAddBlockModalState({ ...addBlockModalState, dayOfWeek: Number(e.target.value) })}
+                  >
+                    <option value={1}>Segunda-feira</option>
+                    <option value={2}>Terça-feira</option>
+                    <option value={3}>Quarta-feira</option>
+                    <option value={4}>Quinta-feira</option>
+                    <option value={5}>Sexta-feira</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label>Horário de Início *</label>
+                    <input
+                      type="time"
+                      required
+                      className="planner-input"
+                      value={addBlockModalState.startTime}
+                      onChange={(e) => setAddBlockModalState({ ...addBlockModalState, startTime: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Horário de Término *</label>
+                    <input
+                      type="time"
+                      required
+                      className="planner-input"
+                      value={addBlockModalState.endTime}
+                      onChange={(e) => setAddBlockModalState({ ...addBlockModalState, endTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Motivo do Bloqueio *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={addBlockModalState.targetType === 'professional' ? 'Ex: Paciente particular externo' : 'Ex: Consulta médica externa'}
+                    className="planner-input"
+                    value={addBlockModalState.reason}
+                    onChange={(e) => setAddBlockModalState({ ...addBlockModalState, reason: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setAddBlockModalState({ ...addBlockModalState, isOpen: false })}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" style={{ background: '#d97706' }}>
+                  Confirmar Bloqueio & Recalcular
                 </button>
               </div>
             </form>

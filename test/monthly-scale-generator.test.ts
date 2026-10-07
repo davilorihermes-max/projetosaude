@@ -226,4 +226,113 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       }
     });
   });
+
+  it('deve respeitar os blocos de indisponibilidade do profissional (bloqueios de agenda)', () => {
+    // Dr. Rafael atende Terça (2) das 08:00 às 13:00, mas tem bloqueio particular das 09:00 às 10:30
+    const availabilitiesWithBlock: ProfessionalAvailability[] = [
+      {
+        professionalId: 'doc-3',
+        professionalName: 'Dr. Rafael Fontes',
+        specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+        baseLocation: locPaulista,
+        weekdayWindows: {
+          2: { enabled: true, startTime: '08:00', endTime: '13:00' }
+        },
+        unavailabilityBlocks: [
+          {
+            dayOfWeek: 2, // Terça
+            startTime: '09:00',
+            endTime: '10:30',
+            reason: 'Paciente particular externo'
+          }
+        ]
+      }
+    ];
+
+    const careTeams: CareTeamRelation[] = [
+      { patientId: 'pat-1', professionalIds: ['doc-3'] }
+    ];
+
+    const result = generator.generateMonthlyScale({
+      year: 2026,
+      month: 10,
+      demands: [mockDemands[0]], // Mariana 2x/sem
+      availabilities: availabilitiesWithBlock,
+      careTeams
+    });
+
+    // Nenhuma sessão do Dr. Rafael às terças pode colidir com o intervalo 09:00 às 10:30 (540 a 630 min)
+    const blockStart = 9 * 60;
+    const blockEnd = 10 * 60 + 30;
+
+    result.plannedSessions.forEach((s) => {
+      const d = new Date(s.date + 'T12:00:00Z');
+      if (d.getUTCDay() === 2) {
+        const [h, m] = s.time.split(':').map(Number);
+        const start = h * 60 + m;
+        const end = start + s.durationMinutes;
+
+        const hasConflict = Math.max(start, blockStart) < Math.min(end, blockEnd);
+        expect(hasConflict, `Sessão agendada às ${s.time} colidiu com o bloqueio do terapeuta (09:00-10:30)`).toBe(false);
+      }
+    });
+  });
+
+  it('deve respeitar os blocos de indisponibilidade do paciente (compromissos externos/consultas)', () => {
+    // Mariana tem bloqueio nas terças das 08:00 às 10:00 (ex: Consulta médica externa)
+    const patientWithBlock: PatientTherapyDemand[] = [
+      {
+        ...mockDemands[0],
+        unavailabilityBlocks: [
+          {
+            dayOfWeek: 2, // Terça
+            startTime: '08:00',
+            endTime: '10:00',
+            reason: 'Exames laboratoriais / Consulta médica'
+          }
+        ]
+      }
+    ];
+
+    const availabilities: ProfessionalAvailability[] = [
+      {
+        professionalId: 'doc-3',
+        professionalName: 'Dr. Rafael Fontes',
+        specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+        baseLocation: locPaulista,
+        weekdayWindows: {
+          2: { enabled: true, startTime: '08:00', endTime: '13:00' }
+        }
+      }
+    ];
+
+    const careTeams: CareTeamRelation[] = [
+      { patientId: 'pat-1', professionalIds: ['doc-3'] }
+    ];
+
+    const result = generator.generateMonthlyScale({
+      year: 2026,
+      month: 10,
+      demands: patientWithBlock,
+      availabilities,
+      careTeams
+    });
+
+    const blockStart = 8 * 60;
+    const blockEnd = 10 * 60;
+
+    result.plannedSessions.forEach((s) => {
+      const d = new Date(s.date + 'T12:00:00Z');
+      if (d.getUTCDay() === 2) {
+        const [h, m] = s.time.split(':').map(Number);
+        const start = h * 60 + m;
+        const end = start + s.durationMinutes;
+
+        const hasConflict = Math.max(start, blockStart) < Math.min(end, blockEnd);
+        expect(hasConflict, `Sessão agendada às ${s.time} colidiu com bloqueio do paciente (08:00-10:00)`).toBe(false);
+        // A sessão deve ter sido alocada após as 10:00!
+        expect(start).toBeGreaterThanOrEqual(10 * 60);
+      }
+    });
+  });
 });

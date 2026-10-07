@@ -827,4 +827,122 @@
   border-color: #93c5fd;
 }
 
+/* Blocos de Indisponibilidade & Bloqueios */
+.unavailability-section {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.unavailability-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  gap: 0.5rem;
+}
+
+.unavailability-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.unavailability-title.title-patient {
+  color: #c2410c;
+}
+
+.btn-add-block {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b45309;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-add-block:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.unavailability-empty {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.unavailability-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.unavailability-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #fffbeb;
+  border: 1px solid #fef08a;
+  color: #92400e;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.unavailability-chip.chip-patient {
+  background: #fff7ed;
+  border-color: #ffedd5;
+  color: #9a3412;
+}
+
+.unavailability-day {
+  background: #fde68a;
+  color: #78350f;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.chip-patient .unavailability-day {
+  background: #fed7aa;
+  color: #7c2d12;
+}
+
+.unavailability-time {
+  font-family: inherit;
+}
+
+.unavailability-reason {
+  font-size: 0.68rem;
+  color: #78350f;
+  opacity: 0.85;
+  font-weight: 400;
+}
+
+.btn-remove-block {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+}
+
+.btn-remove-block:hover {
+  color: #b91c1c;
+}
+
+
 

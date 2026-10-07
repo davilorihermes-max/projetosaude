@@ -5,6 +5,15 @@ import {
   estimateTransitTimeMinutes
 } from './scheduler-engine.js';
 
+export interface TimeBlock {
+  id?: string;
+  dayOfWeek?: number; // 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex
+  startTime: string;  // Formato "HH:mm", ex: "09:00"
+  endTime: string;    // Formato "HH:mm", ex: "10:30"
+  reason?: string;    // Ex: "Paciente particular", "Consulta médica", "Compromisso pessoal"
+  dateStr?: string;   // Opcional para travar uma data específica YYYY-MM-DD
+}
+
 export interface PatientTherapyDemand {
   id?: string;
   patientId: string;
@@ -15,6 +24,8 @@ export interface PatientTherapyDemand {
   preferredShift: 'morning' | 'afternoon' | 'any';
   location: Coordinates;
   address: string;
+  // Bloqueios de indisponibilidade do paciente (consultas externas, diálise, compromissos familiares)
+  unavailabilityBlocks?: TimeBlock[];
 }
 
 export interface DayTimeWindow {
@@ -32,6 +43,8 @@ export interface ProfessionalAvailability {
   weekdayWindows?: { [dayOfWeek: number]: DayTimeWindow };
   // Variação por dia específico do mês (ex: '2026-10-14' com compromisso particular)
   dateOverrides?: { [dateStr: string]: DayTimeWindow };
+  // Blocos de indisponibilidade do profissional (pacientes particulares externos, compromissos pessoais, etc.)
+  unavailabilityBlocks?: TimeBlock[];
   // Campos legados para compatibilidade reversa
   availableDaysOfWeek?: number[];
   shifts?: ('morning' | 'afternoon')[];
@@ -354,6 +367,36 @@ export class MonthlyScaleGenerator {
               }
             }
 
+            // Também tenta encaixar imediatamente após término de blocos de indisponibilidade do profissional
+            const profDayBlocksForSlots = (professional.unavailabilityBlocks || []).filter((block) => {
+              if (block.dateStr && block.dateStr !== day.dateStr) return false;
+              if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
+              return true;
+            });
+            for (const b of profDayBlocksForSlots) {
+              const bEndMin = timeStringToMinutes(b.endTime);
+              if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
+                if (!candidateStartMinutes.includes(bEndMin)) {
+                  candidateStartMinutes.push(bEndMin);
+                }
+              }
+            }
+
+            // Também tenta encaixar após término de blocos de indisponibilidade do paciente
+            const patientDayBlocksForSlots = (demand.unavailabilityBlocks || []).filter((block) => {
+              if (block.dateStr && block.dateStr !== day.dateStr) return false;
+              if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
+              return true;
+            });
+            for (const b of patientDayBlocksForSlots) {
+              const bEndMin = timeStringToMinutes(b.endTime);
+              if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
+                if (!candidateStartMinutes.includes(bEndMin)) {
+                  candidateStartMinutes.push(bEndMin);
+                }
+              }
+            }
+
             candidateStartMinutes.sort((a, b) => a - b);
 
             // Filtra conforme o turno preferencial do paciente (se aplicável)
@@ -378,17 +421,43 @@ export class MonthlyScaleGenerator {
                 continue;
               }
 
-              // Checagem A: Conflito de horário na agenda do profissional
+              // Checagem A: Conflito de horário com outras sessões já marcadas do profissional
               const hasProfOverlap = profDaySessions.some(
                 (s) => Math.max(sessionStartMin, s.startMinutes) < Math.min(sessionEndMin, s.endMinutes)
               );
               if (hasProfOverlap) continue;
 
-              // Checagem B (NOVO): Conflito de horário com OUTRAS terapias do próprio paciente hoje!
+              // Checagem A2: Bloqueio de indisponibilidade do profissional (compromissos particulares, reuniões)
+              const profDayBlocks = (professional.unavailabilityBlocks || []).filter((block) => {
+                if (block.dateStr && block.dateStr !== day.dateStr) return false;
+                if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
+                return true;
+              });
+              const hasProfBlockOverlap = profDayBlocks.some((b) => {
+                const bStart = timeStringToMinutes(b.startTime);
+                const bEnd = timeStringToMinutes(b.endTime);
+                return Math.max(sessionStartMin, bStart) < Math.min(sessionEndMin, bEnd);
+              });
+              if (hasProfBlockOverlap) continue;
+
+              // Checagem B: Conflito de horário com OUTRAS terapias do próprio paciente hoje
               const hasPatientOverlap = patientDaySessions.some(
                 (s) => Math.max(sessionStartMin, s.startMinutes) < Math.min(sessionEndMin, s.endMinutes)
               );
               if (hasPatientOverlap) continue;
+
+              // Checagem B2: Bloqueio de indisponibilidade do paciente (consultas externas, exames, compromissos)
+              const patientDayBlocks = (demand.unavailabilityBlocks || []).filter((block) => {
+                if (block.dateStr && block.dateStr !== day.dateStr) return false;
+                if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
+                return true;
+              });
+              const hasPatientBlockOverlap = patientDayBlocks.some((b) => {
+                const bStart = timeStringToMinutes(b.startTime);
+                const bEnd = timeStringToMinutes(b.endTime);
+                return Math.max(sessionStartMin, bStart) < Math.min(sessionEndMin, bEnd);
+              });
+              if (hasPatientBlockOverlap) continue;
 
               // Checagem C: Deslocamento urbano vindo do atendimento anterior do profissional
               const prevSession = [...profDaySessions]
