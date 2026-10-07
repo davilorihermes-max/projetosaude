@@ -4,7 +4,8 @@ import {
   MonthlyScaleGenerator,
   PatientTherapyDemand,
   ProfessionalAvailability,
-  CareTeamRelation
+  CareTeamRelation,
+  FixedAppointment
 } from '../src/services/monthly-scale-generator.js';
 
 describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () => {
@@ -335,4 +336,143 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       }
     });
   });
+
+  it('deve respeitar bloqueio por DIA ESPECÍFICO do mês e por INTERVALO DE DATAS', () => {
+    // Dr. Rafael atende de Segunda a Sexta das 08:00 às 18:00
+    // Porém:
+    // 1. No dia 14/10/2026 (Quarta) tem bloqueio pontual das 08:00 às 14:00 (curso)
+    // 2. Do dia 20/10/2026 às 12:00 até 22/10/2026 às 18:00 está viajando para congresso
+    const availabilitiesWithDates: ProfessionalAvailability[] = [
+      {
+        professionalId: 'doc-3',
+        professionalName: 'Dr. Rafael Fontes',
+        specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+        baseLocation: locPaulista,
+        weekdayWindows: {
+          1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+          2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+          3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+          4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+          5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+        },
+        unavailabilityBlocks: [
+          {
+            dateStr: '2026-10-14',
+            startTime: '08:00',
+            endTime: '14:00',
+            reason: 'Curso de Atualização'
+          },
+          {
+            dateStr: '2026-10-20',
+            endDateStr: '2026-10-22',
+            startTime: '12:00',
+            endTime: '18:00',
+            reason: 'Congresso Brasileiro de Fisioterapia'
+          }
+        ]
+      }
+    ];
+
+    const careTeams: CareTeamRelation[] = [
+      { patientId: 'pat-1', professionalIds: ['doc-3'] }
+    ];
+
+    const result = generator.generateMonthlyScale({
+      year: 2026,
+      month: 10,
+      demands: [
+        {
+          ...mockDemands[0],
+          sessionsPerWeek: 5 // Tenta agendar todos os dias úteis
+        }
+      ],
+      availabilities: availabilitiesWithDates,
+      careTeams
+    });
+
+    result.plannedSessions.forEach((s) => {
+      // 1. No dia 14/10/2026 nenhuma sessão pode iniciar antes das 14:00
+      if (s.date === '2026-10-14') {
+        const [h, m] = s.time.split(':').map(Number);
+        const start = h * 60 + m;
+        expect(start).toBeGreaterThanOrEqual(14 * 60);
+      }
+
+      // 2. No dia 20/10/2026 nenhuma sessão pode iniciar após 12:00
+      if (s.date === '2026-10-20') {
+        const [h, m] = s.time.split(':').map(Number);
+        const end = (h * 60 + m) + s.durationMinutes;
+        expect(end).toBeLessThanOrEqual(12 * 60);
+      }
+
+      // 3. No dia 21/10/2026 (dia intermediário da viagem) NÃO PODE HAVER NENHUMA SESSÃO
+      expect(s.date).not.toBe('2026-10-21');
+
+      // 4. No dia 22/10/2026 (fim às 18:00 da viagem), nenhuma sessão durante o bloqueio
+      if (s.date === '2026-10-22') {
+        const [h, m] = s.time.split(':').map(Number);
+        const start = h * 60 + m;
+        expect(start).toBeGreaterThanOrEqual(18 * 60);
+      }
+    });
+  });
+
+  it('deve alocar com prioridade máxima atendimentos fixados (FixedAppointment) e deduzir da cota semanal', () => {
+    // Mariana precisa de 2 sessões por semana de Fisioterapia.
+    // O gestor FIXOU: Toda Terça-feira às 09:00 com o Dr. Rafael.
+    const fixedAppointments: FixedAppointment[] = [
+      {
+        id: 'fix-1',
+        patientId: 'pat-1',
+        professionalId: 'doc-3',
+        therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+        dayOfWeek: 2, // Terça-feira
+        time: '09:00',
+        durationMinutes: 45,
+        notes: 'Horário fixado em contrato com a família'
+      }
+    ];
+
+    const careTeams: CareTeamRelation[] = [
+      { patientId: 'pat-1', professionalIds: ['doc-3'] }
+    ];
+
+    const result = generator.generateMonthlyScale({
+      year: 2026,
+      month: 10,
+      demands: [mockDemands[0]], // Mariana 2x/sem
+      availabilities: mockAvailabilities, // Rafael atende Terça e Quinta 08:00-13:00
+      careTeams,
+      fixedAppointments
+    });
+
+    const marianaSessions = result.plannedSessions.filter((s) => s.patientId === 'pat-1');
+
+    // Em todas as terças-feiras do mês, deve haver uma sessão FIXADA às 09:00
+    const tuesdaySessions = marianaSessions.filter((s) => {
+      const d = new Date(s.date + 'T12:00:00Z');
+      return d.getUTCDay() === 2;
+    });
+
+    expect(tuesdaySessions.length).toBeGreaterThan(0);
+    tuesdaySessions.forEach((ts) => {
+      expect(ts.time).toBe('09:00');
+      expect(ts.isFixed).toBe(true);
+      expect(ts.professionalId).toBe('doc-3');
+    });
+
+    // Como Mariana tem meta de 2 sessões/semana e 1 é fixa na terça,
+    // a segunda sessão deve ter sido agendada na quinta-feira, totalizando 2 por semana
+    const sessionsByWeek = new Map<number, typeof marianaSessions>();
+    marianaSessions.forEach((s) => {
+      if (!sessionsByWeek.has(s.weekNumber)) sessionsByWeek.set(s.weekNumber, []);
+      sessionsByWeek.get(s.weekNumber)!.push(s);
+    });
+
+    sessionsByWeek.forEach((weekSessions) => {
+      // Cada semana completa não deve ultrapassar a meta de 2 sessões
+      expect(weekSessions.length).toBeLessThanOrEqual(2);
+    });
+  });
 });
+

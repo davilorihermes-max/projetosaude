@@ -944,5 +944,174 @@
   color: #b91c1c;
 }
 
+/* Chips de data específica e intervalo de datas */
+.unavailability-chip.chip-date {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
 
+.unavailability-chip.chip-date .unavailability-day {
+  background: #bbf7d0;
+  color: #14532d;
+}
 
+.unavailability-chip.chip-range {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.unavailability-chip.chip-range .unavailability-day {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+/* Seção de Atendimentos Fixados / Travados */
+.fixed-appointments-section {
+  background: #ffffff;
+  border: 1px solid #e0e7ff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 2.25rem;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.04);
+}
+
+.fixed-appointments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.fixed-appointments-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #3730a3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fixed-appointments-desc {
+  font-size: 0.82rem;
+  color: #6366f1;
+  margin: 0.2rem 0 0 0;
+  font-weight: 400;
+}
+
+.btn-add-fixed {
+  background: #4f46e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-fixed:hover {
+  background: #4338ca;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+}
+
+.fixed-appointments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.85rem;
+}
+
+.fixed-appointment-card {
+  border: 1px solid #c7d2fe;
+  background: #f5f3ff;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.fixed-appointment-card:hover {
+  border-color: #818cf8;
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.08);
+}
+
+.fixed-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.fixed-time-badge {
+  background: #4338ca;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.fixed-card-patient {
+  font-weight: 700;
+  color: #1e1b4b;
+  font-size: 0.92rem;
+}
+
+.fixed-card-therapist {
+  font-size: 0.82rem;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.fixed-card-therapy {
+  font-size: 0.76rem;
+  color: #4b5563;
+}
+
+.fixed-card-notes {
+  font-size: 0.72rem;
+  color: #6b7280;
+  font-style: italic;
+  background: #ffffff;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px dashed #e0e7ff;
+}
+
+.fixed-card-delete {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fixed-card-delete:hover {
+  background: #fee2e2;
+}
+
+.fixed-empty-state {
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #faf5ff;
+  border-radius: 8px;
+  border: 1px dashed #d8b4fe;
+}

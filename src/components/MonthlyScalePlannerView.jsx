@@ -25,7 +25,8 @@ import {
   Layers,
   ArrowRight,
   Sliders,
-  Ban
+  Ban,
+  Lock
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
@@ -102,10 +103,45 @@ export default function MonthlyScalePlannerView({
     targetType: 'professional', // 'professional' | 'patient'
     targetId: null,
     targetName: '',
+    blockType: 'weekly', // 'weekly' | 'date' | 'range'
     dayOfWeek: 2,
+    dateStr: '2026-10-14',
+    endDateStr: '2026-10-16',
     startTime: '09:00',
     endTime: '10:30',
     reason: 'Paciente particular externo'
+  });
+
+  // Atendimentos Fixados / Travados na Grade
+  const [fixedAppointments, setFixedAppointments] = useState([
+    {
+      id: 'fix-1',
+      patientId: 'pat-1',
+      patientName: 'Mariana Souza Lima',
+      professionalId: 'doc-3',
+      professionalName: 'Dr. Rafael Fontes',
+      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+      recurrenceType: 'weekly', // 'weekly' | 'date'
+      dayOfWeek: 2, // Terça-feira
+      dateStr: '',
+      time: '09:00',
+      durationMinutes: 45,
+      notes: 'Horário fixo semanal acordado em contrato'
+    }
+  ]);
+
+  // Modal para cadastrar atendimento fixo
+  const [fixedAppointmentModalState, setFixedAppointmentModalState] = useState({
+    isOpen: false,
+    patientId: 'pat-1',
+    professionalId: 'doc-3',
+    therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+    recurrenceType: 'weekly', // 'weekly' | 'date'
+    dayOfWeek: 2,
+    dateStr: '2026-10-14',
+    time: '09:00',
+    durationMinutes: 45,
+    notes: 'Horário fixado prioritário'
   });
 
   // Form State: Novo Paciente
@@ -315,7 +351,8 @@ export default function MonthlyScalePlannerView({
       month: 10,
       demands: flatDemands,
       availabilities: professionalAvailabilities,
-      careTeams
+      careTeams,
+      fixedAppointments
     });
   });
 
@@ -323,7 +360,8 @@ export default function MonthlyScalePlannerView({
   const runGeneration = (
     currentPatients = patientsWithDemands,
     currentAvails = professionalAvailabilities,
-    currentCareTeams = careTeams
+    currentCareTeams = careTeams,
+    currentFixed = fixedAppointments
   ) => {
     setIsGenerating(true);
     setCommittedSuccess(false);
@@ -354,7 +392,8 @@ export default function MonthlyScalePlannerView({
         month,
         demands: demandsToRun,
         availabilities: currentAvails,
-        careTeams: currentCareTeams
+        careTeams: currentCareTeams,
+        fixedAppointments: currentFixed
       });
 
       setScaleResult(result);
@@ -598,16 +637,24 @@ export default function MonthlyScalePlannerView({
 
   const handleSaveBlock = (e) => {
     e.preventDefault();
-    const { targetType, targetId, dayOfWeek, startTime, endTime, reason } = addBlockModalState;
+    const { targetType, targetId, blockType, dayOfWeek, dateStr, endDateStr, startTime, endTime, reason } = addBlockModalState;
     if (!targetId) return;
 
     const newBlock = {
       id: `blk-${Date.now()}`,
-      dayOfWeek: Number(dayOfWeek),
       startTime,
       endTime,
       reason: reason.trim() || (targetType === 'professional' ? 'Paciente particular' : 'Compromisso pessoal')
     };
+
+    if (blockType === 'weekly') {
+      newBlock.dayOfWeek = Number(dayOfWeek);
+    } else if (blockType === 'date') {
+      newBlock.dateStr = dateStr;
+    } else if (blockType === 'range') {
+      newBlock.dateStr = dateStr;
+      newBlock.endDateStr = endDateStr;
+    }
 
     if (targetType === 'professional') {
       handleAddTherapistBlock(targetId, newBlock);
@@ -616,6 +663,62 @@ export default function MonthlyScalePlannerView({
     }
 
     setAddBlockModalState({ ...addBlockModalState, isOpen: false });
+  };
+
+  const handleAddFixedAppointment = (e) => {
+    e.preventDefault();
+    const { patientId, professionalId, therapyType, recurrenceType, dayOfWeek, dateStr, time, durationMinutes, notes } = fixedAppointmentModalState;
+    const pat = patientsWithDemands.find((p) => p.patientId === patientId);
+    const prof = professionalAvailabilities.find((p) => p.professionalId === professionalId);
+
+    const newFix = {
+      id: `fix-${Date.now()}`,
+      patientId,
+      patientName: pat?.patientName || 'Paciente',
+      professionalId,
+      professionalName: prof?.professionalName || 'Profissional',
+      therapyType,
+      recurrenceType,
+      dayOfWeek: recurrenceType === 'weekly' ? Number(dayOfWeek) : undefined,
+      dateStr: recurrenceType === 'date' ? dateStr : undefined,
+      time,
+      durationMinutes: Number(durationMinutes) || 45,
+      notes: notes.trim() || 'Atendimento fixo pré-estabelecido'
+    };
+
+    const nextFixed = [...fixedAppointments, newFix];
+    setFixedAppointments(nextFixed);
+    setFixedAppointmentModalState({ ...fixedAppointmentModalState, isOpen: false });
+    runGeneration(patientsWithDemands, professionalAvailabilities, careTeams, nextFixed);
+  };
+
+  const handleRemoveFixedAppointment = (fixId) => {
+    const nextFixed = fixedAppointments.filter((f) => f.id !== fixId);
+    setFixedAppointments(nextFixed);
+    runGeneration(patientsWithDemands, professionalAvailabilities, careTeams, nextFixed);
+  };
+
+  const formatBlockLabel = (block) => {
+    if (block.dateStr && block.endDateStr && block.dateStr !== block.endDateStr) {
+      const parts1 = block.dateStr.split('-');
+      const parts2 = block.endDateStr.split('-');
+      return `${parts1[2]}/${parts1[1]} a ${parts2[2]}/${parts2[1]}`;
+    }
+    if (block.dateStr) {
+      const parts = block.dateStr.split('-');
+      return `${parts[2]}/${parts[1]}`;
+    }
+    return WEEKDAY_SHORT[block.dayOfWeek] || 'Dia';
+  };
+
+  const getBlockChipClass = (block, baseClass) => {
+    if (block.dateStr && block.endDateStr && block.dateStr !== block.endDateStr) {
+      return `${baseClass} chip-range`;
+    }
+    if (block.dateStr) {
+      return `${baseClass} chip-date`;
+    }
+    return baseClass;
   };
 
   // Adicionar uma nova demanda (até 3) a um paciente existente
@@ -1135,6 +1238,23 @@ export default function MonthlyScalePlannerView({
                           <div className="session-time">
                             <Clock size={14} color="#2563eb" />
                             {session.time} ({session.durationMinutes} min)
+                            {session.isFixed && (
+                              <span style={{
+                                marginLeft: '0.45rem',
+                                background: '#e0e7ff',
+                                color: '#3730a3',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                <Lock size={10} />
+                                Fixado
+                              </span>
+                            )}
                             <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#64748b' }}>
                               Semana {session.weekNumber}
                             </span>
@@ -1529,8 +1649,8 @@ export default function MonthlyScalePlannerView({
                     ) : (
                       <div className="unavailability-list">
                         {prof.unavailabilityBlocks.map((b) => (
-                          <div key={b.id} className="unavailability-chip">
-                            <span className="unavailability-day">{WEEKDAY_SHORT[b.dayOfWeek] || 'Dia'}</span>
+                          <div key={b.id} className={getBlockChipClass(b, 'unavailability-chip')}>
+                            <span className="unavailability-day">{formatBlockLabel(b)}</span>
                             <span className="unavailability-time">{b.startTime} - {b.endTime}</span>
                             {b.reason && <span className="unavailability-reason">({b.reason})</span>}
                             <button
@@ -1551,7 +1671,86 @@ export default function MonthlyScalePlannerView({
             </div>
           </div>
 
-          {/* Seção 2: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS CADA */}
+          {/* Seção 2: Atendimentos Fixados / Travados na Grade */}
+          <div className="fixed-appointments-section">
+            <div className="fixed-appointments-header">
+              <div>
+                <div className="fixed-appointments-title">
+                  <Lock size={18} color="#4338ca" />
+                  Atendimentos Fixados / Travados na Grade ({fixedAppointments.length})
+                </div>
+                <p className="fixed-appointments-desc">
+                  Atendimentos prioritários pré-estabelecidos (ex: terças-feiras Rafael atende Mariana às 09:00). O motor aloca esses horários primeiro, reserva a agenda e deduz da meta semanal do paciente.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn-add-fixed"
+                onClick={() => setFixedAppointmentModalState({
+                  isOpen: true,
+                  patientId: patientsWithDemands[0]?.patientId || 'pat-1',
+                  professionalId: professionalAvailabilities[0]?.professionalId || 'doc-3',
+                  therapyType: patientsWithDemands[0]?.demands[0]?.therapyType || 'Fisioterapia Cardiorrespiratória & Motora',
+                  recurrenceType: 'weekly',
+                  dayOfWeek: 2,
+                  dateStr: '2026-10-14',
+                  time: '09:00',
+                  durationMinutes: 45,
+                  notes: 'Atendimento fixo pré-estabelecido'
+                })}
+              >
+                <Plus size={15} />
+                + Fixar Atendimento
+              </button>
+            </div>
+
+            {fixedAppointments.length === 0 ? (
+              <div className="fixed-empty-state">
+                Nenhum atendimento fixado cadastrado. Todos os atendimentos serão roteirizados de forma dinâmica pelo motor.
+              </div>
+            ) : (
+              <div className="fixed-appointments-grid">
+                {fixedAppointments.map((fix) => (
+                  <div key={fix.id} className="fixed-appointment-card">
+                    <div className="fixed-card-header">
+                      <span className="fixed-time-badge">
+                        <Lock size={12} />
+                        {fix.recurrenceType === 'date'
+                          ? `Data: ${fix.dateStr.split('-')[2]}/${fix.dateStr.split('-')[1]} às ${fix.time}`
+                          : `Toda ${WEEKDAY_SHORT[fix.dayOfWeek]} às ${fix.time}`} ({fix.durationMinutes} min)
+                      </span>
+                      <button
+                        type="button"
+                        className="fixed-card-delete"
+                        title="Desfixar / Remover Atendimento"
+                        onClick={() => handleRemoveFixedAppointment(fix.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="fixed-card-patient">
+                      👤 {fix.patientName}
+                    </div>
+                    <div className="fixed-card-therapist">
+                      🧑‍⚕️ {fix.professionalName}
+                    </div>
+                    <div className="fixed-card-therapy">
+                      🏥 {fix.therapyType}
+                    </div>
+                    {fix.notes && (
+                      <div className="fixed-card-notes">
+                        📌 {fix.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Seção 3: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS CADA */}
           <div>
             <div style={{
               display: 'flex',
@@ -1778,8 +1977,8 @@ export default function MonthlyScalePlannerView({
                       ) : (
                         <div className="unavailability-list">
                           {patient.unavailabilityBlocks.map((b) => (
-                            <div key={b.id} className="unavailability-chip chip-patient">
-                              <span className="unavailability-day">{WEEKDAY_SHORT[b.dayOfWeek] || 'Dia'}</span>
+                            <div key={b.id} className={getBlockChipClass(b, 'unavailability-chip chip-patient')}>
+                              <span className="unavailability-day">{formatBlockLabel(b)}</span>
                               <span className="unavailability-time">{b.startTime} - {b.endTime}</span>
                               {b.reason && <span className="unavailability-reason">({b.reason})</span>}
                               <button
@@ -2264,19 +2463,72 @@ export default function MonthlyScalePlannerView({
                 </div>
 
                 <div className="form-group">
-                  <label>Dia da Semana *</label>
+                  <label>Tipo de Bloqueio *</label>
                   <select
                     className="planner-select"
-                    value={addBlockModalState.dayOfWeek}
-                    onChange={(e) => setAddBlockModalState({ ...addBlockModalState, dayOfWeek: Number(e.target.value) })}
+                    value={addBlockModalState.blockType}
+                    onChange={(e) => setAddBlockModalState({ ...addBlockModalState, blockType: e.target.value })}
                   >
-                    <option value={1}>Segunda-feira</option>
-                    <option value={2}>Terça-feira</option>
-                    <option value={3}>Quarta-feira</option>
-                    <option value={4}>Quinta-feira</option>
-                    <option value={5}>Sexta-feira</option>
+                    <option value="weekly">Recorrente Semanal (Toda semana em um dia fixo)</option>
+                    <option value="date">Dia Específico do Mês (Data pontual)</option>
+                    <option value="range">Intervalo de Datas (Data/Hora Início até Data/Hora Fim)</option>
                   </select>
                 </div>
+
+                {addBlockModalState.blockType === 'weekly' && (
+                  <div className="form-group">
+                    <label>Dia da Semana *</label>
+                    <select
+                      className="planner-select"
+                      value={addBlockModalState.dayOfWeek}
+                      onChange={(e) => setAddBlockModalState({ ...addBlockModalState, dayOfWeek: Number(e.target.value) })}
+                    >
+                      <option value={1}>Segunda-feira</option>
+                      <option value={2}>Terça-feira</option>
+                      <option value={3}>Quarta-feira</option>
+                      <option value={4}>Quinta-feira</option>
+                      <option value={5}>Sexta-feira</option>
+                    </select>
+                  </div>
+                )}
+
+                {addBlockModalState.blockType === 'date' && (
+                  <div className="form-group">
+                    <label>Data do Bloqueio *</label>
+                    <input
+                      type="date"
+                      required
+                      className="planner-input"
+                      value={addBlockModalState.dateStr}
+                      onChange={(e) => setAddBlockModalState({ ...addBlockModalState, dateStr: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {addBlockModalState.blockType === 'range' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group">
+                      <label>Data Inicial *</label>
+                      <input
+                        type="date"
+                        required
+                        className="planner-input"
+                        value={addBlockModalState.dateStr}
+                        onChange={(e) => setAddBlockModalState({ ...addBlockModalState, dateStr: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Data Final *</label>
+                      <input
+                        type="date"
+                        required
+                        className="planner-input"
+                        value={addBlockModalState.endDateStr}
+                        onChange={(e) => setAddBlockModalState({ ...addBlockModalState, endDateStr: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-group">
@@ -2325,6 +2577,177 @@ export default function MonthlyScalePlannerView({
                 </button>
                 <button type="submit" className="btn-primary" style={{ background: '#d97706' }}>
                   Confirmar Bloqueio & Recalcular
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: Fixar Atendimento na Grade (Prioridade Máxima) */}
+      {fixedAppointmentModalState.isOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setFixedAppointmentModalState({ ...fixedAppointmentModalState, isOpen: false })}>
+          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <Lock size={20} color="#4f46e5" />
+                Fixar Atendimento Prioritário na Grade
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setFixedAppointmentModalState({ ...fixedAppointmentModalState, isOpen: false })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddFixedAppointment}>
+              <div className="modal-body">
+                <div style={{ fontSize: '0.82rem', color: '#3730a3', marginBottom: '0.75rem', background: '#eef2ff', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
+                  Atendimentos fixados são alocados em 1º lugar com horário travado. Eles reservam a agenda do profissional e do paciente e deduzem automaticamente da meta semanal solicitada.
+                </div>
+
+                <div className="form-group">
+                  <label>Paciente *</label>
+                  <select
+                    className="planner-select"
+                    value={fixedAppointmentModalState.patientId}
+                    onChange={(e) => {
+                      const pid = e.target.value;
+                      const pat = patientsWithDemands.find((p) => p.patientId === pid);
+                      setFixedAppointmentModalState({
+                        ...fixedAppointmentModalState,
+                        patientId: pid,
+                        therapyType: pat?.demands[0]?.therapyType || fixedAppointmentModalState.therapyType
+                      });
+                    }}
+                  >
+                    {patientsWithDemands.map((p) => (
+                      <option key={p.patientId} value={p.patientId}>{p.patientName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Profissional de Saúde *</label>
+                  <select
+                    className="planner-select"
+                    value={fixedAppointmentModalState.professionalId}
+                    onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, professionalId: e.target.value })}
+                  >
+                    {professionalAvailabilities.map((prof) => (
+                      <option key={prof.professionalId} value={prof.professionalId}>
+                        {prof.professionalName} ({prof.specialty})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Especialidade Terapêutica *</label>
+                  <select
+                    className="planner-select"
+                    value={fixedAppointmentModalState.therapyType}
+                    onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, therapyType: e.target.value })}
+                  >
+                    {(patientsWithDemands.find((p) => p.patientId === fixedAppointmentModalState.patientId)?.demands || []).map((d) => (
+                      <option key={d.id} value={d.therapyType}>{d.therapyType} ({d.sessionsPerWeek}x/sem)</option>
+                    ))}
+                    <option value="Fisioterapia Cardiorrespiratória & Motora">Fisioterapia Cardiorrespiratória & Motora</option>
+                    <option value="Fonoaudiologia Domiciliar">Fonoaudiologia Domiciliar</option>
+                    <option value="Enfermagem Estomaterapeuta & Curativos Complexos">Enfermagem Estomaterapeuta</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Tipo de Recorrência *</label>
+                  <select
+                    className="planner-select"
+                    value={fixedAppointmentModalState.recurrenceType}
+                    onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, recurrenceType: e.target.value })}
+                  >
+                    <option value="weekly">Semanal Recorrente (ex: Toda Terça-feira)</option>
+                    <option value="date">Data Específica Única (ex: 14/10/2026)</option>
+                  </select>
+                </div>
+
+                {fixedAppointmentModalState.recurrenceType === 'weekly' ? (
+                  <div className="form-group">
+                    <label>Dia da Semana Fixo *</label>
+                    <select
+                      className="planner-select"
+                      value={fixedAppointmentModalState.dayOfWeek}
+                      onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, dayOfWeek: Number(e.target.value) })}
+                    >
+                      <option value={1}>Segunda-feira</option>
+                      <option value={2}>Terça-feira</option>
+                      <option value={3}>Quarta-feira</option>
+                      <option value={4}>Quinta-feira</option>
+                      <option value={5}>Sexta-feira</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label>Data Específica *</label>
+                    <input
+                      type="date"
+                      required
+                      className="planner-input"
+                      value={fixedAppointmentModalState.dateStr}
+                      onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, dateStr: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label>Horário Fixo de Início *</label>
+                    <input
+                      type="time"
+                      required
+                      className="planner-input"
+                      value={fixedAppointmentModalState.time}
+                      onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, time: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Duração (minutos) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={15}
+                      max={180}
+                      step={5}
+                      className="planner-input"
+                      value={fixedAppointmentModalState.durationMinutes}
+                      onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, durationMinutes: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Observações / Justificativa</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Horário fixado em contrato com a família"
+                    className="planner-input"
+                    value={fixedAppointmentModalState.notes}
+                    onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setFixedAppointmentModalState({ ...fixedAppointmentModalState, isOpen: false })}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" style={{ background: '#4f46e5' }}>
+                  Fixar Atendimento & Recalcular
                 </button>
               </div>
             </form>

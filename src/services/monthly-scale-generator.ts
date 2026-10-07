@@ -7,11 +7,24 @@ import {
 
 export interface TimeBlock {
   id?: string;
-  dayOfWeek?: number; // 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex
+  dayOfWeek?: number; // 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex (quando semanal)
+  dateStr?: string;   // Data específica YYYY-MM-DD (ou data inicial do intervalo)
+  endDateStr?: string; // Data final do intervalo YYYY-MM-DD (opcional para bloqueio de múltiplos dias)
   startTime: string;  // Formato "HH:mm", ex: "09:00"
   endTime: string;    // Formato "HH:mm", ex: "10:30"
-  reason?: string;    // Ex: "Paciente particular", "Consulta médica", "Compromisso pessoal"
-  dateStr?: string;   // Opcional para travar uma data específica YYYY-MM-DD
+  reason?: string;    // Ex: "Paciente particular", "Consulta médica", "Viagem / Férias"
+}
+
+export interface FixedAppointment {
+  id?: string;
+  patientId: string;
+  professionalId: string;
+  therapyType: string;
+  dayOfWeek?: number; // 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex (quando semanal recorrente)
+  dateStr?: string;   // Opcional para fixar em uma data específica YYYY-MM-DD
+  time: string;       // Formato "HH:mm", ex: "09:00"
+  durationMinutes?: number; // Ex: 45 ou 60 minutos
+  notes?: string;     // Ex: "Atendimento fixo em contrato"
 }
 
 export interface PatientTherapyDemand {
@@ -71,6 +84,8 @@ export interface PlannedSession {
   transitKmFromPrevious: number;
   transitTimeMinutes: number;
   weekNumber: number;
+  isFixed?: boolean; // Indica se este atendimento foi fixado/travado previamente
+  notes?: string;
 }
 
 export interface PatientCoverageReport {
@@ -136,12 +151,63 @@ export function minutesToTimeString(minutes: number): string {
 }
 
 /**
+ * Avalia se um determinado intervalo de horário (em minutos do dia) colide com um TimeBlock
+ * Suporta:
+ * 1. Recorrência semanal fixa (dayOfWeek)
+ * 2. Dia específico do mês (dateStr)
+ * 3. Intervalo de múltiplos dias com horas de início e fim (dateStr até endDateStr)
+ */
+export function isSlotBlockedByTimeBlock(
+  dateStr: string,
+  dayOfWeek: number,
+  sessionStartMin: number,
+  sessionEndMin: number,
+  block: TimeBlock
+): boolean {
+  const blockStartMin = timeStringToMinutes(block.startTime);
+  const blockEndMin = timeStringToMinutes(block.endTime);
+
+  // Caso 1: Intervalo de múltiplos dias (dateStr até endDateStr)
+  if (block.dateStr && block.endDateStr && block.dateStr !== block.endDateStr) {
+    if (dateStr < block.dateStr || dateStr > block.endDateStr) {
+      return false;
+    }
+    if (dateStr === block.dateStr) {
+      // Primeiro dia do intervalo: bloqueado a partir do startTime até o fim da jornada
+      return sessionEndMin > blockStartMin;
+    }
+    if (dateStr === block.endDateStr) {
+      // Último dia do intervalo: bloqueado do início do dia até o endTime
+      return sessionStartMin < blockEndMin;
+    }
+    // Dias inteiramente dentro do intervalo
+    return true;
+  }
+
+  // Caso 2: Dia específico do mês (data pontual)
+  if (block.dateStr) {
+    if (dateStr !== block.dateStr) return false;
+    return Math.max(sessionStartMin, blockStartMin) < Math.min(sessionEndMin, blockEndMin);
+  }
+
+  // Caso 3: Recorrência semanal pelo dia da semana
+  if (block.dayOfWeek !== undefined) {
+    if (dayOfWeek !== block.dayOfWeek) return false;
+    return Math.max(sessionStartMin, blockStartMin) < Math.min(sessionEndMin, blockEndMin);
+  }
+
+  return false;
+}
+
+/**
  * Motor Inteligente de Geração de Escala Mensal Domiciliar
  * Atualizado com:
  * 1. Disponibilidade por JANELA DE HORÁRIO real (Início e Fim por dia da semana) sem limites artificiais
  * 2. Suporte para até 3 demandas terapêuticas por paciente sem sobreposição de horários
  * 3. Regra de Ouro: Restrição estrita de Care Team
  * 4. Roteirização Urbana Geodésica (Haversine + Trânsito)
+ * 5. Bloqueios por dia específico e intervalos de datas para profissionais e pacientes
+ * 6. Fixação de atendimentos pré-estabelecidos prioritários
  */
 export class MonthlyScaleGenerator {
   private averageSpeedKmh: number;
@@ -211,8 +277,9 @@ export class MonthlyScaleGenerator {
     demands: PatientTherapyDemand[];
     availabilities: ProfessionalAvailability[];
     careTeams: CareTeamRelation[];
+    fixedAppointments?: FixedAppointment[];
   }): MonthlyScaleResult {
-    const { year, month, demands, availabilities, careTeams } = params;
+    const { year, month, demands, availabilities, careTeams, fixedAppointments = [] } = params;
 
     // 1. Mapear dias úteis do mês (Segunda a Sexta)
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -247,7 +314,7 @@ export class MonthlyScaleGenerator {
       Map<string, { startMinutes: number; endMinutes: number; location: Coordinates }[]>
     >();
 
-    // NOVO: Mapa de agenda de cada paciente por dia: 'YYYY-MM-DD' -> Map<patientId, Array de horários ocupados>
+    // Mapa de agenda de cada paciente por dia: 'YYYY-MM-DD' -> Map<patientId, Array de horários ocupados>
     // Garante que o mesmo paciente nunca tenha duas terapias no mesmo horário
     const dailyPatientSchedule = new Map<
       string,
@@ -256,6 +323,112 @@ export class MonthlyScaleGenerator {
 
     const plannedSessions: PlannedSession[] = [];
     const bottlenecks: ScaleBottleneck[] = [];
+
+    // FASE 0: Alocação prioritária dos atendimentos fixados/travados
+    if (fixedAppointments.length > 0) {
+      for (const fixedApp of fixedAppointments) {
+        const demand = demands.find(
+          (d) => d.patientId === fixedApp.patientId && d.therapyType === fixedApp.therapyType
+        ) || demands.find((d) => d.patientId === fixedApp.patientId);
+
+        const professional = availabilities.find((p) => p.professionalId === fixedApp.professionalId);
+
+        if (!demand || !professional) continue;
+
+        // Achar os dias correspondentes no mês
+        const targetDays = workingDays.filter((day) => {
+          if (fixedApp.dateStr) {
+            return day.dateStr === fixedApp.dateStr;
+          }
+          if (fixedApp.dayOfWeek !== undefined) {
+            return day.dayOfWeek === fixedApp.dayOfWeek;
+          }
+          return false;
+        });
+
+        const startMinutes = timeStringToMinutes(fixedApp.time);
+        const duration = fixedApp.durationMinutes || demand.durationMinutes || 45;
+        const endMinutes = startMinutes + duration;
+
+        for (const day of targetDays) {
+          // Inicializar estruturas diárias
+          if (!dailyProfessionalSchedule.has(day.dateStr)) {
+            dailyProfessionalSchedule.set(day.dateStr, new Map());
+          }
+          const dayProfMap = dailyProfessionalSchedule.get(day.dateStr)!;
+          if (!dayProfMap.has(professional.professionalId)) {
+            dayProfMap.set(professional.professionalId, []);
+          }
+          const profDaySessions = dayProfMap.get(professional.professionalId)!;
+
+          if (!dailyPatientSchedule.has(day.dateStr)) {
+            dailyPatientSchedule.set(day.dateStr, new Map());
+          }
+          const dayPatMap = dailyPatientSchedule.get(day.dateStr)!;
+          if (!dayPatMap.has(demand.patientId)) {
+            dayPatMap.set(demand.patientId, []);
+          }
+          const patientDaySessions = dayPatMap.get(demand.patientId)!;
+
+          // Calcular trânsito em relação à sessão anterior do profissional (se houver)
+          const prevSession = [...profDaySessions]
+            .filter((s) => s.endMinutes <= startMinutes)
+            .sort((a, b) => b.endMinutes - a.endMinutes)[0];
+
+          let originLocation = professional.baseLocation;
+          if (prevSession) {
+            originLocation = prevSession.location;
+          }
+
+          const distanceKm = calculateHaversineDistance(
+            originLocation.latitude,
+            originLocation.longitude,
+            demand.location.latitude,
+            demand.location.longitude
+          );
+
+          const transitMinutes = estimateTransitTimeMinutes(
+            distanceKm,
+            this.averageSpeedKmh,
+            this.bufferMinutes
+          );
+
+          const sessionId = `fixed-${day.dateStr}-${professional.professionalId}-${demand.patientId}-${startMinutes}`;
+
+          plannedSessions.push({
+            id: sessionId,
+            patientId: demand.patientId,
+            patientName: demand.patientName,
+            professionalId: professional.professionalId,
+            professionalName: professional.professionalName,
+            therapyType: fixedApp.therapyType || demand.therapyType,
+            date: day.dateStr,
+            time: fixedApp.time,
+            durationMinutes: duration,
+            location: demand.location,
+            address: demand.address,
+            transitKmFromPrevious: distanceKm,
+            transitTimeMinutes: transitMinutes,
+            weekNumber: day.weekNumber,
+            isFixed: true,
+            notes: fixedApp.notes || 'Atendimento fixo pré-estabelecido'
+          });
+
+          profDaySessions.push({
+            startMinutes,
+            endMinutes,
+            location: demand.location
+          });
+          profDaySessions.sort((a, b) => a.startMinutes - b.startMinutes);
+
+          patientDaySessions.push({
+            startMinutes,
+            endMinutes
+          });
+          patientDaySessions.sort((a, b) => a.startMinutes - b.startMinutes);
+        }
+      }
+    }
 
     // Para cada demanda terapêutica cadastrada (suporta até 3 por paciente)
     for (const demand of demands) {
@@ -290,7 +463,10 @@ export class MonthlyScaleGenerator {
       // Distribuição semanal contínua para este paciente
       for (let week = 1; week <= totalWeeksInMonth; week++) {
         const weekDays = workingDays.filter((w) => w.weekNumber === week);
-        let sessionsAllocatedInWeek = 0;
+        // Já desconta sessões fixadas pré-alocadas nesta semana para esta terapia
+        let sessionsAllocatedInWeek = plannedSessions.filter(
+          (s) => s.patientId === demand.patientId && s.therapyType === demand.therapyType && s.weekNumber === week
+        ).length;
 
         // Padrão de espaçamento sugerido para evitar dias colados
         const targetDayPatterns = demand.sessionsPerWeek >= 3
@@ -368,31 +544,29 @@ export class MonthlyScaleGenerator {
             }
 
             // Também tenta encaixar imediatamente após término de blocos de indisponibilidade do profissional
-            const profDayBlocksForSlots = (professional.unavailabilityBlocks || []).filter((block) => {
-              if (block.dateStr && block.dateStr !== day.dateStr) return false;
-              if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
-              return true;
-            });
-            for (const b of profDayBlocksForSlots) {
-              const bEndMin = timeStringToMinutes(b.endTime);
-              if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
-                if (!candidateStartMinutes.includes(bEndMin)) {
-                  candidateStartMinutes.push(bEndMin);
+            for (const b of (professional.unavailabilityBlocks || [])) {
+              const isEndOnThisDay = (!b.endDateStr && (b.dateStr === day.dateStr || (!b.dateStr && b.dayOfWeek === day.dayOfWeek)))
+                || (b.endDateStr && b.endDateStr === day.dateStr);
+              if (isEndOnThisDay) {
+                const bEndMin = timeStringToMinutes(b.endTime);
+                if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
+                  if (!candidateStartMinutes.includes(bEndMin)) {
+                    candidateStartMinutes.push(bEndMin);
+                  }
                 }
               }
             }
 
             // Também tenta encaixar após término de blocos de indisponibilidade do paciente
-            const patientDayBlocksForSlots = (demand.unavailabilityBlocks || []).filter((block) => {
-              if (block.dateStr && block.dateStr !== day.dateStr) return false;
-              if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
-              return true;
-            });
-            for (const b of patientDayBlocksForSlots) {
-              const bEndMin = timeStringToMinutes(b.endTime);
-              if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
-                if (!candidateStartMinutes.includes(bEndMin)) {
-                  candidateStartMinutes.push(bEndMin);
+            for (const b of (demand.unavailabilityBlocks || [])) {
+              const isEndOnThisDay = (!b.endDateStr && (b.dateStr === day.dateStr || (!b.dateStr && b.dayOfWeek === day.dayOfWeek)))
+                || (b.endDateStr && b.endDateStr === day.dateStr);
+              if (isEndOnThisDay) {
+                const bEndMin = timeStringToMinutes(b.endTime);
+                if (bEndMin >= windowStartMin && bEndMin <= windowEndMin - demand.durationMinutes) {
+                  if (!candidateStartMinutes.includes(bEndMin)) {
+                    candidateStartMinutes.push(bEndMin);
+                  }
                 }
               }
             }
@@ -427,17 +601,10 @@ export class MonthlyScaleGenerator {
               );
               if (hasProfOverlap) continue;
 
-              // Checagem A2: Bloqueio de indisponibilidade do profissional (compromissos particulares, reuniões)
-              const profDayBlocks = (professional.unavailabilityBlocks || []).filter((block) => {
-                if (block.dateStr && block.dateStr !== day.dateStr) return false;
-                if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
-                return true;
-              });
-              const hasProfBlockOverlap = profDayBlocks.some((b) => {
-                const bStart = timeStringToMinutes(b.startTime);
-                const bEnd = timeStringToMinutes(b.endTime);
-                return Math.max(sessionStartMin, bStart) < Math.min(sessionEndMin, bEnd);
-              });
+              // Checagem A2: Bloqueio de indisponibilidade do profissional (compromissos particulares, reuniões, viagens)
+              const hasProfBlockOverlap = (professional.unavailabilityBlocks || []).some((b) =>
+                isSlotBlockedByTimeBlock(day.dateStr, day.dayOfWeek, sessionStartMin, sessionEndMin, b)
+              );
               if (hasProfBlockOverlap) continue;
 
               // Checagem B: Conflito de horário com OUTRAS terapias do próprio paciente hoje
@@ -447,16 +614,9 @@ export class MonthlyScaleGenerator {
               if (hasPatientOverlap) continue;
 
               // Checagem B2: Bloqueio de indisponibilidade do paciente (consultas externas, exames, compromissos)
-              const patientDayBlocks = (demand.unavailabilityBlocks || []).filter((block) => {
-                if (block.dateStr && block.dateStr !== day.dateStr) return false;
-                if (!block.dateStr && block.dayOfWeek && block.dayOfWeek !== day.dayOfWeek) return false;
-                return true;
-              });
-              const hasPatientBlockOverlap = patientDayBlocks.some((b) => {
-                const bStart = timeStringToMinutes(b.startTime);
-                const bEnd = timeStringToMinutes(b.endTime);
-                return Math.max(sessionStartMin, bStart) < Math.min(sessionEndMin, bEnd);
-              });
+              const hasPatientBlockOverlap = (demand.unavailabilityBlocks || []).some((b) =>
+                isSlotBlockedByTimeBlock(day.dateStr, day.dayOfWeek, sessionStartMin, sessionEndMin, b)
+              );
               if (hasPatientBlockOverlap) continue;
 
               // Checagem C: Deslocamento urbano vindo do atendimento anterior do profissional
