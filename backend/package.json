@@ -9,7 +9,7 @@
     "dev": "tsx watch src/main.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts"
+    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts && tsx src/modules/financial/financial-settlement.service.test.ts && tsx src/modules/financial/financial.schemas.test.ts && tsx src/modules/financial/contextual-pricing.service.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
