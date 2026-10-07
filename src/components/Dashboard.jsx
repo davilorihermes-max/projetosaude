@@ -15,7 +15,9 @@ import {
   ShieldAlert,
   Sparkles,
   Phone,
-  Compass
+  Compass,
+  UserPlus,
+  CalendarPlus
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -25,19 +27,49 @@ export default function Dashboard({
   doctors = [],
   onUpdateAppointmentStatus,
   onOpenNewAppointment,
+  onOpenNewPatient,
+  onOpenPatientRecord,
   activeDoctor
 }) {
-  const todayAppointments = appointments.filter((apt) => apt.date === '2026-09-28' || apt.date === '2026-09-27');
+  const isAllDoctors = !activeDoctor || activeDoctor.id === 'all';
+
+  const todayAppointments = appointments.filter((apt) => {
+    const isToday = apt.date === '2026-09-28' || apt.date === '2026-09-27';
+    if (!isToday) return false;
+    if (isAllDoctors) return true;
+    return apt.doctorId === activeDoctor.id;
+  });
 
   const pendingCount = todayAppointments.filter((a) => a.status === 'scheduled' || a.status === 'waiting').length;
   const inProgressCount = todayAppointments.filter((a) => a.status === 'in_progress').length;
   const completedCount = todayAppointments.filter((a) => a.status === 'completed').length;
   const totalSessions = todayAppointments.length;
 
-  // Total planned distance
+  // Total planned distance and transit
   const totalDistanceKm = todayAppointments
     .reduce((acc, apt) => acc + (apt.distanceFromPrevKm || 2.5), 0)
     .toFixed(1);
+
+  const totalTransitMinutes = todayAppointments.reduce(
+    (acc, apt) => acc + (apt.transitTimeMinutes || 15),
+    0
+  );
+
+  // Dynamic access alerts for scheduled patients today
+  const accessAlerts = todayAppointments
+    .map((apt) => {
+      const patient = patients.find((p) => p.id === apt.patientId);
+      if (patient && patient.accessNotes) {
+        return {
+          id: `alert-${apt.id}`,
+          patientName: patient.name,
+          address: patient.address || apt.address,
+          notes: patient.accessNotes
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
 
   const handleCompleteWithCelebration = (aptId) => {
     onUpdateAppointmentStatus(aptId, 'completed');
@@ -68,9 +100,17 @@ export default function Dashboard({
       {/* Welcome Banner */}
       <div className="welcome-banner">
         <div className="welcome-text">
-          <h1>Roteiro Domiciliar: {activeDoctor?.name || 'Rafael Fontes'}</h1>
+          <h1>Roteiro Domiciliar: {activeDoctor?.name || 'Central Operacional'}</h1>
           <p>
-            Você possui <strong>{totalSessions} sessões domiciliares</strong> programadas hoje. Rota estimada em <strong>{totalDistanceKm} km</strong> de deslocamento urbano com cálculo geodésico.
+            {totalSessions > 0 ? (
+              <>
+                Você possui <strong>{totalSessions} sessões domiciliares</strong> programadas hoje. Rota estimada em <strong>{totalDistanceKm} km</strong> de deslocamento urbano com cálculo geodésico.
+              </>
+            ) : (
+              <>
+                Você não possui atendimentos domiciliares agendados para hoje. Roteiro livre e disponível para novos atendimentos.
+              </>
+            )}
           </p>
         </div>
         <div className="welcome-badge-date">
@@ -90,7 +130,7 @@ export default function Dashboard({
           </div>
           <div className="kpi-value">{totalSessions}</div>
           <div className="kpi-trend" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
-            Roteiro 100% otimizado
+            {totalSessions > 0 ? 'Roteiro 100% otimizado' : 'Sem agendamentos hoje'}
           </div>
         </div>
 
@@ -103,7 +143,7 @@ export default function Dashboard({
           </div>
           <div className="kpi-value">{totalDistanceKm} <span style={{ fontSize: '1rem' }}>km</span></div>
           <div className="kpi-trend" style={{ background: 'var(--info-subtle)', color: 'var(--info)' }}>
-            ~68 min em trânsito
+            {totalSessions > 0 ? `~${totalTransitMinutes} min em trânsito` : '0.0 km de deslocamento'}
           </div>
         </div>
 
@@ -116,7 +156,7 @@ export default function Dashboard({
           </div>
           <div className="kpi-value">{inProgressCount}</div>
           <div className="kpi-trend" style={{ background: 'var(--warning-subtle)', color: '#b45309' }}>
-            Check-in ativo
+            {inProgressCount > 0 ? 'Check-in ativo' : 'Aguardando início de rota'}
           </div>
         </div>
 
@@ -129,7 +169,7 @@ export default function Dashboard({
           </div>
           <div className="kpi-value">{completedCount}</div>
           <div className="kpi-trend" style={{ background: 'var(--success-subtle)', color: 'var(--success)' }}>
-            Finalizadas com sucesso
+            {completedCount > 0 ? 'Finalizadas com sucesso' : 'Nenhuma sessão concluída'}
           </div>
         </div>
       </div>
@@ -155,9 +195,28 @@ export default function Dashboard({
 
             <div className="queue-list">
               {todayAppointments.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  Nenhuma sessão domiciliar programada para a data.
-                </p>
+                <div className="empty-route-state">
+                  <div className="empty-route-icon">
+                    <Home size={34} color="var(--primary)" />
+                  </div>
+                  <h3>Nenhum paciente agendado para sua rota hoje</h3>
+                  <p>
+                    {activeDoctor?.name && activeDoctor.id !== 'all'
+                      ? `O profissional ${activeDoctor.name} ainda não possui atendimentos ou pacientes atribuídos para esta data.`
+                      : 'Não há sessões programadas para a equipe na data selecionada.'}
+                    {' '}Como esta é uma nova conta ou uma escala em aberto, você pode começar agendando uma nova sessão ou cadastrando um novo paciente.
+                  </p>
+                  <div className="empty-route-actions">
+                    <button className="btn btn-primary" onClick={onOpenNewAppointment}>
+                      <CalendarPlus size={15} /> + Encaixar Nova Sessão
+                    </button>
+                    {onOpenNewPatient && (
+                      <button className="btn btn-secondary" onClick={onOpenNewPatient}>
+                        <UserPlus size={15} /> + Cadastrar Paciente
+                      </button>
+                    )}
+                  </div>
+                </div>
               ) : (
                 todayAppointments.map((apt, index) => {
                   const patient = patients.find((p) => p.id === apt.patientId);
@@ -273,28 +332,37 @@ export default function Dashboard({
                 <ShieldAlert size={18} color="var(--danger)" />
                 Alertas da Atenção Domiciliar
               </h2>
-              <span className="badge badge-waiting">2 Avisos de Acesso</span>
+              <span className="badge badge-waiting">
+                {accessAlerts.length} {accessAlerts.length === 1 ? 'Aviso de Acesso' : 'Avisos de Acesso'}
+              </span>
             </div>
 
-            <div className="alert-card-item alert-danger-soft">
-              <AlertCircle size={20} style={{ flexShrink: 0 }} />
-              <div>
-                <strong>Instrução de Portaria: Mariana Souza Lima</strong>
-                <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
-                  Portaria 24h, interfone 82. Vaga de visitante liberada para atendimento.
-                </p>
+            {accessAlerts.length === 0 ? (
+              <div className="alert-card-item alert-info-soft" style={{ background: 'var(--bg-subtle)' }}>
+                <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong>Nenhuma restrição predial pendente</strong>
+                  <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
+                    Não há instruções de portaria, interfone ou restrições de acesso pendentes para sua rota hoje.
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="alert-card-item alert-warning-soft">
-              <AlertCircle size={20} style={{ flexShrink: 0 }} />
-              <div>
-                <strong>Acesso Residencial: Roberto Carlos Peixoto</strong>
-                <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
-                  Vila fechada. Portão de ferro manual, acionar interfone na Casa 3.
-                </p>
-              </div>
-            </div>
+            ) : (
+              accessAlerts.map((alert, idx) => (
+                <div
+                  key={alert.id}
+                  className={`alert-card-item ${idx % 2 === 0 ? 'alert-danger-soft' : 'alert-warning-soft'}`}
+                >
+                  <AlertCircle size={20} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Acesso Residencial: {alert.patientName}</strong>
+                    <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
+                      {alert.notes}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
 
             <div className="alert-card-item alert-info-soft">
               <Compass size={20} style={{ flexShrink: 0 }} />

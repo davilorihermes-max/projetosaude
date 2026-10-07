@@ -8,25 +8,40 @@ import {
   Mail,
   Calendar,
   CalendarPlus,
-  ShieldCheck
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import './PatientsView.css';
 
 export default function PatientsView({
   patients = [],
+  appointments = [],
+  activeDoctor,
   onOpenNewPatient,
   onOpenNewAppointment
 }) {
   const [search, setSearch] = useState('');
   const [selectedInsurance, setSelectedInsurance] = useState('all');
+  const [scope, setScope] = useState(activeDoctor && activeDoctor.id !== 'all' ? 'my' : 'all');
 
   const insuranceOptions = ['all', 'Unimed Pleno', 'Bradesco Saúde Top', 'SulAmérica Exato', 'Amil Fácil', 'Particular'];
 
-  const filteredPatients = patients.filter((patient) => {
+  // IDs de pacientes vinculados aos atendimentos do profissional ativo
+  const myPatientIds = new Set(
+    appointments
+      .filter((a) => !activeDoctor || activeDoctor.id === 'all' || a.doctorId === activeDoctor.id)
+      .map((a) => a.patientId)
+  );
+
+  const scopedPatients = scope === 'my' && activeDoctor && activeDoctor.id !== 'all'
+    ? patients.filter((p) => myPatientIds.has(p.id))
+    : patients;
+
+  const filteredPatients = scopedPatients.filter((patient) => {
     const matchesSearch =
       patient.name.toLowerCase().includes(search.toLowerCase()) ||
-      patient.cpf.includes(search) ||
-      patient.phone.includes(search);
+      (patient.cpf && patient.cpf.includes(search)) ||
+      (patient.phone && patient.phone.includes(search));
 
     const matchesInsurance =
       selectedInsurance === 'all' || patient.insurance === selectedInsurance;
@@ -34,24 +49,34 @@ export default function PatientsView({
     return matchesSearch && matchesInsurance;
   });
 
+  const myCount = patients.filter((p) => myPatientIds.has(p.id)).length;
+
   return (
     <div className="patients-container">
       {/* Top Toolbar */}
       <div className="patients-toolbar">
         <div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Gestão de Pacientes</h2>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Gestão de Pacientes & Domicílios</h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Total de <strong>{patients.length}</strong> pacientes ativos na clínica.
+            {scope === 'my' && activeDoctor && activeDoctor.id !== 'all' ? (
+              <>
+                Exibindo <strong>{filteredPatients.length}</strong> paciente(s) sob cuidado de <strong>{activeDoctor.name}</strong>.
+              </>
+            ) : (
+              <>
+                Total de <strong>{patients.length}</strong> pacientes ativos na base da clínica.
+              </>
+            )}
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="search-box" style={{ width: '280px' }}>
             <Search size={16} className="search-icon" />
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por nome ou CPF..."
+              placeholder="Buscar por nome, CPF ou fone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -62,24 +87,65 @@ export default function PatientsView({
         </div>
       </div>
 
-      {/* Insurance Filter Chips */}
-      <div className="insurance-filters">
-        {insuranceOptions.map((ins) => (
-          <button
-            key={ins}
-            className={`filter-chip ${selectedInsurance === ins ? 'active' : ''}`}
-            onClick={() => setSelectedInsurance(ins)}
-          >
-            {ins === 'all' ? 'Todos os Convênios' : ins}
-          </button>
-        ))}
+      {/* Scope and Filters Bar */}
+      <div className="patients-filters-bar">
+        {activeDoctor && activeDoctor.id !== 'all' && (
+          <div className="scope-tabs">
+            <button
+              className={`scope-tab ${scope === 'my' ? 'active' : ''}`}
+              onClick={() => setScope('my')}
+            >
+              <UserCheck size={14} /> Meus Pacientes ({myCount})
+            </button>
+            <button
+              className={`scope-tab ${scope === 'all' ? 'active' : ''}`}
+              onClick={() => setScope('all')}
+            >
+              <Users size={14} /> Todos da Clínica ({patients.length})
+            </button>
+          </div>
+        )}
+
+        <div className="insurance-filters">
+          {insuranceOptions.map((ins) => (
+            <button
+              key={ins}
+              className={`filter-chip ${selectedInsurance === ins ? 'active' : ''}`}
+              onClick={() => setSelectedInsurance(ins)}
+            >
+              {ins === 'all' ? 'Todos os Convênios' : ins}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Patients Grid */}
       <div className="patients-grid">
         {filteredPatients.length === 0 ? (
-          <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-            <p style={{ color: 'var(--text-muted)' }}>Nenhum paciente encontrado com os filtros atuais.</p>
+          <div className="card empty-patients-card">
+            <div className="empty-patients-icon-box">
+              <Users size={36} color="var(--primary)" />
+            </div>
+            <h3>
+              {scope === 'my'
+                ? `Nenhum paciente vinculado ao perfil de ${activeDoctor?.name || 'seu usuário'}`
+                : 'Nenhum paciente encontrado com os filtros atuais'}
+            </h3>
+            <p>
+              {scope === 'my'
+                ? 'Sua conta é nova e você ainda não possui pacientes vinculados ao seu Care Team ou com atendimentos agendados. Você pode cadastrar um paciente ou visualizar o cadastro geral da clínica.'
+                : 'Tente alterar os termos de busca ou selecionar outro convênio.'}
+            </p>
+            <div className="empty-patients-actions">
+              <button className="btn btn-primary" onClick={onOpenNewPatient}>
+                <UserPlus size={16} /> Cadastrar Novo Paciente
+              </button>
+              {scope === 'my' && (
+                <button className="btn btn-secondary" onClick={() => setScope('all')}>
+                  Ver Todos da Clínica ({patients.length})
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           filteredPatients.map((patient) => {

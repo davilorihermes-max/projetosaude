@@ -3,6 +3,7 @@ import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middlewares/auth.js';
+import { RegisterSchema } from '../lib/validators.js';
 
 interface LoginBody {
   email?: string;
@@ -14,6 +15,24 @@ interface RegisterBody {
   email: string;
   password: string;
   role?: string;
+  profession?: string;
+  specialty?: string;
+  councilNumber?: string;
+  crm?: string;
+  cpf?: string;
+  phone?: string;
+  latitude?: number;
+  longitude?: number;
+  linkToCareTeams?: boolean;
+}
+
+interface UpdateProfileBody {
+  name?: string;
+  specialty?: string;
+  councilNumber?: string;
+  crm?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
@@ -85,25 +104,41 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        professionalId: user.professional?.id || null
+        professionalId: user.professional?.id || null,
+        professional: user.professional || null
       }
     });
   });
 
   /**
    * POST /api/auth/register
-   * Cria novo usuário com senha criptografada via bcrypt
+   * Cria novo usuário e perfil profissional integrado com senha criptografada via bcrypt e validação Zod
    */
   app.post<{ Body: RegisterBody }>('/register', async (request, reply) => {
-    const { name, email, password, role = 'PROFESSIONAL' } = request.body || {};
-
-    if (!name || !email || !password) {
+    const parseResult = RegisterSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
       return reply.status(400).send({
         statusCode: 400,
         error: 'Bad Request',
-        message: 'Nome, e-mail e senha são obrigatórios'
+        message: firstIssue.message,
+        errors: parseResult.error.flatten().fieldErrors
       });
     }
+
+    const {
+      name,
+      email,
+      password,
+      role = 'PROFESSIONAL',
+      profession,
+      specialty,
+      councilNumber,
+      crm,
+      latitude,
+      longitude,
+      linkToCareTeams = true
+    } = parseResult.data;
 
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() }
@@ -118,32 +153,72 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const normalizedRole = role || 'PROFESSIONAL';
+    const crmVal = councilNumber || crm || (profession ? `${profession} - Reg. Ativo` : 'CREFITO/SP 00.000');
+    const specialtyVal = specialty || profession || 'Fisioterapia Domiciliar';
+
     const user = await prisma.user.create({
       data: {
         name,
         email: email.toLowerCase().trim(),
         passwordHash,
-        role
+        role: normalizedRole,
+        ...(normalizedRole === 'PROFESSIONAL'
+          ? {
+              professional: {
+                create: {
+                  crm: crmVal,
+                  specialty: specialtyVal,
+                  latitude: latitude ?? -23.585000,
+                  longitude: longitude ?? -46.638000
+                }
+              }
+            }
+          : {})
+      },
+      include: {
+        professional: true
       }
     });
+
+    // Se for profissional, vincula automaticamente aos pacientes existentes na clínica para compor o Care Team
+    if (user.professional && linkToCareTeams) {
+      const existingPatients = await prisma.patient.findMany({ select: { id: true } });
+      if (existingPatients.length > 0) {
+        await Promise.all(
+          existingPatients.map((p) =>
+            prisma.careTeamMember.create({
+              data: {
+                patientId: p.id,
+                professionalId: user.professional!.id,
+                role: 'SPECIALIST',
+                active: true
+              }
+            }).catch(() => null)
+          )
+        );
+      }
+    }
 
     const token = app.jwt.sign({ userId: user.id, role: user.role });
 
     return reply.status(201).send({
-      message: 'Usuário registrado com sucesso',
+      message: 'Usuário e perfil profissional registrados com sucesso',
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        professionalId: user.professional?.id || null,
+        professional: user.professional || null
       }
     });
   });
 
   /**
    * GET /api/auth/me
-   * Rota protegida para consultar o usuário atual a partir do JWT
+   * Rota protegida para consultar o usuário atual e perfil a partir do JWT
    */
   app.get('/me', { preHandler: [authenticate] }, async (request, reply) => {
     const user = await prisma.user.findUnique({
@@ -154,7 +229,16 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         email: true,
         role: true,
         createdAt: true,
-        professional: true
+        professional: {
+          select: {
+            id: true,
+            crm: true,
+            specialty: true,
+            latitude: true,
+            longitude: true,
+            createdAt: true
+          }
+        }
       }
     });
 
@@ -168,6 +252,57 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     return reply.send({ user });
   });
+
+  /**
+   * PUT /api/auth/profile
+   * Rota protegida para atualizar dados do perfil (nome, especialidade, conselho, coordenadas)
+   */
+  app.put<{ Body: UpdateProfileBody }>(
+    '/profile',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const { name, specialty, councilNumber, crm, latitude, longitude } = request.body || {};
+
+      if (name) {
+        await prisma.user.update({
+          where: { id: request.user.userId },
+          data: { name }
+        });
+      }
+
+      const professional = await prisma.professional.findUnique({
+        where: { userId: request.user.userId }
+      });
+
+      if (professional) {
+        await prisma.professional.update({
+          where: { id: professional.id },
+          data: {
+            ...(specialty ? { specialty } : {}),
+            ...(councilNumber || crm ? { crm: councilNumber || crm } : {}),
+            ...(latitude !== undefined ? { latitude } : {}),
+            ...(longitude !== undefined ? { longitude } : {})
+          }
+        });
+      }
+
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: request.user.userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          professional: true
+        }
+      });
+
+      return reply.status(200).send({
+        message: 'Perfil atualizado com sucesso',
+        user: updatedUser
+      });
+    }
+  );
 
   /**
    * Rotas de demonstração com guarda por Role (requireRole)

@@ -174,4 +174,99 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(response.statusCode).toBe(401);
     });
   });
+
+  describe('Criação & Gestão de Perfil Profissional', () => {
+    const testEmail = `camila.perfil.${Date.now()}@omnisaude.com.br`;
+    let userToken: string;
+
+    it('deve registrar usuário com perfil profissional multidisciplinar completo e vinculação a Care Team', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: {
+          name: 'Dra. Camila Nogueira',
+          email: testEmail,
+          password: 'DoctorPassword123!',
+          role: 'PROFESSIONAL',
+          profession: 'Enfermagem',
+          specialty: 'Estomaterapia & Lesões Cutâneas',
+          councilNumber: 'COREN/SP 230.110',
+          latitude: -23.565000,
+          longitude: -46.657000
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const data = response.json();
+      expect(data.token).toBeDefined();
+      expect(data.user.name).toBe('Dra. Camila Nogueira');
+      expect(data.user.role).toBe('PROFESSIONAL');
+      expect(data.user.professionalId).toBeDefined();
+      expect(data.user.professional?.crm).toBe('COREN/SP 230.110');
+      expect(data.user.professional?.specialty).toBe('Estomaterapia & Lesões Cutâneas');
+
+      userToken = data.token;
+    });
+
+    it('deve consultar perfil via GET /api/auth/me incluindo dados do conselho profissional', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        headers: {
+          Authorization: `Bearer ${userToken}`
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.user.email).toBe(testEmail);
+      expect(data.user.professional?.crm).toBe('COREN/SP 230.110');
+      expect(data.user.professional?.latitude).toBeCloseTo(-23.565, 3);
+    });
+
+    it('deve atualizar dados do perfil via PUT /api/auth/profile com sucesso', async () => {
+      const response = await server.inject({
+        method: 'PUT',
+        url: '/api/auth/profile',
+        headers: {
+          Authorization: `Bearer ${userToken}`
+        } as Record<string, string>,
+        payload: {
+          name: 'Dra. Camila Nogueira Atualizada',
+          specialty: 'Enfermagem Oncológica & Domiciliar',
+          councilNumber: 'COREN/SP 230.999'
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.user.name).toBe('Dra. Camila Nogueira Atualizada');
+      expect(data.user.professional?.specialty).toBe('Enfermagem Oncológica & Domiciliar');
+      expect(data.user.professional?.crm).toBe('COREN/SP 230.999');
+    });
+
+    it('deve cadastrar novo profissional na equipe via POST /api/scheduler/professionals', async () => {
+      const directEmail = `fernanda.fono.${Date.now()}@omnisaude.com.br`;
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/scheduler/professionals',
+        payload: {
+          name: 'Fernanda Prado',
+          email: directEmail,
+          profession: 'Fonoaudiologia',
+          specialty: 'Reabilitação de Deglutição (Disfagia)',
+          councilNumber: 'CRFa/SP 14.520',
+          latitude: -23.563000,
+          longitude: -46.653000
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const data = response.json();
+      expect(data.success).toBe(true);
+      expect(data.professional.name).toBe('Fernanda Prado');
+      expect(data.professional.crm).toBe('CRFa/SP 14.520');
+      expect(data.professional.specialty).toBe('Reabilitação de Deglutição (Disfagia)');
+    });
+  });
 });

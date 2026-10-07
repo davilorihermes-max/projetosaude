@@ -20,7 +20,8 @@ export default function Sidebar({
   waitingCount = 0,
   doctor,
   currentUser,
-  onOpenLoginModal
+  onOpenLoginModal,
+  onOpenProfileModal
 }) {
   const navItems = [
     { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
@@ -77,8 +78,14 @@ export default function Sidebar({
 
         <div
           className="doctor-profile-card"
-          onClick={onOpenLoginModal}
-          title="Clique para gerenciar autenticação / Sessão JWT"
+          onClick={() => {
+            if (currentUser && onOpenProfileModal) {
+              onOpenProfileModal();
+            } else if (onOpenLoginModal) {
+              onOpenLoginModal();
+            }
+          }}
+          title={currentUser ? "Clique para gerenciar seu Perfil Profissional" : "Clique para entrar ou criar perfil"}
           style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
         >
           <img

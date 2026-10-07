@@ -21,12 +21,13 @@ export default function NewAppointmentModal({
   doctors = [],
   onSaveAppointment,
   initialPatientId = null,
+  initialDoctorId = null,
   initialTime = '14:00',
   initialDate = '2026-09-28',
   initialDuration = 45
 }) {
   const [patientId, setPatientId] = useState(initialPatientId || patients[0]?.id || '');
-  const [doctorId, setDoctorId] = useState(doctors[0]?.id || '');
+  const [doctorId, setDoctorId] = useState(initialDoctorId || doctors[0]?.id || '');
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
   const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
@@ -43,12 +44,13 @@ export default function NewAppointmentModal({
   useEffect(() => {
     if (isOpen) {
       if (initialPatientId) setPatientId(initialPatientId);
+      if (initialDoctorId) setDoctorId(initialDoctorId);
       if (initialTime) setTime(initialTime);
       if (initialDate) setDate(initialDate);
       if (initialDuration) setDurationMinutes(Number(initialDuration) || 45);
       setSubmitError('');
     }
-  }, [isOpen, initialPatientId, initialTime, initialDate, initialDuration]);
+  }, [isOpen, initialPatientId, initialDoctorId, initialTime, initialDate, initialDuration]);
 
   // Live check with backend scheduler evaluation
   useEffect(() => {

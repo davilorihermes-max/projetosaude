@@ -6,8 +6,9 @@ export interface JwtPayload {
   role: string;
 }
 
-declare module 'fastify' {
-  interface FastifyRequest {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: JwtPayload;
     user: JwtPayload;
   }
 }

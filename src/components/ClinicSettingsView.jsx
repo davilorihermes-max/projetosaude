@@ -1,16 +1,18 @@
-// src/components/ClinicSettingsView.jsx
 import React, { useState } from 'react';
-import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Users, BellRing } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Users, BellRing, UserPlus } from 'lucide-react';
 import { CLINIC_INFO } from '../data/mockData';
 
 export default function ClinicSettingsView({
   doctors = [],
-  onResetData
+  onResetData,
+  onOpenNewProfessional
 }) {
   const [clinicData, setClinicData] = useState(CLINIC_INFO);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [autoSms, setAutoSms] = useState(true);
   const [autoWhatsapp, setAutoWhatsapp] = useState(true);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -154,12 +156,25 @@ export default function ClinicSettingsView({
       {/* Registered Multidisciplinary Staff */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
-          </h3>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas
-          </span>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={18} color="var(--primary)" /> Equipe Multidisciplinar Credenciada (Care Team)
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas habilitados
+            </span>
+          </div>
+          {onOpenNewProfessional && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={onOpenNewProfessional}
+            >
+              <UserPlus size={15} color="var(--primary)" />
+              <span>+ Credenciar Novo Profissional</span>
+            </button>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
           {doctors.map((doc) => (
@@ -205,12 +220,50 @@ export default function ClinicSettingsView({
           <div>
             <h4 style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Restaurar Dados de Exemplo</h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Reinicia todos os agendamentos e pacientes para os valores de demonstração padrão.
+              Reinicia todos os agendamentos, pacientes e equipe para os valores de demonstração padrão.
             </p>
           </div>
-          <button className="btn btn-danger" onClick={onResetData}>
-            <RefreshCw size={15} /> Restaurar Padrões
-          </button>
+
+          {resetDone ? (
+            <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <CheckCircle size={16} /> Dados restaurados com sucesso!
+            </span>
+          ) : confirmReset ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.82rem', color: 'var(--danger)', fontWeight: 600 }}>
+                Confirmar restauração?
+              </span>
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                onClick={() => {
+                  onResetData();
+                  setConfirmReset(false);
+                  setResetDone(true);
+                  setTimeout(() => setResetDone(false), 2500);
+                }}
+              >
+                Sim, Restaurar
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                onClick={() => setConfirmReset(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => setConfirmReset(true)}
+            >
+              <RefreshCw size={15} /> Restaurar Padrões
+            </button>
+          )}
         </div>
       </div>
     </div>

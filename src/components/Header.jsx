@@ -14,7 +14,9 @@ export default function Header({
   onOpenNotifications,
   unreadCount = 2,
   currentUser,
-  onOpenLoginModal
+  onOpenLoginModal,
+  onOpenProfileModal,
+  onOpenNewProfessional
 }) {
   return (
     <header className="header-container">
@@ -32,7 +34,7 @@ export default function Header({
       </div>
 
       <div className="header-right">
-        {/* JWT Auth Status Button */}
+        {/* JWT Auth Status & Profile Button */}
         <button
           className="btn btn-secondary auth-session-btn"
           style={{
@@ -44,8 +46,14 @@ export default function Header({
             border: currentUser ? '1px solid var(--success-border)' : '1px solid var(--border-color)',
             background: currentUser ? 'var(--success-subtle)' : 'var(--bg-card)'
           }}
-          onClick={onOpenLoginModal}
-          title="Autenticação JWT Fastify (Porta 3001)"
+          onClick={() => {
+            if (currentUser && onOpenProfileModal) {
+              onOpenProfileModal();
+            } else if (onOpenLoginModal) {
+              onOpenLoginModal();
+            }
+          }}
+          title={currentUser ? "Meu Perfil Profissional (JWT Ativo)" : "Entrar ou Criar Perfil"}
         >
           {currentUser?.role === 'ADMIN' ? (
             <ShieldCheck size={15} color="var(--primary)" />
@@ -53,7 +61,7 @@ export default function Header({
             <KeyRound size={15} color={currentUser ? 'var(--success)' : 'var(--primary)'} />
           )}
           <span>
-            {currentUser ? `${currentUser.name} (JWT Ativo)` : 'Entrar / Login'}
+            {currentUser ? `${currentUser.name} (Perfil)` : 'Entrar / Criar Perfil'}
           </span>
         </button>
 
