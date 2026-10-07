@@ -436,41 +436,107 @@ export class SchedulingService {
   }
 
   /**
-   * Persiste as sessões de escala aprovadas no banco de dados Prisma em lote
+   * Persiste as sessões de escala aprovadas no banco de dados Prisma em lote com transação atômica e idempotência
    */
-  static async commitMonthlyPlan(sessions: PlannedSession[]): Promise<{
+  static async commitMonthlyPlan(
+    sessions: PlannedSession[],
+    options?: {
+      batchId?: string;
+      overwriteExisting?: boolean;
+    }
+  ): Promise<{
     success: boolean;
+    batchId: string;
     committedCount: number;
     appointmentIds: string[];
   }> {
-    const appointmentIds: string[] = [];
+    if (!sessions || sessions.length === 0) {
+      return {
+        success: false,
+        batchId: options?.batchId || '',
+        committedCount: 0,
+        appointmentIds: []
+      };
+    }
+
+    const batchId = options?.batchId || `batch-${Date.now()}`;
+    const overwriteExisting = options?.overwriteExisting ?? true;
+
+    // Resolução prévia de instâncias reais para validação
+    const resolvedSessions: {
+      profId: string;
+      patId: string;
+      scheduledTime: Date;
+      durationMinutes: number;
+      latitude: number | null;
+      longitude: number | null;
+      notes: string;
+    }[] = [];
 
     for (const session of sessions) {
       const prof = await this.resolveProfessional(session.professionalId);
       const pat = await this.resolvePatient(session.patientId);
 
-      if (prof && pat) {
-        const scheduledTime = new Date(`${session.date}T${session.time}:00Z`);
+      if (!prof || !pat) {
+        throw new Error(
+          `Impossível persistir sessão: profissional (${session.professionalId}) ou paciente (${session.patientId}) não encontrados no banco.`
+        );
+      }
 
-        const created = await prisma.appointment.create({
-          data: {
-            professionalId: prof.id,
-            patientId: pat.id,
-            scheduledTime,
-            durationMinutes: session.durationMinutes,
-            latitude: session.location?.latitude ?? pat.latitude,
-            longitude: session.location?.longitude ?? pat.longitude,
+      const scheduledTime = new Date(`${session.date}T${session.time}:00Z`);
+      resolvedSessions.push({
+        profId: prof.id,
+        patId: pat.id,
+        scheduledTime,
+        durationMinutes: session.durationMinutes,
+        latitude: session.location?.latitude ?? pat.latitude,
+        longitude: session.location?.longitude ?? pat.longitude,
+        notes: `Escala Mensal Planejada: ${session.therapyType} (${session.professionalName}) [Lote: ${batchId}]`
+      });
+    }
+
+    // Executa em transação atômica garantindo tudo-ou-nada
+    const appointmentIds = await prisma.$transaction(async (tx) => {
+      // Se overwriteExisting, remove agendamentos pendentes das datas cobertas para evitar duplicidade
+      if (overwriteExisting && resolvedSessions.length > 0) {
+        const dates = sessions.map((s) => s.date).sort();
+        const minDate = new Date(`${dates[0]}T00:00:00Z`);
+        const maxDate = new Date(`${dates[dates.length - 1]}T23:59:59Z`);
+
+        const patIds = Array.from(new Set(resolvedSessions.map((s) => s.patId)));
+
+        await tx.appointment.deleteMany({
+          where: {
+            patientId: { in: patIds },
             status: 'SCHEDULED',
-            notes: `Escala Mensal Planejada: ${session.therapyType} (${session.professionalName})`
+            scheduledTime: { gte: minDate, lte: maxDate }
           }
         });
-
-        appointmentIds.push(created.id);
       }
-    }
+
+      const ids: string[] = [];
+      for (const item of resolvedSessions) {
+        const created = await tx.appointment.create({
+          data: {
+            professionalId: item.profId,
+            patientId: item.patId,
+            scheduledTime: item.scheduledTime,
+            durationMinutes: item.durationMinutes,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            status: 'SCHEDULED',
+            notes: item.notes
+          }
+        });
+        ids.push(created.id);
+      }
+
+      return ids;
+    });
 
     return {
       success: true,
+      batchId,
       committedCount: appointmentIds.length,
       appointmentIds
     };
