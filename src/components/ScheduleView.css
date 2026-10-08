@@ -1,0 +1,70 @@
+/* src/components/ScheduleView.css */
+.schedule-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.schedule-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.timeline-slots-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.slot-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.slot-time-col {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-headline);
+  padding-top: 0.75rem;
+  text-align: right;
+  font-family: var(--font-display);
+}
+
+.slot-appointment-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: all var(--transition-fast);
+}
+
+.slot-appointment-card:hover {
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.slot-free {
+  background: var(--bg-page);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.slot-free:hover {
+  border-color: var(--primary);
+  background: var(--bg-surface-hover);
+}

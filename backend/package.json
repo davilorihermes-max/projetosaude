@@ -8,8 +8,10 @@
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts && tsx src/modules/financial/financial-settlement.service.test.ts && tsx src/modules/financial/financial.schemas.test.ts && tsx src/modules/financial/contextual-pricing.service.test.ts"
+    "test": "npm run test:financial && npm run test:attendance && npm run test:clinical",
+    "test:financial": "tsx src/modules/financial/financial-pricing.resolver.test.ts && tsx src/modules/financial/financial-settlement.service.test.ts && tsx src/modules/financial/financial.schemas.test.ts && tsx src/modules/financial/contextual-pricing.service.test.ts",
+    "test:attendance": "tsx src/modules/attendance/geofencing.calculator.test.ts",
+    "test:clinical": "tsx src/modules/clinical-records/clinical-records.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

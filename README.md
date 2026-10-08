@@ -36,17 +36,10 @@ projetosaude/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                     # Pipeline de integração contínua (CI)
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma              # Modelagem relacional completa com pgvector
-│   │   └── migrations/0_init/         # DDL SQL com RLS e triggers de Care Team
-│   ├── src/
-│   │   └── modules/
-│   │       ├── scheduling/            # Motor de escala e cálculo de deslocamento
-│   │       ├── clinical-records/      # RAG clínico de 3 pilares e guardrails
-│   │       └── ai-agent/              # Schemas das Tools para o Chatbot do Gestor
-│   ├── package.json
-│   └── tsconfig.json
+├── backend/                           # Serviços de domínio (RAG, Geofencing, Financeiro)
+├── prisma/                            # Schema relacional, migrações e seed
+├── src/                               # Servidor Fastify, rotas e Frontend React/Vite
+├── test/                              # Suíte de testes automatizados (Vitest e E2E)
 ├── docker-compose.yml                 # PostgreSQL 16 com extensão pgvector
 ├── .env.example                       # Variáveis de ambiente
 ├── .gitignore                         # Regras de exclusão do Git
@@ -58,34 +51,53 @@ projetosaude/
 ## 🛠️ Como Iniciar o Ambiente de Desenvolvimento
 
 ### 1. Pré-requisitos
-- [Node.js](https://nodejs.org/) v20+
-- [Docker Desktop](https://www.docker.com/) (para o banco de dados)
+- [Node.js](https://nodejs.org/) v20+ ou v22+
+- [Docker Desktop](https://www.docker.com/) (opcional para o PostgreSQL)
 - [Git](https://git-scm.com/)
 
-### 2. Subir o Banco de Dados (PostgreSQL + pgvector)
+### 2. Instalar Dependências e Gerar Prisma
 ```bash
-docker compose up -d
+npm install
+npx prisma generate
 ```
 
-### 3. Configurar o Backend
+### 3. Rodar Testes Automatizados (Vitest)
 ```bash
-cd backend
-npm install
-cp ../.env.example .env
-npx prisma generate
-npx prisma migrate dev --name init
+npm run test
+```
+
+### 4. Iniciar a Aplicação
+```bash
+# Terminal 1: Servidor Fastify (API na porta 3001)
+npm run start:server
+
+# Terminal 2: Frontend Vite (Web na porta 5173)
+npm run dev
 ```
 
 ---
 
-## 👥 Fluxo de Trabalho (Sérgio & Davi)
+## 👥 Fluxo de Trabalho & Divisão de Responsabilidades (Sérgio & Davi)
 
-1. Crie uma branch para cada funcionalidade:
+### 📌 Matriz de Ownership dos Módulos
+
+| Responsável | Módulos & Responsabilidades | Stack Principal | Branch Padrão |
+| :--- | :--- | :--- | :--- |
+| **Sérgio** (`@sergiohermesmeyer`) | 🛡️ **Servidor HTTP & Auth**<br>📅 **Integração do Scheduler & Escalas**<br>💰 **Fechamento Financeiro Contextual** | Fastify, JWT, Bcrypt, Prisma ORM, Geodésica | `feat/sergio-<descricao>` |
+| **Davi** (`@davilorihermes-max`) | 🧠 **Prontuário com Copiloto RAG & IA**<br>📍 **Check-in & Presença com Geofencing**<br>🎨 **Frontend & UI Domiciliar** | `pgvector`, TypeScript, React 19, Vite, CSS | `feat/davi-<descricao>` |
+
+### 🌿 Fluxo Git & Pull Requests
+
+1. Crie uma branch para a funcionalidade correspondente:
    ```bash
-   git checkout -b feat/nome-da-funcionalidade
+   # Sérgio:
+   git checkout -b feat/sergio-nome-da-funcionalidade
+
+   # Davi:
+   git checkout -b feat/davi-nome-da-funcionalidade
    ```
 2. Ao concluir, envie sua branch e abra um **Pull Request (PR)** para revisão do parceiro:
    ```bash
-   git push origin feat/nome-da-funcionalidade
+   git push origin feat/...
    ```
-3. O CI do GitHub Actions validará automaticamente o schema do Prisma e a tipagem TypeScript.
+3. O CI do GitHub Actions validará automaticamente o schema do Prisma, tipos TypeScript e testes unitários.

@@ -1,0 +1,501 @@
+// src/components/NewAppointmentModal.jsx
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  CalendarPlus,
+  Clock,
+  MapPin,
+  Car,
+  CheckCircle2,
+  AlertTriangle,
+  Sparkles,
+  ShieldCheck,
+  ShieldAlert
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+export default function NewAppointmentModal({
+  isOpen,
+  onClose,
+  patients = [],
+  doctors = [],
+  onSaveAppointment,
+  initialPatientId = null,
+  initialTime = '14:00',
+  initialDate = '2026-09-28',
+  initialDuration = 45
+}) {
+  const [patientId, setPatientId] = useState(initialPatientId || patients[0]?.id || '');
+  const [doctorId, setDoctorId] = useState(doctors[0]?.id || '');
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState(initialTime);
+  const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
+  const [durationMinutes, setDurationMinutes] = useState(initialDuration || 45);
+  const [notes, setNotes] = useState('');
+
+  // Live evaluation state
+  const [viability, setViability] = useState(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Sync initial values when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (initialPatientId) setPatientId(initialPatientId);
+      if (initialTime) setTime(initialTime);
+      if (initialDate) setDate(initialDate);
+      if (initialDuration) setDurationMinutes(Number(initialDuration) || 45);
+      setSubmitError('');
+    }
+  }, [isOpen, initialPatientId, initialTime, initialDate, initialDuration]);
+
+  // Live check with backend scheduler evaluation
+  useEffect(() => {
+    if (!isOpen || !patientId || !doctorId || !date || !time) return;
+
+    let isMounted = true;
+    const evaluateLive = async () => {
+      setEvaluating(true);
+      try {
+        const token = localStorage.getItem('omnihome_jwt');
+        const proposedIso = `${date}T${time}:00.000Z`;
+
+        const res = await fetch('http://localhost:3001/api/scheduler/evaluate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            professionalId: doctorId,
+            patientId,
+            proposedTime: proposedIso,
+            durationMinutes: Number(durationMinutes) || 45
+          })
+        });
+
+        if (!isMounted) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          setViability(data.report || null);
+        } else if (res.status === 401) {
+          setViability({
+            unauthenticated: true,
+            viable: true,
+            reason: 'Autenticação necessária para validação estrita no servidor.'
+          });
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setViability({
+            viable: false,
+            reason: data.message || 'Restrição detectada no servidor.'
+          });
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setViability(null);
+      } finally {
+        if (isMounted) setEvaluating(false);
+      }
+    };
+
+    const timer = setTimeout(evaluateLive, 350);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [isOpen, patientId, doctorId, date, time, durationMinutes]);
+
+  if (!isOpen) return null;
+
+  const selectedPatient = patients.find((p) => p.id === patientId) || patients[0];
+  const selectedDoctor = doctors.find((d) => d.id === doctorId) || doctors[0];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!patientId || !doctorId || !time) return;
+
+    setSaving(true);
+    setSubmitError('');
+
+    const token = localStorage.getItem('omnihome_jwt');
+    const proposedIso = `${date}T${time}:00.000Z`;
+
+    try {
+      // 1. Persistir no banco de dados se houver token disponível
+      if (token) {
+        try {
+          const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              professionalId: doctorId,
+              patientId,
+              scheduledTime: proposedIso,
+              durationMinutes: Number(durationMinutes) || 45,
+              notes
+            })
+          });
+
+          if (!res.ok) {
+            if (res.status === 401) {
+              throw new Error('Sessão expirada. Por favor, faça login novamente no topo da página.');
+            }
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Falha ao agendar sessão no servidor.');
+          }
+        } catch (fetchErr) {
+          // Se for erro de rede/conexão (backend offline), permite prosseguir com salvamento local
+          if (fetchErr.name === 'TypeError' || fetchErr.message?.toLowerCase().includes('fetch')) {
+            console.warn('Servidor Fastify (porta 3001) inacessível. Agendamento registrado localmente:', fetchErr);
+          } else {
+            throw fetchErr;
+          }
+        }
+      }
+
+      // 2. Salvar no estado local do frontend (LocalStorage)
+      const newApt = {
+        id: `apt-${Date.now()}`,
+        patientId,
+        doctorId,
+        date,
+        time,
+        type,
+        durationMinutes: Number(durationMinutes) || 45,
+        address: selectedPatient?.address || 'São Paulo - SP',
+        notes,
+        status: 'scheduled'
+      };
+
+      onSaveAppointment(newApt);
+
+      // Disparar confetes de celebração
+      confetti({
+        particleCount: 40,
+        spread: 60,
+        origin: { y: 0.7 }
+      });
+
+      onClose();
+    } catch (err) {
+      setSubmitError(
+        err.message?.toLowerCase().includes('fetch')
+          ? 'Não foi possível conectar ao servidor Fastify (porta 3001).'
+          : (err.message || 'Erro ao agendar.')
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'var(--primary-subtle)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <CalendarPlus size={20} />
+            </div>
+            <div>
+              <h3 className="modal-title" style={{ fontSize: '1.15rem' }}>
+                Agendar Nova Sessão Domiciliar
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Validação geodésica em tempo real & conformidade com Care Team
+              </span>
+            </div>
+          </div>
+          <button className="btn-icon" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+            {submitError && (
+              <div
+                style={{
+                  background: 'var(--danger-subtle)',
+                  border: '1px solid var(--danger-border)',
+                  color: 'var(--danger)',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '1rem',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <ShieldAlert size={18} />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Paciente a ser Atendido no Domicílio *</label>
+              <select
+                className="form-select"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                required
+              >
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} - {p.address ? `(${p.address})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Profissional em Rota *</label>
+                <select
+                  className="form-select"
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  required
+                >
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} • {d.profession || 'Especialista'} ({d.councilNumber || d.crm || d.specialty})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tipo de Atendimento / Visita Domiciliar *</label>
+                <input
+                  type="text"
+                  list="session-types-datalist"
+                  className="form-input"
+                  placeholder="Selecione ou digite o tipo de atendimento (Ex: Fisioterapia, Enfermagem, Apoio Domiciliar...)"
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  required
+                />
+                <datalist id="session-types-datalist">
+                  <option value="Atendimento Domiciliar de Rotina" />
+                  <option value="Sessão de Fisioterapia Motora" />
+                  <option value="Sessão de Fisioterapia Domiciliar" />
+                  <option value="Visita de Enfermagem Domiciliar" />
+                  <option value="Acompanhamento Fonoaudiológico" />
+                  <option value="Atendimento de Terapia Ocupacional" />
+                  <option value="Avaliação Nutricional Domiciliar" />
+                  <option value="Acompanhamento Psicológico Domiciliar" />
+                  <option value="Treinamento e Orientação do Cuidador" />
+                  <option value="Avaliação Domiciliar Inicial" />
+                </datalist>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Data da Sessão *</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Horário de Chegada *</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Duração Prevista</label>
+                <select
+                  className="form-select"
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(e.target.value)}
+                >
+                  <option value="30">30 minutos</option>
+                  <option value="45">45 minutos</option>
+                  <option value="60">1 hora</option>
+                  <option value="90">1h30 (Complexo)</option>
+                </select>
+              </div>
+            </div>
+
+            {time && (
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '-0.35rem',
+                  marginBottom: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Clock size={14} color="var(--primary)" />
+                <span>
+                  Janela da Sessão: <strong>{time}</strong> às{' '}
+                  <strong>
+                    {(() => {
+                      const [h, m] = time.split(':').map(Number);
+                      const totalMin = (h || 0) * 60 + (m || 0) + (Number(durationMinutes) || 45);
+                      const endH = Math.floor(totalMin / 60) % 24;
+                      const endM = totalMin % 60;
+                      return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+                    })()}
+                  </strong>{' '}
+                  ({durationMinutes} min de atendimento)
+                </span>
+              </div>
+            )}
+
+            {/* Live Scheduler Viability Feedback Card */}
+            <div
+              style={{
+                borderRadius: 'var(--radius-md)',
+                padding: '0.85rem 1rem',
+                marginBottom: '1rem',
+                border: viability?.viable
+                  ? '1px solid var(--success-border)'
+                  : viability?.viable === false
+                  ? '1px solid var(--danger-border)'
+                  : '1px solid var(--border-color)',
+                background: viability?.viable
+                  ? 'var(--success-subtle)'
+                  : viability?.viable === false
+                  ? 'var(--danger-subtle)'
+                  : 'var(--bg-secondary)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.85rem' }}>
+                  {evaluating ? (
+                    <span style={{ color: 'var(--text-muted)' }}>Calculando viabilidade geodésica...</span>
+                  ) : viability?.viable ? (
+                    <>
+                      <CheckCircle2 size={16} color="var(--success)" />
+                      <span style={{ color: 'var(--success)' }}>Horário 100% Viável na Rota</span>
+                    </>
+                  ) : viability?.viable === false ? (
+                    <>
+                      <AlertTriangle size={16} color="var(--danger)" />
+                      <span style={{ color: 'var(--danger)' }}>Bloqueio de Rota / Restrição</span>
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }}>Pronto para validação</span>
+                  )}
+                </div>
+
+                {viability?.distanceKm && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    📍 {viability.distanceKm.toFixed(1)} km de deslocamento
+                  </span>
+                )}
+              </div>
+
+              {viability?.viable && viability?.transitTimeMinutes && (
+                <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-body)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Car size={14} color="var(--primary)" />
+                  <span>
+                    Trânsito urbano estimado: <strong>~{viability.transitTimeMinutes} min</strong>.
+                    {viability.estimatedTravelWindow?.departureTime && (
+                      <> Saída sugerida às <strong>{new Date(viability.estimatedTravelWindow.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>.</>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {viability?.viable === false && viability?.reason && (
+                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--danger)', fontWeight: 500 }}>
+                  Motivo: {viability.reason}
+                </div>
+              )}
+            </div>
+
+            {selectedPatient && (
+              <div
+                style={{
+                  background: 'var(--bg-page)',
+                  padding: '0.85rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-light)',
+                  marginBottom: '1rem',
+                  fontSize: '0.825rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  <MapPin size={15} /> Endereço Residencial do Paciente:
+                </div>
+                <div style={{ marginTop: '0.2rem' }}>{selectedPatient.address}</div>
+                {selectedPatient.accessNotes && (
+                  <div style={{ fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    🔑 Acesso: {selectedPatient.accessNotes}
+                  </div>
+                )}
+                {selectedPatient.caregiver && (
+                  <div style={{ color: 'var(--text-body)', marginTop: '0.2rem' }}>
+                    👤 Contato Cuidador(a): {selectedPatient.caregiver}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Orientações de Deslocamento / Notas da Sessão</label>
+              <textarea
+                className="form-textarea"
+                placeholder="Ex: Tocar interfone 42, entrar pela portaria lateral, confirmar vaga de visitante..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={saving || viability?.viable === false}
+              style={{
+                opacity: viability?.viable === false ? 0.6 : 1,
+                cursor: viability?.viable === false ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {saving ? 'Gravando no Prisma...' : 'Confirmar Sessão na Rota'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
