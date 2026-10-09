@@ -9,17 +9,13 @@ import {
   X,
   AlertCircle,
   Sparkles,
-  LogOut,
   UserPlus,
   MapPin,
   Award,
   Palette,
   Eye,
   EyeOff,
-  Phone,
-  FileText,
-  Check,
-  ShieldAlert
+  Check
 } from 'lucide-react';
 import AvatarUploader from './AvatarUploader';
 

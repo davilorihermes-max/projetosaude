@@ -57,7 +57,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('omnihome_user_v3') || localStorage.getItem('omnihome_user');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { return JSON.parse(saved); } catch {}
     }
     return {
       id: 'cmukamckz000112nvi9obl3j5',
@@ -84,7 +84,7 @@ export default function App() {
         );
         if (matched) return matched.id;
         if (u.professionalId) return u.professionalId;
-      } catch (e) {}
+      } catch {}
     }
     return 'doc-3';
   });
@@ -269,7 +269,6 @@ export default function App() {
     selectedDoctorId === 'all'
       ? { id: 'all', name: 'Toda a Equipe Multidisciplinar', profession: 'Central Operacional' }
       : (doctors.find((d) => d.id === selectedDoctorId) || doctors[0] || DOCTORS[0]);
-  const activePatient = patients.find((p) => p.id === activePatientId) || patients[0];
 
   // Actions
   const handleOpenNewProfessional = () => {
