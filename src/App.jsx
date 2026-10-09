@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
+import MonthlyScalePlannerView from './components/MonthlyScalePlannerView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
 import NotificationsModal from './components/NotificationsModal';
@@ -272,12 +273,24 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'monthly-planner' && (
+            <MonthlyScalePlannerView
+              patients={patients}
+              doctors={DOCTORS}
+              onCommitScaleToAppointments={(newAppointments) => {
+                setAppointments((prev) => [...newAppointments, ...prev]);
+                setActiveTab('schedule');
+              }}
+            />
+          )}
+
           {activeTab === 'patients' && (
             <PatientsView
               patients={patients}
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               onOpenNewAppointment={handleOpenNewAppointment}
+              onNavigateToPlanner={() => setActiveTab('monthly-planner')}
             />
           )}
 

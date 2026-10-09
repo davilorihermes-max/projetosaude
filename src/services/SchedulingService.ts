@@ -5,6 +5,14 @@ import {
   ScheduleViabilityReport,
   ExistingAppointment
 } from './scheduler-engine.js';
+import {
+  MonthlyScaleGenerator,
+  PatientTherapyDemand,
+  ProfessionalAvailability,
+  CareTeamRelation,
+  MonthlyScaleResult,
+  PlannedSession
+} from './monthly-scale-generator.js';
 
 export interface EvaluateScheduleInput {
   professionalId: string;
@@ -334,6 +342,204 @@ export class SchedulingService {
         }
       }
     });
+  }
+
+  /**
+   * Gera um plano de escala mensal inteligente cruzando as demandas dos pacientes
+   * com as disponibilidades dos profissionais e restrições de Care Team e Geodésica.
+   */
+  static async generateMonthlyScalePlan(params: {
+    year?: number;
+    month?: number;
+    demands?: PatientTherapyDemand[];
+    availabilities?: ProfessionalAvailability[];
+    careTeams?: CareTeamRelation[];
+  }): Promise<MonthlyScaleResult> {
+    const now = new Date();
+    const year = params.year || now.getFullYear();
+    const month = params.month || (now.getMonth() + 1);
+
+    let demands = params.demands;
+    let availabilities = params.availabilities;
+    let careTeams = params.careTeams;
+
+    // Se demandas ou disponibilidades não forem fornecidas, carrega do banco de dados
+    if (!demands || !availabilities || !careTeams) {
+      const dbPatients = await prisma.patient.findMany({
+        include: {
+          careTeamMembers: {
+            where: { active: true },
+            include: { professional: { include: { user: true } } }
+          }
+        }
+      });
+
+      const dbProfessionals = await prisma.professional.findMany({
+        include: { user: true }
+      });
+
+      // Mapeia careTeams reais
+      careTeams = dbPatients.map((p) => ({
+        patientId: p.id,
+        professionalIds: p.careTeamMembers.map((ct) => ct.professionalId)
+      }));
+
+      // Mapeia demandas padrão caso não enviadas
+      if (!demands) {
+        demands = dbPatients.map((p) => {
+          // Busca especialidade do primeiro profissional do CareTeam
+          const firstMember = p.careTeamMembers[0]?.professional;
+          const therapy = firstMember?.specialty || 'Fisioterapia Cardiorrespiratória & Motora';
+
+          return {
+            patientId: p.id,
+            patientName: p.name,
+            therapyType: therapy,
+            sessionsPerWeek: 2,
+            durationMinutes: 45,
+            preferredShift: 'any',
+            location: { latitude: p.latitude, longitude: p.longitude },
+            address: p.address || 'São Paulo - SP'
+          };
+        });
+      }
+
+      // Mapeia disponibilidades padrão caso não enviadas
+      if (!availabilities) {
+        availabilities = dbProfessionals.map((prof, index) => {
+          // Distribui dias para dar cobertura ampla
+          const days = index % 2 === 0 ? [1, 3, 5] : [2, 4]; // Seg/Qua/Sex ou Ter/Qui
+          const baseLat = prof.latitude ?? -23.561684;
+          const baseLon = prof.longitude ?? -46.655981;
+
+          return {
+            professionalId: prof.id,
+            professionalName: prof.user.name,
+            specialty: prof.specialty,
+            availableDaysOfWeek: days,
+            shifts: ['morning', 'afternoon'] as ('morning' | 'afternoon')[],
+            baseLocation: { latitude: baseLat, longitude: baseLon },
+            maxDailySessions: 5
+          };
+        });
+      }
+    }
+
+    const generator = new MonthlyScaleGenerator();
+    return generator.generateMonthlyScale({
+      year,
+      month,
+      demands,
+      availabilities,
+      careTeams
+    });
+  }
+
+  /**
+   * Persiste as sessões de escala aprovadas no banco de dados Prisma em lote com transação atômica e idempotência
+   */
+  static async commitMonthlyPlan(
+    sessions: PlannedSession[],
+    options?: {
+      batchId?: string;
+      overwriteExisting?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    batchId: string;
+    committedCount: number;
+    appointmentIds: string[];
+  }> {
+    if (!sessions || sessions.length === 0) {
+      return {
+        success: false,
+        batchId: options?.batchId || '',
+        committedCount: 0,
+        appointmentIds: []
+      };
+    }
+
+    const batchId = options?.batchId || `batch-${Date.now()}`;
+    const overwriteExisting = options?.overwriteExisting ?? true;
+
+    // Resolução prévia de instâncias reais para validação
+    const resolvedSessions: {
+      profId: string;
+      patId: string;
+      scheduledTime: Date;
+      durationMinutes: number;
+      latitude: number | null;
+      longitude: number | null;
+      notes: string;
+    }[] = [];
+
+    for (const session of sessions) {
+      const prof = await this.resolveProfessional(session.professionalId);
+      const pat = await this.resolvePatient(session.patientId);
+
+      if (!prof || !pat) {
+        throw new Error(
+          `Impossível persistir sessão: profissional (${session.professionalId}) ou paciente (${session.patientId}) não encontrados no banco.`
+        );
+      }
+
+      const scheduledTime = new Date(`${session.date}T${session.time}:00Z`);
+      resolvedSessions.push({
+        profId: prof.id,
+        patId: pat.id,
+        scheduledTime,
+        durationMinutes: session.durationMinutes,
+        latitude: session.location?.latitude ?? pat.latitude,
+        longitude: session.location?.longitude ?? pat.longitude,
+        notes: `Escala Mensal Planejada: ${session.therapyType} (${session.professionalName}) [Lote: ${batchId}]`
+      });
+    }
+
+    // Executa em transação atômica garantindo tudo-ou-nada
+    const appointmentIds = await prisma.$transaction(async (tx) => {
+      // Se overwriteExisting, remove agendamentos pendentes das datas cobertas para evitar duplicidade
+      if (overwriteExisting && resolvedSessions.length > 0) {
+        const dates = sessions.map((s) => s.date).sort();
+        const minDate = new Date(`${dates[0]}T00:00:00Z`);
+        const maxDate = new Date(`${dates[dates.length - 1]}T23:59:59Z`);
+
+        const patIds = Array.from(new Set(resolvedSessions.map((s) => s.patId)));
+
+        await tx.appointment.deleteMany({
+          where: {
+            patientId: { in: patIds },
+            status: 'SCHEDULED',
+            scheduledTime: { gte: minDate, lte: maxDate }
+          }
+        });
+      }
+
+      const ids: string[] = [];
+      for (const item of resolvedSessions) {
+        const created = await tx.appointment.create({
+          data: {
+            professionalId: item.profId,
+            patientId: item.patId,
+            scheduledTime: item.scheduledTime,
+            durationMinutes: item.durationMinutes,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            status: 'SCHEDULED',
+            notes: item.notes
+          }
+        });
+        ids.push(created.id);
+      }
+
+      return ids;
+    });
+
+    return {
+      success: true,
+      batchId,
+      committedCount: appointmentIds.length,
+      appointmentIds
+    };
   }
 }
 
