@@ -59,12 +59,7 @@ export default function App() {
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return {
-      id: 'cmukamckz000112nvi9obl3j5',
-      name: 'Rafael Fontes',
-      email: 'rafael@omnihomecare.com.br',
-      role: 'PROFESSIONAL'
-    };
+    return null;
   });
 
   // Active Professional & Selected Patient
@@ -86,7 +81,7 @@ export default function App() {
         if (u.professionalId) return u.professionalId;
       } catch {}
     }
-    return 'doc-3';
+    return 'all';
   });
   const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -325,6 +320,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setSelectedDoctorId('all');
     localStorage.removeItem('omnihome_jwt');
     localStorage.removeItem('omnihome_user_v3');
     localStorage.removeItem('omnihome_user');
