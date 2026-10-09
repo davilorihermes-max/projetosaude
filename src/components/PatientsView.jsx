@@ -12,6 +12,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import './PatientsView.css';
+import Avatar from './Avatar';
 
 export default function PatientsView({
   patients = [],
@@ -152,7 +153,12 @@ export default function PatientsView({
             return (
               <div key={patient.id} className="patient-card">
                 <div className="patient-card-header">
-                  <img src={patient.avatar} alt={patient.name} className="patient-card-avatar" />
+                  <Avatar
+                    src={patient.avatar}
+                    name={patient.name}
+                    size={48}
+                    className="patient-card-avatar"
+                  />
                   <div className="patient-card-info">
                     <h4>{patient.name}</h4>
                     <p>

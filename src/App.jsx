@@ -175,7 +175,7 @@ export default function App() {
                     specialty: p.specialty || 'Atendimento Multidisciplinar',
                     councilNumber: p.crm || 'Registro Ativo',
                     crm: p.crm || 'Registro Ativo',
-                    avatar: 'https://images.unsplash.com/photo-1594824813576-90c741492ba6?w=150&auto=format&fit=crop&q=80',
+                    avatar: p.user?.avatar || null,
                     color: '#0d9488',
                     baseAddress: 'São Paulo - SP',
                     baseCoordinates: {
@@ -327,6 +327,7 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('omnihome_jwt');
     localStorage.removeItem('omnihome_user_v3');
+    localStorage.removeItem('omnihome_user');
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -541,7 +542,7 @@ export default function App() {
                 specialty: user.professional.specialty || 'Atendimento Multidisciplinar',
                 councilNumber: user.professional.crm || 'Registro Ativo',
                 crm: user.professional.crm || 'Registro Ativo',
-                avatar: user.avatar || 'https://images.unsplash.com/photo-1594824813576-90c741492ba6?w=150&auto=format&fit=crop&q=80',
+                avatar: user.avatar || null,
                 color: '#0d9488',
                 baseAddress: 'São Paulo - SP',
                 baseCoordinates: {

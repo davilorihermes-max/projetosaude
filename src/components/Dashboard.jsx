@@ -20,6 +20,7 @@ import {
   CalendarPlus
 } from 'lucide-react';
 import './Dashboard.css';
+import Avatar from './Avatar';
 
 export default function Dashboard({
   appointments = [],
@@ -247,9 +248,10 @@ export default function Dashboard({
 
                       <div className={`queue-card ${isAttending ? 'active-attending' : ''}`}>
                         <div className="queue-patient-info">
-                          <img
-                            src={patient?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
-                            alt={patient?.name}
+                          <Avatar
+                            src={patient?.avatar}
+                            name={patient?.name}
+                            size={44}
                             className="queue-patient-avatar"
                           />
                           <div>

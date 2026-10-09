@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Building2, Phone, Mail, MapPin, Shield, RefreshCw, CheckCircle, Users, BellRing, UserPlus } from 'lucide-react';
 import { CLINIC_INFO } from '../data/mockData';
+import Avatar from './Avatar';
 
 export default function ClinicSettingsView({
   doctors = [],
@@ -191,10 +192,11 @@ export default function ClinicSettingsView({
                 transition: 'all 0.15s ease'
               }}
             >
-              <img
+              <Avatar
                 src={doc.avatar}
-                alt={doc.name}
-                style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover' }}
+                name={doc.name}
+                size={46}
+                color={doc.color}
               />
               <div style={{ minWidth: 0 }}>
                 <strong style={{ fontSize: '0.875rem', color: 'var(--text-headline)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

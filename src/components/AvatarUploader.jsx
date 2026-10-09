@@ -1,6 +1,7 @@
 // src/components/AvatarUploader.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, Check, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
+import { Camera, Upload, X, Check, RefreshCw, AlertCircle, Sparkles, Trash2 } from 'lucide-react';
+import Avatar from './Avatar';
 
 const DEFAULT_PRESET_AVATARS = [
   'https://images.unsplash.com/photo-1594824813576-90c741492ba6?w=150&auto=format&fit=crop&q=80',
@@ -13,6 +14,8 @@ const DEFAULT_PRESET_AVATARS = [
 export default function AvatarUploader({
   avatar,
   onChangeAvatar,
+  name = '',
+  color,
   borderColor = 'var(--primary)'
 }) {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -217,14 +220,12 @@ export default function AvatarUploader({
         >
           {/* Avatar Preview */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            <img
-              src={avatar || DEFAULT_PRESET_AVATARS[0]}
-              alt="Foto do Perfil"
+            <Avatar
+              src={avatar}
+              name={name || 'Profissional'}
+              size={64}
+              color={color}
               style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                objectFit: 'cover',
                 border: `3px solid ${borderColor}`,
                 boxShadow: 'var(--shadow-sm)'
               }}
@@ -265,10 +266,31 @@ export default function AvatarUploader({
                 <Upload size={14} color="var(--primary)" />
                 <span>Anexar Arquivo</span>
               </button>
+
+              {avatar && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{
+                    fontSize: '0.78rem',
+                    padding: '0.4rem 0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    color: 'var(--danger)',
+                    borderColor: 'var(--danger-border)'
+                  }}
+                  onClick={() => onChangeAvatar(null)}
+                  title="Remover foto e utilizar iniciais elegantes"
+                >
+                  <X size={14} />
+                  <span>Remover Foto</span>
+                </button>
+              )}
             </div>
 
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Use sua câmera ou envie JPG, PNG ou WebP do dispositivo.
+              {avatar ? 'Foto adicionada. Você pode alterá-la ou voltar às iniciais.' : 'Nenhuma foto anexada. O sistema exibirá suas iniciais profissionais estilizadas.'}
             </span>
           </div>
 
@@ -304,11 +326,35 @@ export default function AvatarUploader({
       )}
 
       {/* Sugestões rápidas de fotos ilustrativas */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
           Ou escolha uma sugestão:
         </span>
-        <div style={{ display: 'flex', gap: '0.35rem' }}>
+        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            style={{
+              width: '26px',
+              height: '26px',
+              borderRadius: '50%',
+              padding: 0,
+              border: !avatar ? `2px solid ${borderColor}` : '1px solid var(--border-light)',
+              cursor: 'pointer',
+              background: 'var(--bg-card)',
+              color: 'var(--primary)',
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: !avatar ? 'scale(1.15)' : 'scale(1)',
+              transition: 'all 0.15s ease'
+            }}
+            onClick={() => onChangeAvatar(null)}
+            title="Usar iniciais estilizadas (sem foto)"
+          >
+            Aa
+          </button>
           {DEFAULT_PRESET_AVATARS.map((url, idx) => (
             <button
               key={idx}
@@ -329,7 +375,7 @@ export default function AvatarUploader({
               onClick={() => onChangeAvatar(url)}
               title="Foto de exemplo"
             >
-              <img src={url} alt={`Exemplo ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Avatar src={url} name={`Exemplo ${idx + 1}`} size={26} />
             </button>
           ))}
         </div>

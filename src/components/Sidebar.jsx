@@ -11,6 +11,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import './Sidebar.css';
+import Avatar from './Avatar';
 
 export default function Sidebar({
   activeTab,
@@ -88,9 +89,11 @@ export default function Sidebar({
           title={currentUser ? "Clique para gerenciar seu Perfil Profissional" : "Clique para entrar ou criar perfil"}
           style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
         >
-          <img
-            src={doctor?.avatar || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80'}
-            alt={doctor?.name || 'Profissional'}
+          <Avatar
+            src={doctor?.avatar}
+            name={currentUser?.name || doctor?.name || 'Profissional'}
+            size={40}
+            color={doctor?.color || 'var(--primary)'}
             className="profile-avatar"
           />
           <div className="profile-details">

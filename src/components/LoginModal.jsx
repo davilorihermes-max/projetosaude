@@ -97,7 +97,7 @@ export default function LoginModal({
   const [regBaseAddress, setRegBaseAddress] = useState('Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP');
   const [regCoordinates, setRegCoordinates] = useState({ latitude: -23.585000, longitude: -46.638000 });
   const [regColor, setRegColor] = useState('#0d9488');
-  const [regAvatar, setRegAvatar] = useState('https://images.unsplash.com/photo-1594824813576-90c741492ba6?w=150&auto=format&fit=crop&q=80');
+  const [regAvatar, setRegAvatar] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -438,6 +438,7 @@ export default function LoginModal({
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', padding: '0 1.5rem', background: 'var(--bg-card)' }}>
           <button
             type="button"
+            className="login-tab-login"
             style={{
               flex: 1,
               padding: '0.85rem 1rem',
@@ -464,6 +465,7 @@ export default function LoginModal({
           </button>
           <button
             type="button"
+            className="login-tab-register"
             style={{
               flex: 1,
               padding: '0.85rem 1rem',
@@ -939,6 +941,8 @@ export default function LoginModal({
                 <AvatarUploader
                   avatar={regAvatar}
                   onChangeAvatar={setRegAvatar}
+                  name={regName}
+                  color={regColor}
                   borderColor={regColor}
                 />
               </div>

@@ -15,6 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import AvatarUploader from './AvatarUploader';
+import Avatar from './Avatar';
 
 const COLOR_PRESETS = [
   { name: 'Âmbar', hex: '#d97706' },
@@ -182,14 +183,12 @@ export default function ProfileModal({
                 marginBottom: '1.25rem'
               }}
             >
-              <img
+              <Avatar
                 src={avatar}
-                alt={name}
+                name={name || 'Profissional'}
+                size={68}
+                color={color}
                 style={{
-                  width: '68px',
-                  height: '68px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
                   border: `3px solid ${color}`,
                   boxShadow: 'var(--shadow-sm)'
                 }}
@@ -404,6 +403,8 @@ export default function ProfileModal({
               <AvatarUploader
                 avatar={avatar}
                 onChangeAvatar={setAvatar}
+                name={name}
+                color={color}
                 borderColor={color}
               />
             </div>

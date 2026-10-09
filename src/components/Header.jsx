@@ -2,6 +2,7 @@
 import React from 'react';
 import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck } from 'lucide-react';
 import './Header.css';
+import Avatar from './Avatar';
 
 export default function Header({
   searchQuery,
@@ -55,10 +56,10 @@ export default function Header({
           }}
           title={currentUser ? "Meu Perfil Profissional (JWT Ativo)" : "Entrar ou Criar Perfil"}
         >
-          {currentUser?.role === 'ADMIN' ? (
-            <ShieldCheck size={15} color="var(--primary)" />
+          {currentUser ? (
+            <Avatar src={currentUser.avatar} name={currentUser.name} size={20} />
           ) : (
-            <KeyRound size={15} color={currentUser ? 'var(--success)' : 'var(--primary)'} />
+            <KeyRound size={15} color="var(--primary)" />
           )}
           <span>
             {currentUser ? `${currentUser.name} (Perfil)` : 'Entrar / Criar Perfil'}

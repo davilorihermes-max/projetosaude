@@ -13,6 +13,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import './ScheduleView.css';
+import Avatar from './Avatar';
 
 function timeToMinutes(timeStr) {
   if (!timeStr) return 0;
@@ -342,10 +343,10 @@ export default function ScheduleView({
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <img
-                          src={patient?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
-                          alt={patient?.name}
-                          style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover' }}
+                        <Avatar
+                          src={patient?.avatar}
+                          name={patient?.name}
+                          size={46}
                         />
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
