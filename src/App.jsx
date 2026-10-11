@@ -7,6 +7,7 @@ import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
 import MonthlyScalePlannerView from './components/MonthlyScalePlannerView';
+import FinancialSettlementView from './components/FinancialSettlementView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
 import NotificationsModal from './components/NotificationsModal';
@@ -281,6 +282,14 @@ export default function App() {
                 setAppointments((prev) => [...newAppointments, ...prev]);
                 setActiveTab('schedule');
               }}
+            />
+          )}
+
+          {activeTab === 'financial' && (
+            <FinancialSettlementView
+              doctors={DOCTORS}
+              patients={patients}
+              appointments={appointments}
             />
           )}
 

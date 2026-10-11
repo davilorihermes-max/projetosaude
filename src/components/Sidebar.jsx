@@ -9,7 +9,8 @@ import {
   Sun,
   Activity,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  DollarSign
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -27,6 +28,7 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
     { id: 'schedule', label: 'Agenda & Deslocamento', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} a realizar` : null },
     { id: 'monthly-planner', label: 'Planejador Mensal', icon: CalendarCheck, badge: 'Motor IA' },
+    { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, badge: 'Repasses' },
     { id: 'patients', label: 'Pacientes & Domicílios', icon: Users },
     { id: 'clinic', label: 'Central Operacional', icon: Settings }
   ];
