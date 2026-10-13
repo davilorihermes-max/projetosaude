@@ -1,4 +1,4 @@
-import { SettlementPeriodType, SettlementStatus } from '@prisma/client';
+import { SettlementPeriodType, SettlementStatus, ScheduleType } from '@prisma/client';
 
 export type PricingRuleType = 'EXACT_ADDRESS' | 'PATIENT_DEFAULT' | 'NOT_CONFIGURED';
 
@@ -18,6 +18,7 @@ export interface SettlementPreviewItem {
   addressFormatted: string;
   chargedAmount: number;
   ruleApplied: PricingRuleType;
+  scheduleType: ScheduleType;
 }
 
 export interface UnpricedAttendanceAlert {
@@ -37,6 +38,7 @@ export interface SettlementPreviewResult {
   periodType: SettlementPeriodType;
   periodStart: Date;
   periodEnd: Date;
+  scheduleTypeFilter: 'ALL' | 'INSTITUTIONAL_SCALE' | 'AUTONOMOUS_APPOINTMENT';
   totalEligibleSessions: number;
   totalGrossAmount: number;
   items: SettlementPreviewItem[];
@@ -48,5 +50,42 @@ export interface GenerateSettlementInput {
   periodType: SettlementPeriodType;
   periodStart: Date;
   periodEnd: Date;
+  scheduleTypeFilter?: 'ALL' | 'INSTITUTIONAL_SCALE' | 'AUTONOMOUS_APPOINTMENT';
   allowUnpricedOverride?: boolean;
+}
+
+export interface MarkAsPaidInput {
+  settlementId: string;
+  paidAt?: Date;
+  notes?: string;
+}
+
+export interface FinancialSummaryFilters {
+  startDate?: Date;
+  endDate?: Date;
+  professionalId?: string;
+}
+
+export interface FinancialSummaryResult {
+  totalGrossSettled: number;
+  totalDraftAmount: number;
+  totalApprovedAmount: number;
+  totalPaidAmount: number;
+  totalSessionsCount: number;
+  averageSessionPrice: number;
+  settlementsCount: {
+    draft: number;
+    pendingReview: number;
+    approved: number;
+    paid: number;
+    cancelled: number;
+  };
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }

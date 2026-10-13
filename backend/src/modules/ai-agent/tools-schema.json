@@ -112,6 +112,70 @@
           "required": ["patientId", "professionalId"]
         }
       }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "preview_financial_settlement",
+        "description": "Calcula a prévia de fechamento financeiro para um profissional de saúde em um período (semanal, decendial ou mensal), reportando o valor bruto apurado, sessões computadas e pendências de precificação.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "professionalId": {
+              "type": "string",
+              "description": "UUID do profissional de saúde"
+            },
+            "periodType": {
+              "type": "string",
+              "enum": ["WEEKLY", "DECENDIAL", "MONTHLY"],
+              "description": "Tipo do ciclo de apuração"
+            },
+            "periodStart": {
+              "type": "string",
+              "format": "date",
+              "description": "Data inicial (YYYY-MM-DD)"
+            },
+            "periodEnd": {
+              "type": "string",
+              "format": "date",
+              "description": "Data final (YYYY-MM-DD)"
+            },
+            "scheduleTypeFilter": {
+              "type": "string",
+              "enum": ["ALL", "INSTITUTIONAL_SCALE", "AUTONOMOUS_APPOINTMENT"],
+              "default": "ALL",
+              "description": "Filtrar por escala institucional, atendimento autônomo ou todos"
+            }
+          },
+          "required": ["professionalId", "periodType", "periodStart", "periodEnd"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_financial_summary",
+        "description": "Retorna o sumário financeiro consolidado da clínica (KPIs): total faturado, aprovado, pago, em rascunho, quantidade de sessões e ticket médio.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date",
+              "description": "Data inicial do período (opcional)"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date",
+              "description": "Data final do período (opcional)"
+            },
+            "professionalId": {
+              "type": "string",
+              "description": "Filtrar por profissional específico (opcional)"
+            }
+          }
+        }
+      }
     }
   ]
 }

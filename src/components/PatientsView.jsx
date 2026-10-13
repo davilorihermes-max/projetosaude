@@ -19,7 +19,8 @@ export default function PatientsView({
   appointments = [],
   activeDoctor,
   onOpenNewPatient,
-  onOpenNewAppointment
+  onOpenNewAppointment,
+  onNavigateToPlanner
 }) {
   const [search, setSearch] = useState('');
   const [selectedInsurance, setSelectedInsurance] = useState('all');
@@ -86,6 +87,36 @@ export default function PatientsView({
             <UserPlus size={16} /> Cadastrar Paciente
           </button>
         </div>
+      </div>
+
+      {/* Banner de Demandas Terapêuticas & Escala */}
+      <div style={{
+        background: 'var(--primary-subtle)',
+        border: '1px solid var(--primary-border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '0.85rem 1.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        marginBottom: '1rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <ShieldCheck size={20} color="var(--primary)" />
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-headline)' }}>
+            <strong>Necessidades Terapêuticas & Escala Mensal:</strong> Cada paciente pode ter até 3 demandas terapêuticas cruzadas com os horários reais dos terapeutas.
+          </span>
+        </div>
+        {onNavigateToPlanner && (
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem', fontWeight: 600 }}
+            onClick={onNavigateToPlanner}
+          >
+            ⚙️ Abrir Planejador de Demandas & Horários ➡️
+          </button>
+        )}
       </div>
 
       {/* Scope and Filters Bar */}
@@ -202,10 +233,32 @@ export default function PatientsView({
                   )}
                 </div>
 
-                <div className="patient-card-actions">
+                <div className="patient-card-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {onNavigateToPlanner && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{
+                        width: '100%',
+                        fontSize: '0.78rem',
+                        padding: '0.45rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        border: '1px solid #93c5fd',
+                        color: '#1d4ed8',
+                        background: '#eff6ff',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      onClick={onNavigateToPlanner}
+                    >
+                      ⚙️ Configurar Demandas (Até 3) & Escala
+                    </button>
+                  )}
                   <button
                     className="btn btn-primary"
-                    style={{ flex: 1, fontSize: '0.8rem', padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                     onClick={() => onOpenNewAppointment(patient.id)}
                   >
                     <CalendarPlus size={15} /> Agendar Sessão Domiciliar
