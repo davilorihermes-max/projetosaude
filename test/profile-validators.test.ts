@@ -19,16 +19,94 @@ describe('Healthcare Profile Creation & Security Validators', () => {
   });
 
   describe('RegisterSchema Validation Requirements', () => {
-    it('should reject when name has less than 2 words or is too short', () => {
-      const result = RegisterSchema.safeParse({
-        name: 'Davi',
-        email: 'davi@saude.com.br',
-        password: 'Password123!'
+    it('should reject invalid names such as "n", single word or less than 5 chars', () => {
+      const invalidNames = ['n', 'Dr', 'Davi', 'a b', '1234', '   '];
+      for (const name of invalidNames) {
+        const result = RegisterSchema.safeParse({
+          name,
+          email: 'davi@saude.com.br',
+          password: 'Password123!'
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const errors = result.error.flatten().fieldErrors;
+          expect(errors.name).toBeDefined();
+        }
+      }
+    });
+
+    it('should reject malformed or non-corporate emails such as "x@n", "test@", "@domain.com"', () => {
+      const invalidEmails = ['x@n', 'test@', '@domain.com', 'user@domain', 'plainaddress', 'a@b.c'];
+      for (const email of invalidEmails) {
+        const result = RegisterSchema.safeParse({
+          name: 'Dr. Henrique Silva',
+          email,
+          password: 'Password123!'
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const errors = result.error.flatten().fieldErrors;
+          expect(errors.email).toBeDefined();
+        }
+      }
+    });
+
+    it('should reject regulatory council incoherence (e.g. Fisioterapia with CRM)', () => {
+      // Fisioterapia MUST be CREFITO, NEVER CRM!
+      const fisioWithCrm = RegisterSchema.safeParse({
+        name: 'Dr. Henrique Silva',
+        email: 'henrique.silva@omnisaude.med.br',
+        password: 'Password123!',
+        profession: 'Fisioterapia',
+        councilNumber: 'CRM/SP 987654'
       });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const errors = result.error.flatten().fieldErrors;
-        expect(errors.name).toBeDefined();
+      expect(fisioWithCrm.success).toBe(false);
+      if (!fisioWithCrm.success) {
+        const errs = fisioWithCrm.error.issues;
+        expect(errs.some((i) => i.message.includes('CREFITO'))).toBe(true);
+      }
+
+      // Medicina MUST be CRM, NEVER CREFITO!
+      const medWithCrefito = RegisterSchema.safeParse({
+        name: 'Dra. Gabriela Souza',
+        email: 'gabriela@omnisaude.med.br',
+        password: 'Password123!',
+        profession: 'Medicina',
+        councilNumber: 'CREFITO-3/SP 88.340'
+      });
+      expect(medWithCrefito.success).toBe(false);
+
+      // Enfermagem MUST be COREN, NEVER CRM!
+      const enfWithCrm = RegisterSchema.safeParse({
+        name: 'Enf. Juliana Mendes',
+        email: 'juliana@omnisaude.med.br',
+        password: 'Password123!',
+        profession: 'Enfermagem',
+        councilNumber: 'CRM-SP 123.456'
+      });
+      expect(enfWithCrm.success).toBe(false);
+    });
+
+    it('should accept valid matching councils for each profession', () => {
+      const validPairs = [
+        { profession: 'Fisioterapia', council: 'CREFITO-3/SP 88.340-F' },
+        { profession: 'Medicina', council: 'CRM-SP 123.456' },
+        { profession: 'Enfermagem', council: 'COREN-SP 230.110' },
+        { profession: 'Nutrição', council: 'CRN-3/SP 45.190' },
+        { profession: 'Fonoaudiologia', council: 'CRFa-SP 14.520' },
+        { profession: 'Psicologia', council: 'CRP-06/SP 98.760' }
+      ];
+
+      for (const pair of validPairs) {
+        const result = RegisterSchema.safeParse({
+          name: 'Profissional da Saúde',
+          email: 'profissional@omnisaude.med.br',
+          password: 'Password123!',
+          profession: pair.profession,
+          specialty: 'Atendimento Domiciliar',
+          councilNumber: pair.council
+        });
+        expect(result.success).toBe(true);
       }
     });
 
@@ -56,7 +134,7 @@ describe('Healthcare Profile Creation & Security Validators', () => {
         name: 'Dra. Gabriela Souza',
         email: 'gabriela.souza@hospital.com.br',
         password: 'HospitalSec@2026',
-        profession: 'MEDICINA',
+        profession: 'Medicina',
         specialty: 'Pediatria Neonatal',
         councilNumber: 'CRM/RJ 204910',
         cpf: '529.982.247-25',

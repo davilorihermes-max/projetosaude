@@ -18,6 +18,12 @@ import {
   Check
 } from 'lucide-react';
 import AvatarUploader from './AvatarUploader';
+import {
+  isValidCPF,
+  validateCouncilForProfession,
+  CORPORATE_EMAIL_REGEX,
+  PROFESSION_COUNCIL_MAP
+} from '../lib/validators';
 
 const COLOR_PRESETS = [
   { name: 'Âmbar', hex: '#d97706' },
@@ -37,34 +43,6 @@ const LOCATION_PRESETS = [
   { name: 'Consolação', address: 'Rua Bela Cintra, 900 - Consolação, São Paulo - SP', lat: -23.555000, lng: -46.661000 },
   { name: 'Moema', address: 'Av. Moema, 450 - Moema, São Paulo - SP', lat: -23.602000, lng: -46.664000 }
 ];
-
-/**
- * Validação algorítmica de CPF (Receita Federal)
- */
-function isValidCPF(cpf) {
-  if (!cpf) return false;
-  const clean = cpf.replace(/\D/g, '');
-  if (clean.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(clean)) return false;
-
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(clean.charAt(i), 10) * (10 - i);
-  }
-  let rev = 11 - (sum % 11);
-  if (rev === 10 || rev === 11) rev = 0;
-  if (rev !== parseInt(clean.charAt(9), 10)) return false;
-
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(clean.charAt(i), 10) * (11 - i);
-  }
-  rev = 11 - (sum % 11);
-  if (rev === 10 || rev === 11) rev = 0;
-  if (rev !== parseInt(clean.charAt(10), 10)) return false;
-
-  return true;
-}
 
 export default function LoginModal({
   isOpen,
@@ -244,16 +222,16 @@ export default function LoginModal({
     setSuccessMsg('');
 
     // 1. Validação Estrita de Nome Completo
-    const nameWords = regName.trim().split(/\s+/);
-    if (nameWords.length < 2 || nameWords.some((w) => w.length < 2)) {
-      setErrorMsg('Requisito de Identificação: Informe seu nome e sobrenome completos (mínimo duas palavras).');
+    const nameTrimmed = regName.trim();
+    const nameWords = nameTrimmed.split(/\s+/);
+    if (nameTrimmed.length < 5 || nameWords.length < 2 || nameWords.some((w) => w.length < 2)) {
+      setErrorMsg('Requisito de Identificação: Informe seu nome e sobrenome completos (mínimo 5 caracteres e duas palavras, ex: Dr. Henrique Silva).');
       return;
     }
 
     // 2. Validação de E-mail Corporativo
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(regEmail.trim().toLowerCase())) {
-      setErrorMsg('Requisito de Acesso: Informe um e-mail corporativo válido (ex: profissional@omnisaude.com.br).');
+    if (!regEmail || !CORPORATE_EMAIL_REGEX.test(regEmail.trim())) {
+      setErrorMsg('Requisito de Acesso: Informe um e-mail corporativo válido com domínio e extensão (ex: profissional@omnisaude.com.br).');
       return;
     }
 
@@ -270,9 +248,15 @@ export default function LoginModal({
       return;
     }
 
-    // 5. Validação de Registro de Conselho
-    if (!regCouncilNumber || regCouncilNumber.trim().length < 5) {
+    // 5. Validação de Registro de Conselho & Compatibilidade com a Profissão
+    if (!regCouncilNumber || regCouncilNumber.trim().length < 4) {
       setErrorMsg(`Requisito Profissional: Informe seu registro ativo com conselho e UF (ex: ${getCouncilPlaceholder(regProfession)}).`);
+      return;
+    }
+
+    const councilValidation = validateCouncilForProfession(regProfession, regCouncilNumber.trim());
+    if (!councilValidation.isValid) {
+      setErrorMsg(councilValidation.error || 'Registro no conselho incompatível com a profissão.');
       return;
     }
 
@@ -736,6 +720,11 @@ export default function LoginModal({
                       onChange={(e) => setRegCouncilNumber(e.target.value)}
                       required
                     />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+                      {PROFESSION_COUNCIL_MAP[regProfession]
+                        ? `Conselho regulamentar: ${PROFESSION_COUNCIL_MAP[regProfession].acronym} (ex: ${PROFESSION_COUNCIL_MAP[regProfession].example})`
+                        : 'Informe conselho e UF'}
+                    </span>
                   </div>
                 </div>
 
