@@ -9,9 +9,11 @@ import {
   Sun,
   Activity,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  LogIn
 } from 'lucide-react';
 import './Sidebar.css';
+import Avatar from './Avatar';
 
 export default function Sidebar({
   activeTab,
@@ -21,7 +23,8 @@ export default function Sidebar({
   waitingCount = 0,
   doctor,
   currentUser,
-  onOpenLoginModal
+  onOpenLoginModal,
+  onOpenProfileModal
 }) {
   const navItems = [
     { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
@@ -77,25 +80,70 @@ export default function Sidebar({
           <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{darkMode ? 'ON' : 'OFF'}</span>
         </button>
 
-        <div
-          className="doctor-profile-card"
-          onClick={onOpenLoginModal}
-          title="Clique para gerenciar autenticação / Sessão JWT"
-          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-        >
-          <img
-            src={doctor?.avatar || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80'}
-            alt={doctor?.name || 'Profissional'}
-            className="profile-avatar"
-          />
-          <div className="profile-details">
-            <span className="profile-name">{currentUser?.name || doctor?.name || 'Rafael Fontes'}</span>
-            <span className="profile-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }}></span>
-              {currentUser ? `JWT (${currentUser.role})` : `${doctor?.profession || 'Profissional'} • ${doctor?.councilNumber || doctor?.crm || 'Registro Ativo'}`}
-            </span>
+        {currentUser ? (
+          <div
+            className="doctor-profile-card"
+            onClick={() => {
+              if (onOpenProfileModal) onOpenProfileModal();
+            }}
+            title="Clique para gerenciar seu Perfil Profissional"
+            style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          >
+            <Avatar
+              src={currentUser?.avatar || doctor?.avatar}
+              name={currentUser?.name || doctor?.name || 'Profissional'}
+              size={40}
+              color={doctor?.color || 'var(--primary)'}
+              className="profile-avatar"
+            />
+            <div className="profile-details">
+              <span className="profile-name">{currentUser?.name || doctor?.name || 'Profissional'}</span>
+              <span className="profile-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }}></span>
+                {currentUser ? `JWT (${currentUser.role})` : `${doctor?.profession || 'Profissional'} • ${doctor?.councilNumber || doctor?.crm || 'Registro Ativo'}`}
+              </span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            className="doctor-profile-card signed-out-card"
+            onClick={() => {
+              if (onOpenLoginModal) onOpenLoginModal();
+            }}
+            title="Clique para entrar na conta ou cadastrar perfil"
+            style={{
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: '1px dashed var(--primary-border)',
+              background: 'var(--bg-card)'
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: 'var(--primary-subtle)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <LogIn size={18} />
+            </div>
+            <div className="profile-details">
+              <span className="profile-name" style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                Entrar na Conta
+              </span>
+              <span className="profile-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-muted)' }}></span>
+                Sessão Desconectada
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );
