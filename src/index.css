@@ -128,7 +128,15 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
 }
 
-button, input, select, textarea {
+button {
+  font-family: inherit;
+  border: none;
+  background-color: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+input, select, textarea {
   font-family: inherit;
 }
 
