@@ -59,6 +59,11 @@
   --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
   --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
 
+  --border-color: var(--border-light);
+  --text-primary: var(--text-headline);
+  --text-secondary: var(--text-muted);
+  --bg-primary: var(--bg-surface);
+
   /* Radii */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -81,6 +86,11 @@
 
   --border-light: #1e293b;
   --border-subtle: #172033;
+
+  --border-color: var(--border-light);
+  --text-primary: var(--text-headline);
+  --text-secondary: var(--text-muted);
+  --bg-primary: var(--bg-surface);
 
   --text-headline: #f8fafc;
   --text-body: #cbd5e1;
@@ -188,7 +198,11 @@ input, select, textarea {
 }
 
 /* Buttons */
-.btn {
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-outline-primary,
+.btn-success {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -204,7 +218,11 @@ input, select, textarea {
   white-space: nowrap;
 }
 
-.btn:active {
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.btn-outline-primary:active,
+.btn-success:active {
   transform: translateY(1px);
 }
 

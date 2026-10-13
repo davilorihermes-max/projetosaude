@@ -581,32 +581,68 @@
   font-weight: 700;
 }
 
-.btn-secondary {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-weight: 600;
-  cursor: pointer;
+/* Operational Guidance Banner */
+.planner-operational-banner {
+  border-radius: 12px;
+  padding: 0.9rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  transition: all var(--transition-fast, 150ms ease);
 }
 
-.btn-secondary:hover {
-  background: #e2e8f0;
+.planner-operational-banner.tab-demands {
+  background: var(--primary-subtle);
+  border: 1px solid var(--primary-border);
 }
 
-.btn-primary {
-  background: #2563eb;
-  border: none;
+.planner-operational-banner.tab-calendar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+}
+
+.planner-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.planner-banner-badge {
+  background: var(--primary);
   color: #ffffff;
   border-radius: 8px;
-  padding: 0.6rem 1.25rem;
-  font-weight: 600;
-  cursor: pointer;
+  padding: 4px 8px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
-.btn-primary:hover {
-  background: #1d4ed8;
+.tab-calendar .planner-banner-badge {
+  background: var(--success);
+}
+
+.planner-banner-title {
+  font-weight: 700;
+  color: var(--text-headline);
+  font-size: 0.9rem;
+}
+
+.planner-banner-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.planner-banner-action-btn {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
 }
 
 /* Card Controls */
@@ -1114,4 +1150,238 @@
   background: #faf5ff;
   border-radius: 8px;
   border: 1px dashed #d8b4fe;
+}
+
+/* ========================================================
+   Monthly Scale Planner - Dark Mode Overrides
+   ======================================================== */
+[data-theme='dark'] .planner-header,
+[data-theme='dark'] .tab-content {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .select-month,
+[data-theme='dark'] .filter-select {
+  background: var(--bg-surface);
+  color: var(--text-headline);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .planner-tab-btn {
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .planner-tab-btn.active {
+  color: var(--primary);
+}
+
+[data-theme='dark'] .tab-badge {
+  background: var(--bg-surface-hover);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .tab-badge.badge-amber {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+[data-theme='dark'] .calendar-day-column {
+  border-color: var(--border-light);
+  background: var(--bg-page);
+}
+
+[data-theme='dark'] .day-header {
+  background: var(--bg-surface);
+  color: var(--text-headline);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .session-card {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .session-time,
+[data-theme='dark'] .session-patient {
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .session-therapist {
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .session-transit {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+[data-theme='dark'] .coverage-table th {
+  background: var(--bg-page);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .coverage-table td {
+  color: var(--text-headline);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .progress-bar-container {
+  background: var(--bg-surface-hover);
+}
+
+[data-theme='dark'] .bottleneck-card {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #d97706;
+}
+
+[data-theme='dark'] .bottleneck-card.critical {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+[data-theme='dark'] .chip-btn {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .chip-btn.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .stepper-btn {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .stepper-btn:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  border-color: var(--text-muted);
+}
+
+[data-theme='dark'] .careteam-select-pill {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .careteam-select-pill.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .time-window-row {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .time-window-row.disabled {
+  background: var(--bg-page);
+}
+
+[data-theme='dark'] .day-check-label {
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .time-range-inputs {
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .time-input-compact {
+  background: var(--bg-page);
+  border-color: var(--border-light);
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .single-demand-card {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .btn-add-demand-inline {
+  background: var(--primary-subtle);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .preset-btn {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .therapy-select-compact {
+  background: var(--primary-subtle);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .btn-edit-patient-inline {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .fixed-appointments-section {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .fixed-appointments-title {
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .fixed-appointment-card {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+[data-theme='dark'] .fixed-card-patient {
+  color: var(--text-headline);
+}
+
+[data-theme='dark'] .fixed-card-therapy {
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .fixed-card-notes {
+  background: var(--bg-surface);
+  border-color: var(--border-light);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .fixed-empty-state {
+  background: rgba(147, 51, 234, 0.08);
+  border-color: rgba(147, 51, 234, 0.3);
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .planner-modal {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .modal-header {
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .modal-footer {
+  background: var(--bg-page);
+  border-color: var(--border-light);
+}
+
+[data-theme='dark'] .planner-input,
+[data-theme='dark'] .planner-select {
+  background: var(--bg-page);
+  border-color: var(--border-light);
+  color: var(--text-headline);
 }

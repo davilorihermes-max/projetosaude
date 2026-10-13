@@ -1051,38 +1051,18 @@ export default function MonthlyScalePlannerView({
       )}
 
       {/* Banner de Direcionamento Operacional */}
-      <div style={{
-        background: activeTab === 'demands' ? '#eff6ff' : '#f8fafc',
-        border: activeTab === 'demands' ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-        borderRadius: '12px',
-        padding: '0.9rem 1.25rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '0.75rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            background: activeTab === 'demands' ? '#2563eb' : '#059669',
-            color: '#fff',
-            borderRadius: '8px',
-            padding: '4px 8px',
-            fontWeight: 800,
-            fontSize: '0.8rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem'
-          }}>
+      <div className={`planner-operational-banner ${activeTab === 'demands' ? 'tab-demands' : 'tab-calendar'}`}>
+        <div className="planner-banner-content">
+          <div className="planner-banner-badge">
             {activeTab === 'demands' ? '⚙️ ETAPA 1 (CONFIGURAÇÃO)' : '📅 ETAPA 2 (RESULTADO)'}
           </div>
           <div>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+            <div className="planner-banner-title">
               {activeTab === 'demands'
                 ? 'Definição de Horários dos Terapeutas & Demandas dos Pacientes'
                 : 'Grade de Escala Mensal Gerada pelo Motor de Roteirização Urbana'}
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            <div className="planner-banner-desc">
               {activeTab === 'demands'
                 ? 'Indique o horário de início e fim da jornada diária dos terapeutas (sem limite artificial de atendimentos) e até 3 demandas por paciente abaixo.'
                 : 'Acompanhe as sessões agendadas dia a dia, horários exatos e tempos de trânsito em rota geodésica urbana.'}
@@ -1091,8 +1071,7 @@ export default function MonthlyScalePlannerView({
         </div>
 
         <button
-          className="btn btn-secondary"
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+          className="btn btn-secondary planner-banner-action-btn"
           onClick={() => setActiveTab(activeTab === 'demands' ? 'calendar' : 'demands')}
         >
           {activeTab === 'demands' ? 'Ver Grade Mensal Gerada ➡️' : '⬅️ Ajustar Horários & Demandas'}
