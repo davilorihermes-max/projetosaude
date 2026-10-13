@@ -9,9 +9,9 @@ function runSchemaTests() {
 
   // 1. Validação de Preço Contextual Válido
   const validPriceInput = {
-    professionalId: '11111111-1111-1111-1111-111111111111',
-    patientId: '22222222-2222-2222-2222-222222222222',
-    addressId: '33333333-3333-3333-3333-333333333333',
+    professionalId: '11111111-1111-4111-a111-111111111111',
+    patientId: '22222222-2222-4222-a222-222222222222',
+    addressId: '33333333-3333-4333-a333-333333333333',
     pricePerSession: 190.0,
     effectiveFrom: '2026-01-01',
     effectiveTo: '2026-12-31',
@@ -48,7 +48,7 @@ function runSchemaTests() {
 
   // 4. Validação de Prévia de Fechamento com Datas Válidas
   const validPreview = {
-    professionalId: '11111111-1111-1111-1111-111111111111',
+    professionalId: '11111111-1111-4111-a111-111111111111',
     periodType: 'MONTHLY',
     periodStart: '2026-10-01',
     periodEnd: '2026-10-31',
@@ -62,7 +62,7 @@ function runSchemaTests() {
 
   // 5. Rejeição de Justificativa de Cancelamento Muito Curta
   const invalidCancel = {
-    settlementId: '11111111-1111-1111-1111-111111111111',
+    settlementId: '11111111-1111-4111-a111-111111111111',
     reason: 'abc' // menos de 5 caracteres
   };
   const parsedCancel = cancelSettlementSchema.safeParse(invalidCancel);
