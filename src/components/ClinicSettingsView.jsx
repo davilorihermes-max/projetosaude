@@ -173,7 +173,7 @@ export default function ClinicSettingsView({
               onClick={onOpenNewProfessional}
             >
               <UserPlus size={15} color="var(--primary)" />
-              <span>+ Credenciar Novo Profissional</span>
+              <span>Credenciar Novo Profissional</span>
             </button>
           )}
         </div>

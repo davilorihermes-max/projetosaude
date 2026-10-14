@@ -190,7 +190,7 @@ export default function Dashboard({
                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
                 onClick={onOpenNewAppointment}
               >
-                + Encaixar Nova Sessão
+                Encaixar Nova Sessão
               </button>
             </div>
 
@@ -209,11 +209,11 @@ export default function Dashboard({
                   </p>
                   <div className="empty-route-actions">
                     <button className="btn btn-primary" onClick={onOpenNewAppointment}>
-                      <CalendarPlus size={15} /> + Encaixar Nova Sessão
+                      <CalendarPlus size={15} /> Encaixar Nova Sessão
                     </button>
                     {onOpenNewPatient && (
                       <button className="btn btn-secondary" onClick={onOpenNewPatient}>
-                        <UserPlus size={15} /> + Cadastrar Paciente
+                        <UserPlus size={15} /> Cadastrar Paciente
                       </button>
                     )}
                   </div>
