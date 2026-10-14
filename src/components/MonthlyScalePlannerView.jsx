@@ -984,9 +984,9 @@ export default function MonthlyScalePlannerView({
       {/* Alerta de Sucesso ao Publicar */}
       {committedSuccess && (
         <div style={{
-          background: '#ecfdf5',
-          border: '1px solid #10b981',
-          color: '#065f46',
+          background: 'var(--success-subtle)',
+          border: '1px solid var(--success-border)',
+          color: 'var(--success)',
           padding: '0.85rem 1.25rem',
           borderRadius: '10px',
           display: 'flex',
@@ -994,7 +994,7 @@ export default function MonthlyScalePlannerView({
           gap: '0.5rem',
           fontWeight: 600
         }}>
-          <CheckCircle2 size={20} color="#059669" />
+          <CheckCircle2 size={20} color="var(--success)" />
           Escala de {scaleResult?.monthLabel} gravada com sucesso! As sessões já estão disponíveis na aba "Agenda & Deslocamento".
         </div>
       )}
@@ -1051,38 +1051,18 @@ export default function MonthlyScalePlannerView({
       )}
 
       {/* Banner de Direcionamento Operacional */}
-      <div style={{
-        background: activeTab === 'demands' ? '#eff6ff' : '#f8fafc',
-        border: activeTab === 'demands' ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-        borderRadius: '12px',
-        padding: '0.9rem 1.25rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '0.75rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            background: activeTab === 'demands' ? '#2563eb' : '#059669',
-            color: '#fff',
-            borderRadius: '8px',
-            padding: '4px 8px',
-            fontWeight: 800,
-            fontSize: '0.8rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem'
-          }}>
+      <div className={`planner-operational-banner ${activeTab === 'demands' ? 'tab-demands' : 'tab-calendar'}`}>
+        <div className="planner-banner-content">
+          <div className="planner-banner-badge">
             {activeTab === 'demands' ? '⚙️ ETAPA 1 (CONFIGURAÇÃO)' : '📅 ETAPA 2 (RESULTADO)'}
           </div>
           <div>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+            <div className="planner-banner-title">
               {activeTab === 'demands'
                 ? 'Definição de Horários dos Terapeutas & Demandas dos Pacientes'
                 : 'Grade de Escala Mensal Gerada pelo Motor de Roteirização Urbana'}
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            <div className="planner-banner-desc">
               {activeTab === 'demands'
                 ? 'Indique o horário de início e fim da jornada diária dos terapeutas (sem limite artificial de atendimentos) e até 3 demandas por paciente abaixo.'
                 : 'Acompanhe as sessões agendadas dia a dia, horários exatos e tempos de trânsito em rota geodésica urbana.'}
@@ -1091,8 +1071,7 @@ export default function MonthlyScalePlannerView({
         </div>
 
         <button
-          className="btn btn-secondary"
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+          className="btn btn-secondary planner-banner-action-btn"
           onClick={() => setActiveTab(activeTab === 'demands' ? 'calendar' : 'demands')}
         >
           {activeTab === 'demands' ? 'Ver Grade Mensal Gerada ➡️' : '⬅️ Ajustar Horários & Demandas'}
@@ -1107,7 +1086,7 @@ export default function MonthlyScalePlannerView({
         >
           <Sliders size={18} />
           ⚙️ 1. Horários & Demandas (Entrada)
-          <span className="tab-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
+          <span className="tab-badge" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
             {patientsWithDemands.length} pacientes | {professionalAvailabilities.length} terapeutas
           </span>
         </button>
@@ -1148,10 +1127,10 @@ export default function MonthlyScalePlannerView({
         <div className="tab-content">
           <div className="calendar-view-header">
             <div>
-              <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: '#1e293b' }}>
+              <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: 'var(--text-headline)' }}>
                 Grade Distribuída: {scaleResult?.monthLabel}
               </h3>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Sessões sequenciais com rota geodésica e tempos de trânsito calculados.
               </p>
             </div>
@@ -1204,25 +1183,25 @@ export default function MonthlyScalePlannerView({
 
                 return (
                   <div key={dateStr} style={{
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-light)',
                     borderRadius: '12px',
                     overflow: 'hidden',
-                    background: '#ffffff'
+                    background: 'var(--bg-card)'
                   }}>
                     <div style={{
-                      background: '#f8fafc',
+                      background: 'var(--bg-surface-hover)',
                       padding: '0.65rem 1rem',
                       fontWeight: 700,
                       fontSize: '0.9rem',
-                      color: '#334155',
-                      borderBottom: '1px solid #e2e8f0',
+                      color: 'var(--text-headline)',
+                      borderBottom: '1px solid var(--border-light)',
                       display: 'flex',
                       justifyContent: 'space-between'
                     }}>
                       <span style={{ textTransform: 'capitalize' }}>
                         📅 {dayName}, {dayFormatted}
                       </span>
-                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {sessions.length} atendimento(s) planejado(s)
                       </span>
                     </div>
@@ -1236,13 +1215,13 @@ export default function MonthlyScalePlannerView({
                       {sessions.map((session) => (
                         <div key={session.id} className="session-card therapy-fisio">
                           <div className="session-time">
-                            <Clock size={14} color="#2563eb" />
+                            <Clock size={14} color="var(--primary)" />
                             {session.time} ({session.durationMinutes} min)
                             {session.isFixed && (
                               <span style={{
                                 marginLeft: '0.45rem',
-                                background: '#e0e7ff',
-                                color: '#3730a3',
+                                background: 'var(--primary-subtle)',
+                                color: 'var(--primary)',
                                 padding: '1px 6px',
                                 borderRadius: '4px',
                                 fontSize: '0.68rem',
@@ -1255,7 +1234,7 @@ export default function MonthlyScalePlannerView({
                                 Fixado
                               </span>
                             )}
-                            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#64748b' }}>
+                            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                               Semana {session.weekNumber}
                             </span>
                           </div>
@@ -1265,10 +1244,10 @@ export default function MonthlyScalePlannerView({
                           <div className="session-therapist">
                             🧑‍⚕️ {session.professionalName}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: '0.2rem' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
                             🏥 {session.therapyType}
                           </div>
-                          <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                             📍 {session.address}
                           </div>
                           {session.transitKmFromPrevious > 0 && (
@@ -1291,10 +1270,10 @@ export default function MonthlyScalePlannerView({
       {activeTab === 'coverage' && (
         <div className="tab-content">
           <div style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: '#1e293b' }}>
+            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: 'var(--text-headline)' }}>
               Taxa de Atendimento das Metas Terapêuticas
             </h3>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Acompanhamento de conformidade entre a prescrição semanal e o volume de sessões alocadas no mês.
             </p>
           </div>
@@ -1326,7 +1305,7 @@ export default function MonthlyScalePlannerView({
                     <td>{report.therapyType}</td>
                     <td>{report.weeklyTarget}x / semana</td>
                     <td>{report.demandedMonthlySessions} sessões</td>
-                    <td style={{ fontWeight: 700, color: '#2563eb' }}>
+                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
                       {report.allocatedMonthlySessions} sessões
                     </td>
                     <td>
@@ -1345,8 +1324,8 @@ export default function MonthlyScalePlannerView({
                     <td>
                       {report.status === 'FULL_COVERAGE' && (
                         <span style={{
-                          background: '#ecfdf5',
-                          color: '#065f46',
+                          background: 'var(--success-subtle)',
+                          color: 'var(--success)',
                           padding: '3px 8px',
                           borderRadius: '12px',
                           fontSize: '0.75rem',
@@ -1357,8 +1336,8 @@ export default function MonthlyScalePlannerView({
                       )}
                       {report.status === 'PARTIAL_COVERAGE' && (
                         <span style={{
-                          background: '#fffbeb',
-                          color: '#92400e',
+                          background: 'var(--warning-subtle)',
+                          color: 'var(--warning)',
                           padding: '3px 8px',
                           borderRadius: '12px',
                           fontSize: '0.75rem',
@@ -1369,8 +1348,8 @@ export default function MonthlyScalePlannerView({
                       )}
                       {report.status === 'CRITICAL_DEFICIT' && (
                         <span style={{
-                          background: '#fef2f2',
-                          color: '#991b1b',
+                          background: 'var(--danger-subtle)',
+                          color: 'var(--danger)',
                           padding: '3px 8px',
                           borderRadius: '12px',
                           fontSize: '0.75rem',
@@ -1392,25 +1371,25 @@ export default function MonthlyScalePlannerView({
       {activeTab === 'bottlenecks' && (
         <div className="tab-content">
           <div style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: '#1e293b' }}>
+            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: 'var(--text-headline)' }}>
               Diagnóstico de Gargalos & Otimizações do Gestor
             </h3>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               Demandas que não puderam ser 100% preenchidas por restrição de equipe ou capacidade de agenda.
             </p>
           </div>
 
           {(!scaleResult?.bottlenecks || scaleResult.bottlenecks.length === 0) ? (
             <div style={{
-              background: '#ecfdf5',
+              background: 'var(--success-subtle)',
               padding: '2rem',
               borderRadius: '12px',
               textAlign: 'center',
-              color: '#065f46'
+              color: 'var(--success)'
             }}>
-              <CheckCircle2 size={40} color="#059669" style={{ margin: '0 auto 0.75rem auto' }} />
-              <h4 style={{ margin: '0 0 0.25rem 0' }}>Escala Sem Gargalos!</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem' }}>
+              <CheckCircle2 size={40} color="var(--success)" style={{ margin: '0 auto 0.75rem auto' }} />
+              <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-headline)' }}>Escala Sem Gargalos!</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-body)' }}>
                 Todas as metas terapêuticas do mês foram 100% alocadas dentro das janelas de horário e Care Team.
               </p>
             </div>
@@ -1456,10 +1435,10 @@ export default function MonthlyScalePlannerView({
             gap: '1rem'
           }}>
             <div>
-              <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.2rem', color: '#1e293b' }}>
+              <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.2rem', color: 'var(--text-headline)' }}>
                 Parâmetros Reais: Janelas de Horário Diárias & Múltiplas Terapias
               </h3>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Profissionais com horário de início e fim variável por dia (sem limite artificial de atendimentos) e pacientes com até 3 demandas terapêuticas.
               </p>
             </div>
@@ -1482,7 +1461,7 @@ export default function MonthlyScalePlannerView({
                   alignItems: 'center',
                   gap: '0.4rem',
                   fontSize: '0.85rem',
-                  background: '#059669'
+                  background: 'var(--success)'
                 }}
               >
                 <UserPlus size={16} />
@@ -1499,34 +1478,34 @@ export default function MonthlyScalePlannerView({
               gap: '0.5rem',
               marginBottom: '1rem',
               fontWeight: 700,
-              color: '#1e293b',
+              color: 'var(--text-headline)',
               fontSize: '1rem'
             }}>
-              <Stethoscope size={20} color="#059669" />
+              <Stethoscope size={20} color="var(--success)" />
               Equipe de Profissionais — Janelas de Horário Diárias ({professionalAvailabilities.length})
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
               {professionalAvailabilities.map((prof) => (
                 <div key={prof.professionalId} style={{
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--border-light)',
                   borderRadius: '12px',
                   padding: '1.25rem',
-                  background: '#ffffff',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-xs)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.75rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
+                      <div style={{ fontWeight: 700, color: 'var(--text-headline)', fontSize: '1rem' }}>
                         {prof.professionalName}
                       </div>
-                      <div style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 600, marginTop: '0.2rem' }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--success)', fontWeight: 600, marginTop: '0.2rem' }}>
                         🩺 {prof.specialty}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                         📍 Base de Partida: {prof.baseLocation.latitude.toFixed(4)}, {prof.baseLocation.longitude.toFixed(4)}
                       </div>
                     </div>
@@ -1542,9 +1521,9 @@ export default function MonthlyScalePlannerView({
 
                   {/* Janelas de Horário Diárias (Segunda a Sexta) */}
                   <div style={{ fontSize: '0.82rem' }}>
-                    <div style={{ fontWeight: 600, color: '#334155', marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-headline)', marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between' }}>
                       <span>Horário de Jornada por Dia da Semana:</span>
-                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 400 }}>Capacidade: O que couber na janela</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>Capacidade: O que couber na janela</span>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -1607,7 +1586,7 @@ export default function MonthlyScalePlannerView({
                                 </div>
                               </div>
                             ) : (
-                              <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                                 Indisponível (Outros compromissos/pacientes externos)
                               </span>
                             )}
@@ -1758,10 +1737,10 @@ export default function MonthlyScalePlannerView({
               gap: '0.5rem',
               marginBottom: '1rem',
               fontWeight: 700,
-              color: '#1e293b',
+              color: 'var(--text-headline)',
               fontSize: '1rem'
             }}>
-              <Users size={20} color="#2563eb" />
+              <Users size={20} color="var(--primary)" />
               Pacientes & Demandas Terapêuticas (Até 3 por Paciente) ({patientsWithDemands.length})
             </div>
 
@@ -1771,10 +1750,10 @@ export default function MonthlyScalePlannerView({
 
                 return (
                   <div key={patient.patientId} style={{
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-light)',
                     borderRadius: '12px',
                     padding: '1.25rem',
-                    background: '#ffffff',
+                    background: 'var(--bg-card)',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -1783,7 +1762,7 @@ export default function MonthlyScalePlannerView({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text-headline)', fontSize: '1rem' }}>
                             {patient.patientName}
                           </span>
                           <span className="demand-counter-badge">
@@ -1803,7 +1782,7 @@ export default function MonthlyScalePlannerView({
                             ✏️ Editar Paciente
                           </button>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           📍 {patient.address}
                         </div>
                       </div>
@@ -1823,7 +1802,7 @@ export default function MonthlyScalePlannerView({
                         <div key={demand.id || idx} className="single-demand-card">
                           <div className="single-demand-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
-                              <span style={{ fontWeight: 800, color: '#1e3a8a', fontSize: '0.75rem' }}>
+                              <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.75rem' }}>
                                 #{idx + 1}
                               </span>
                               <select
@@ -1853,7 +1832,7 @@ export default function MonthlyScalePlannerView({
                             justifyContent: 'space-between',
                             fontSize: '0.8rem'
                           }}>
-                            <span style={{ color: '#475569' }}>Frequência semanal:</span>
+                            <span style={{ color: 'var(--text-body)' }}>Frequência semanal:</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <button
                                 className="stepper-btn"
@@ -1881,7 +1860,7 @@ export default function MonthlyScalePlannerView({
                             justifyContent: 'space-between',
                             fontSize: '0.78rem'
                           }}>
-                            <span style={{ color: '#475569' }}>Turno preferencial:</span>
+                            <span style={{ color: 'var(--text-body)' }}>Turno preferencial:</span>
                             <div className="chips-row">
                               {['morning', 'afternoon', 'any'].map((sh) => (
                                 <button
@@ -1920,11 +1899,11 @@ export default function MonthlyScalePlannerView({
 
                     {/* Vínculo de Care Team Interativo */}
                     <div style={{
-                      borderTop: '1px solid #f1f5f9',
+                      borderTop: '1px solid var(--border-light)',
                       paddingTop: '0.65rem',
                       fontSize: '0.78rem'
                     }}>
-                      <div style={{ fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-headline)', marginBottom: '0.4rem' }}>
                         Equipe Autorizada (Care Team) — Clique para alternar:
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
@@ -2043,8 +2022,8 @@ export default function MonthlyScalePlannerView({
                   </select>
                 </div>
 
-                <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e3a8a', marginBottom: '0.5rem' }}>
+                <div style={{ background: 'var(--bg-surface-hover)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
                     1ª Demanda Terapêutica Inicial (poderá adicionar até 3):
                   </div>
 
@@ -2173,7 +2152,7 @@ export default function MonthlyScalePlannerView({
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.78rem', color: '#64748b', background: '#eff6ff', padding: '0.65rem', borderRadius: '6px' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--primary)', background: 'var(--primary-subtle)', border: '1px solid var(--primary-border)', padding: '0.65rem', borderRadius: '6px' }}>
                   💡 O motor garantirá que esta terapia não tenha choque de horário com as demais terapias de {addDemandModalState.patientName}.
                 </div>
               </div>
@@ -2308,7 +2287,7 @@ export default function MonthlyScalePlannerView({
                               />
                             </div>
                           ) : (
-                            <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                               Folga / Outros pacientes externos
                             </span>
                           )}
@@ -2414,7 +2393,7 @@ export default function MonthlyScalePlannerView({
                       <option key={loc} value={loc}>{loc}</option>
                     ))}
                   </select>
-                  <small style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                  <small style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
                     As coordenadas geodésicas da rota serão recalculadas automaticamente para este bairro.
                   </small>
                 </div>
@@ -2456,7 +2435,7 @@ export default function MonthlyScalePlannerView({
 
             <form onSubmit={handleSaveBlock}>
               <div className="modal-body">
-                <div style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '0.75rem', background: '#fffbeb', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #fef08a' }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--warning)', marginBottom: '0.75rem', background: 'var(--warning-subtle)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid var(--warning-border)' }}>
                   {addBlockModalState.targetType === 'professional'
                     ? `Durante este intervalo, o profissional ${addBlockModalState.targetName} não poderá receber atendimentos da clínica (ex: compromissos pessoais, pacientes particulares externos).`
                     : `Durante este intervalo, nenhuma sessão domiciliar será agendada para ${addBlockModalState.targetName} (ex: consultas médicas externas, exames laboratoriais, diálise).`}
@@ -2575,7 +2554,7 @@ export default function MonthlyScalePlannerView({
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary" style={{ background: '#d97706' }}>
+                <button type="submit" className="btn-primary" style={{ background: 'var(--warning)' }}>
                   Confirmar Bloqueio & Recalcular
                 </button>
               </div>
@@ -2603,7 +2582,7 @@ export default function MonthlyScalePlannerView({
 
             <form onSubmit={handleAddFixedAppointment}>
               <div className="modal-body">
-                <div style={{ fontSize: '0.82rem', color: '#3730a3', marginBottom: '0.75rem', background: '#eef2ff', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--info)', marginBottom: '0.75rem', background: 'var(--info-subtle)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid var(--info-border)' }}>
                   Atendimentos fixados são alocados em 1º lugar com horário travado. Eles reservam a agenda do profissional e do paciente e deduzem automaticamente da meta semanal solicitada.
                 </div>
 
@@ -2746,7 +2725,7 @@ export default function MonthlyScalePlannerView({
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary" style={{ background: '#4f46e5' }}>
+                <button type="submit" className="btn-primary" style={{ background: 'var(--primary)' }}>
                   Fixar Atendimento & Recalcular
                 </button>
               </div>

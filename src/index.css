@@ -2,7 +2,10 @@
    OmniSaúde - Design System & Modern Clinical Styling
    ======================================================== */
 
-:root {
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
   /* Fonts */
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-display: 'Outfit', var(--font-sans);
@@ -59,6 +62,11 @@
   --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
   --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
 
+  --border-color: var(--border-light);
+  --text-primary: var(--text-headline);
+  --text-secondary: var(--text-muted);
+  --bg-primary: var(--bg-surface);
+
   /* Radii */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -72,6 +80,8 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
+
   --bg-page: #090d16;
   --bg-surface: #111827;
   --bg-surface-hover: #1e293b;
@@ -81,6 +91,11 @@
 
   --border-light: #1e293b;
   --border-subtle: #172033;
+
+  --border-color: var(--border-light);
+  --text-primary: var(--text-headline);
+  --text-secondary: var(--text-muted);
+  --bg-primary: var(--bg-surface);
 
   --text-headline: #f8fafc;
   --text-body: #cbd5e1;
@@ -138,6 +153,11 @@ button {
 
 input, select, textarea {
   font-family: inherit;
+  color: var(--text-headline);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
 }
 
 /* App Shell Layout */
@@ -188,7 +208,11 @@ input, select, textarea {
 }
 
 /* Buttons */
-.btn {
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-outline-primary,
+.btn-success {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -204,7 +228,11 @@ input, select, textarea {
   white-space: nowrap;
 }
 
-.btn:active {
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.btn-outline-primary:active,
+.btn-success:active {
   transform: translateY(1px);
 }
 
@@ -323,6 +351,32 @@ input, select, textarea {
   background: var(--danger-subtle);
   color: #b91c1c;
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Dark Theme Badge Contrast Enhancements */
+[data-theme='dark'] .badge-waiting {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+[data-theme='dark'] .badge-in_progress {
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+[data-theme='dark'] .badge-completed {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+[data-theme='dark'] .badge-scheduled {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+[data-theme='dark'] .badge-cancelled {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .badge-dot {

@@ -156,7 +156,7 @@ export default function Dashboard({
             </div>
           </div>
           <div className="kpi-value">{inProgressCount}</div>
-          <div className="kpi-trend" style={{ background: 'var(--warning-subtle)', color: '#b45309' }}>
+          <div className="kpi-trend" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)' }}>
             {inProgressCount > 0 ? 'Check-in ativo' : 'Aguardando início de rota'}
           </div>
         </div>
