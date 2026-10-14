@@ -245,9 +245,9 @@ export default function PatientsView({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '0.4rem',
-                        border: '1px solid #93c5fd',
-                        color: '#1d4ed8',
-                        background: '#eff6ff',
+                        border: '1px solid var(--primary-border)',
+                        color: 'var(--primary)',
+                        background: 'var(--primary-subtle)',
                         fontWeight: 600,
                         cursor: 'pointer'
                       }}

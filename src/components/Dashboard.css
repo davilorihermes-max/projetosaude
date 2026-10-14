@@ -344,7 +344,7 @@
 }
 
 .alert-danger-soft strong {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .alert-danger-soft p {
@@ -357,7 +357,15 @@
 }
 
 .alert-warning-soft strong {
-  color: #b45309;
+  color: #d97706;
+}
+
+[data-theme='dark'] .alert-warning-soft strong {
+  color: #fbbf24;
+}
+
+[data-theme='dark'] .alert-danger-soft strong {
+  color: #f87171;
 }
 
 .alert-warning-soft p {

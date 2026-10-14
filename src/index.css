@@ -2,7 +2,10 @@
    OmniSaúde - Design System & Modern Clinical Styling
    ======================================================== */
 
-:root {
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
   /* Fonts */
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-display: 'Outfit', var(--font-sans);
@@ -77,6 +80,8 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
+
   --bg-page: #090d16;
   --bg-surface: #111827;
   --bg-surface-hover: #1e293b;
@@ -148,6 +153,11 @@ button {
 
 input, select, textarea {
   font-family: inherit;
+  color: var(--text-headline);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
 }
 
 /* App Shell Layout */
@@ -341,6 +351,32 @@ input, select, textarea {
   background: var(--danger-subtle);
   color: #b91c1c;
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Dark Theme Badge Contrast Enhancements */
+[data-theme='dark'] .badge-waiting {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+[data-theme='dark'] .badge-in_progress {
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+[data-theme='dark'] .badge-completed {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+[data-theme='dark'] .badge-scheduled {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+[data-theme='dark'] .badge-cancelled {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .badge-dot {
