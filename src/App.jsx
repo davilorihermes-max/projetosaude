@@ -12,7 +12,6 @@ import NewPatientModal from './components/NewPatientModal';
 import NotificationsModal from './components/NotificationsModal';
 import LoginModal from './components/LoginModal';
 import ProfileModal from './components/ProfileModal';
-import MobileDeviceSimulator from './components/MobileDeviceSimulator';
 
 import {
   DOCTORS,
@@ -102,7 +101,6 @@ export default function App() {
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isMobileSimOpen, setIsMobileSimOpen] = useState(false);
 
   // Home Care Operational Notifications
   const [notifications, setNotifications] = useState([
@@ -435,7 +433,6 @@ export default function App() {
           onOpenNewPatient={() => setIsPatientModalOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           unreadCount={notifications.length}
-          onOpenMobileSimulator={() => setIsMobileSimOpen(true)}
         />
 
         <div className="content-body">
@@ -605,18 +602,6 @@ export default function App() {
         currentDoctor={activeDoctor}
         onUpdateProfile={handleUpdateProfile}
         onLogout={handleLogout}
-      />
-
-      <MobileDeviceSimulator
-        isOpen={isMobileSimOpen}
-        onClose={() => setIsMobileSimOpen(false)}
-        appointments={appointments}
-        setAppointments={setAppointments}
-        patients={patients}
-        doctors={doctors}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentUser={currentUser}
       />
     </div>
   );
