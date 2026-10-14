@@ -540,3 +540,20 @@ select option {
 .print-only {
   display: none;
 }
+
+/* Mobile Responsive Global Layout */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding-bottom: 72px !important;
+  }
+
+  .content-body {
+    padding: 1rem 0.85rem !important;
+  }
+}

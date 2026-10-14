@@ -1,6 +1,5 @@
-// src/components/Header.jsx
 import React from 'react';
-import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck } from 'lucide-react';
+import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck, Smartphone } from 'lucide-react';
 import './Header.css';
 import Avatar from './Avatar';
 
@@ -17,7 +16,8 @@ export default function Header({
   currentUser,
   onOpenLoginModal,
   onOpenProfileModal,
-  onOpenNewProfessional
+  onOpenNewProfessional,
+  onOpenMobileSimulator
 }) {
   return (
     <header className="header-container">
@@ -93,6 +93,24 @@ export default function Header({
         </button>
 
         <div className="action-buttons">
+          <button
+            className="btn btn-secondary mobile-sim-trigger-btn"
+            style={{
+              background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(2, 132, 199, 0.12))',
+              borderColor: 'var(--primary)',
+              color: 'var(--primary)',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            onClick={onOpenMobileSimulator}
+            title="Abrir Simulador Mobile Interativo (Home Care & Geofencing)"
+          >
+            <Smartphone size={16} />
+            <span>App Mobile</span>
+          </button>
+
           <button className="btn btn-secondary" onClick={onOpenNewPatient}>
             <UserPlus size={16} />
             <span>Novo Paciente</span>
