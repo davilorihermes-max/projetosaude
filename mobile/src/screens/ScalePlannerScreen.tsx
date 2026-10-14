@@ -26,7 +26,6 @@ export const ScalePlannerScreen: React.FC<ScalePlannerScreenProps> = ({
   professionals,
 }) => {
   const [selectedProfId, setSelectedProfId] = useState<string>('all');
-  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
 
   const filteredAppointments =
     selectedProfId === 'all'
@@ -110,39 +109,6 @@ export const ScalePlannerScreen: React.FC<ScalePlannerScreenProps> = ({
             Travas ativas impedem que profissionais fora da equipe multiprofissional autorizada do paciente recebam escalas domiciliares.
           </Text>
         </View>
-
-        {/* AI Bottleneck Analyzer */}
-        <TouchableOpacity
-          onPress={() => setShowAiAnalysis(!showAiAnalysis)}
-          activeOpacity={0.8}
-          style={[
-            styles.aiAlertBanner,
-            { backgroundColor: theme.surfaceVariant, borderColor: theme.border },
-          ]}
-        >
-          <View style={styles.aiAlertTop}>
-            <Ionicons name="sparkles" size={18} color={theme.primary} />
-            <Text style={[styles.aiAlertTitle, { color: theme.textPrimary }]}>
-              Otimizador de Rotas & Gargalos (IA)
-            </Text>
-            <Ionicons
-              name={showAiAnalysis ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={theme.textMuted}
-            />
-          </View>
-
-          {showAiAnalysis && (
-            <View style={styles.aiAlertContent}>
-              <Text style={[styles.aiAlertItem, { color: theme.textSecondary }]}>
-                ✓ Sugestão: Reagrupar atendimentos de Pinheiros (Roberto Carlos e Helena Vasconcelos) economiza 3.4km de trânsito.
-              </Text>
-              <Text style={[styles.aiAlertItem, { color: theme.textSecondary }]}>
-                ✓ Vagas ociosas: Camila Nogueira (Enfermagem) possui disponibilidade às quintas-feiras período da manhã.
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
 
         {/* Filter by Professional Horizontal Bar */}
         <View style={styles.filterSection}>
@@ -361,33 +327,6 @@ const styles = StyleSheet.create({
   goldRuleDesc: {
     fontSize: 11,
     lineHeight: 16,
-  },
-  aiAlertBanner: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.sm,
-  },
-  aiAlertTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  aiAlertTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    flex: 1,
-    marginLeft: 6,
-  },
-  aiAlertContent: {
-    gap: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-  },
-  aiAlertItem: {
-    fontSize: 11,
-    lineHeight: 15,
   },
   filterSection: {
     gap: Spacing.xs,

@@ -16,7 +16,7 @@ Aplicativo móvel multiplataforma (Android & iOS) do **Projeto Saúde / OmniHome
 - **Prontuário Eletrônico do Paciente (PEP):**
   - Registro de Anamnese estruturada no formato **SOAP** (Subjetivo, Objetivo, Avaliação e Plano).
   - Aferição de sinais vitais no leito (PA, FC, SpO2, Temperatura, Glicemia).
-  - **Copiloto Clínico com IA (RAG):** Consulta inteligente a protocolos assistenciais curados para cuidados domiciliares.
+  - Registro de condutas terapêuticas e prescrições domiciliares.
   - Histórico longitudinal multiprofissional sincronizado.
 
 ### 2. Modo Gestor (Coordenação Clínica)

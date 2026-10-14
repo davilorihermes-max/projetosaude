@@ -281,11 +281,6 @@ export const INITIAL_CLINICAL_EVOLUTIONS: ClinicalEvolution[] = [
     objective: 'Eupneica em ar ambiente. MV universalmente audível com raros roncos esparsos em bases pulmonares. Padrão ventilatório tóraco-abdominal coordenado.',
     assessment: 'Quadro respiratório estável, boa resposta à reexpansão pulmonar e facilitação da mecânica diafragmática.',
     plan: '1. Manter exercícios respiratórios com freno labial 2x ao dia.\n2. Estimular deambulação supervisionada de 15 minutos.\n3. Próximo atendimento agendado para sexta-feira.',
-    aiSuggestedProtocols: [
-      'Protocolo de Higiene Brônquica Domiciliar (EMAD Nível 2)',
-      'Score de Barthel para avaliação de funcionalidade em idosos',
-      'Diretriz Brasileira de Fisioterapia Respiratória no Leito',
-    ],
   },
   {
     id: 'evo-2',
@@ -305,9 +300,5 @@ export const INITIAL_CLINICAL_EVOLUTIONS: ClinicalEvolution[] = [
     objective: 'Lesão por pressão em região sacra estágio 2 em processo de granulação ativa (4x3cm). Ausência de exsudato purulento ou odor característico.',
     assessment: 'Evolução cicatricial satisfatória, bordas aderidas com proliferação tecidual saudável.',
     plan: '1. Limpeza rigorosa com SF 0.9% morno.\n2. Aplicação de cobertura hidrocolóide fina.\n3. Reforço de mudança de decúbito a cada 2 horas.',
-    aiSuggestedProtocols: [
-      'Prevenção e Tratamento de Lesões por Pressão (NPUAP/EPUAP 2024)',
-      'Protocolo Clínico de Coberturas Avançadas em Feridas Domiciliares',
-    ],
   },
 ];

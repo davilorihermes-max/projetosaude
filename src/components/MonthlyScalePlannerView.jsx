@@ -938,7 +938,7 @@ export default function MonthlyScalePlannerView({
         <div className="planner-title-group">
           <h1>
             <CalendarCheck size={26} color="#2563eb" />
-            Planejador de Escala Mensal & Alocação Inteligente
+            Planejador de Escala Mensal & Alocação de Equipe
           </h1>
           <p>
             Cruzamento automatizado: horários reais de jornada diária dos profissionais x até 3 demandas por paciente x travas de Care Team.

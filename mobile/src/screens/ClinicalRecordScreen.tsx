@@ -46,26 +46,8 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
   const [assessment, setAssessment] = useState('');
   const [plan, setPlan] = useState('');
 
-  // AI Copilot state
-  const [showAiSuggestions, setShowAiSuggestions] = useState(false);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
   // Filter evolutions for current patient
   const patientEvolutions = evolutions.filter((e) => e.patientId === patient?.id);
-
-  const handleConsultAiCopilot = () => {
-    setIsAiLoading(true);
-    setTimeout(() => {
-      setIsAiLoading(false);
-      setShowAiSuggestions(true);
-      // Auto-suggest clinical guidelines based on specialty
-      if (!plan) {
-        setPlan(
-          '1. Manter exercícios respiratórios ativos assistidos 2x/dia.\n2. Estimular hidratação e trocas posturais frequentes no leito.\n3. Monitorar saturação de oxigênio antes e após esforços.'
-        );
-      }
-    }, 600);
-  };
 
   const handleSaveForm = () => {
     if (!subjective.trim() && !objective.trim()) {
@@ -91,10 +73,6 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
       objective,
       assessment,
       plan,
-      aiSuggestedProtocols: [
-        'Diretriz Multiprofissional de Atenção Domiciliar (EMAD)',
-        'Protocolo de Segurança do Paciente no Domicílio',
-      ],
     };
 
     onSaveEvolution(newEvo);
@@ -102,7 +80,6 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
     setObjective('');
     setAssessment('');
     setPlan('');
-    setShowAiSuggestions(false);
     alert('Evolução clínica registrada com sucesso no Prontuário!');
   };
 
@@ -323,44 +300,9 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
               ]}
             />
 
-            <View style={styles.planHeaderRow}>
-              <Text style={[styles.soapLabel, { color: theme.textPrimary }]}>
-                P - Plano Terapêutico & Condutas
-              </Text>
-
-              {/* AI Copilot Button */}
-              <TouchableOpacity
-                onPress={handleConsultAiCopilot}
-                activeOpacity={0.8}
-                style={[styles.aiButton, { backgroundColor: theme.primaryMuted, borderColor: theme.primary }]}
-              >
-                <Ionicons name="sparkles" size={14} color={theme.primaryDark} />
-                <Text style={[styles.aiButtonText, { color: theme.primaryDark }]}>
-                  {isAiLoading ? 'Buscando...' : 'Copiloto IA (RAG)'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* AI Protocol Suggestion Box */}
-            {showAiSuggestions && (
-              <View style={[styles.aiCard, { backgroundColor: theme.surfaceVariant, borderColor: theme.primary }]}>
-                <View style={styles.aiCardHeader}>
-                  <Ionicons name="bulb" size={16} color={theme.primary} />
-                  <Text style={[styles.aiCardTitle, { color: theme.textPrimary }]}>
-                    Protocolos Sugeridos pela Base RAG (pgvector):
-                  </Text>
-                </View>
-                <Text style={[styles.aiCardItem, { color: theme.textSecondary }]}>
-                  • Diretriz de Mobilização Ativa em Cuidados Domiciliares (Grau A)
-                </Text>
-                <Text style={[styles.aiCardItem, { color: theme.textSecondary }]}>
-                  • Manejo da Broncoaspiração e Cuidados Ventilatórios no Domicílio
-                </Text>
-                <Text style={[styles.aiCardFooter, { color: theme.primary }]}>
-                  ✓ Sugestões aplicadas automaticamente ao Plano Terapêutico.
-                </Text>
-              </View>
-            )}
+            <Text style={[styles.soapLabel, { color: theme.textPrimary }]}>
+              P - Plano Terapêutico & Condutas
+            </Text>
 
             <TextInput
               value={plan}
@@ -591,48 +533,6 @@ const styles = StyleSheet.create({
   soapLabel: {
     fontSize: 12,
     fontWeight: '700',
-  },
-  planHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  aiButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  aiButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  aiCard: {
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    gap: 4,
-  },
-  aiCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  aiCardTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  aiCardItem: {
-    fontSize: 11,
-    marginLeft: 6,
-  },
-  aiCardFooter: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
   },
   textArea: {
     borderWidth: 1,
