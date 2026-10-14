@@ -1450,7 +1450,7 @@ export default function MonthlyScalePlannerView({
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
               >
                 <Plus size={16} />
-                + Novo Paciente
+                Novo Paciente
               </button>
 
               <button
@@ -1465,7 +1465,7 @@ export default function MonthlyScalePlannerView({
                 }}
               >
                 <UserPlus size={16} />
-                + Novo Fisioterapeuta / Terapeuta
+                Novo Fisioterapeuta / Terapeuta
               </button>
             </div>
           </div>
@@ -1617,7 +1617,7 @@ export default function MonthlyScalePlannerView({
                           reason: 'Paciente particular externo'
                         })}
                       >
-                        + Bloquear Horário
+                        Bloquear Horário
                       </button>
                     </div>
 
@@ -1680,7 +1680,7 @@ export default function MonthlyScalePlannerView({
                 })}
               >
                 <Plus size={15} />
-                + Fixar Atendimento
+                Fixar Atendimento
               </button>
             </div>
 
@@ -1892,7 +1892,7 @@ export default function MonthlyScalePlannerView({
                           })}
                         >
                           <Plus size={14} />
-                          + Adicionar Nova Demanda Terapêutica ({patient.demands.length}/3)
+                          Adicionar Nova Demanda Terapêutica ({patient.demands.length}/3)
                         </button>
                       )}
                     </div>
@@ -1945,7 +1945,7 @@ export default function MonthlyScalePlannerView({
                             reason: 'Consulta médica externa'
                           })}
                         >
-                          + Bloquear Horário
+                          Bloquear Horário
                         </button>
                       </div>
 

@@ -316,7 +316,7 @@ export default function ScheduleView({
                     )}
                   </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
-                    + Agendar sessão domiciliar neste horário
+                    Agendar sessão domiciliar neste horário
                   </span>
                 </div>
               </div>

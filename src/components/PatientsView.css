@@ -200,3 +200,20 @@
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-light);
 }
+
+@media (max-width: 768px) {
+  .patients-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patients-toolbar,
+  .patients-filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scope-tabs {
+    width: 100%;
+    justify-content: center;
+  }
+}

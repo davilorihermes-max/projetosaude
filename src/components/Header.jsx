@@ -38,15 +38,6 @@ export default function Header({
         {/* JWT Auth Status & Profile Button */}
         <button
           className="btn btn-secondary auth-session-btn"
-          style={{
-            fontSize: '0.8rem',
-            padding: '0.45rem 0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            border: currentUser ? '1px solid var(--success-border)' : '1px solid var(--border-color)',
-            background: currentUser ? 'var(--success-subtle)' : 'var(--bg-card)'
-          }}
           onClick={() => {
             if (currentUser && onOpenProfileModal) {
               onOpenProfileModal();
@@ -57,12 +48,12 @@ export default function Header({
           title={currentUser ? "Meu Perfil Profissional (JWT Ativo)" : "Entrar ou Criar Perfil"}
         >
           {currentUser ? (
-            <Avatar src={currentUser.avatar} name={currentUser.name} size={20} />
+            <Avatar src={currentUser.avatar} name={currentUser.name} size={18} />
           ) : (
             <KeyRound size={15} color="var(--primary)" />
           )}
-          <span>
-            {currentUser ? `${currentUser.name} (Perfil)` : 'Entrar / Criar Perfil'}
+          <span className="auth-btn-label">
+            {currentUser ? currentUser.name.split(' ')[0] : 'Entrar'}
           </span>
         </button>
 
@@ -93,13 +84,15 @@ export default function Header({
         </button>
 
         <div className="action-buttons">
-          <button className="btn btn-secondary" onClick={onOpenNewPatient}>
+          <button className="btn btn-secondary action-btn-compact" onClick={onOpenNewPatient} title="Cadastrar Novo Paciente">
             <UserPlus size={16} />
-            <span>Novo Paciente</span>
+            <span className="btn-label-desktop">Novo Paciente</span>
+            <span className="btn-label-mobile">Paciente</span>
           </button>
-          <button className="btn btn-primary" onClick={onOpenNewAppointment}>
+          <button className="btn btn-primary action-btn-compact" onClick={onOpenNewAppointment} title="Agendar Nova Sessão Domiciliar">
             <CalendarPlus size={16} />
-            <span>Nova Sessão Domiciliar</span>
+            <span className="btn-label-desktop">Nova Sessão Domiciliar</span>
+            <span className="btn-label-mobile">Sessão</span>
           </button>
         </div>
       </div>
