@@ -104,7 +104,6 @@ export interface ClinicalEvolution {
   objective: string;
   assessment: string;
   plan: string;
-  aiSuggestedProtocols?: string[];
 }
 
 export interface ClinicInfo {

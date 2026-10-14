@@ -29,7 +29,7 @@ export default function Sidebar({
   const navItems = [
     { id: 'dashboard', label: 'Rota do Dia', icon: LayoutDashboard },
     { id: 'schedule', label: 'Agenda & Deslocamento', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} a realizar` : null },
-    { id: 'monthly-planner', label: 'Planejador Mensal', icon: CalendarCheck, badge: 'Motor IA' },
+    { id: 'monthly-planner', label: 'Planejador Mensal', icon: CalendarCheck },
     { id: 'patients', label: 'Pacientes & Domicílios', icon: Users },
     { id: 'clinic', label: 'Central Operacional', icon: Settings }
   ];
