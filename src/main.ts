@@ -6,6 +6,13 @@ import dotenv from 'dotenv';
 import { authRoutes } from './routes/auth.routes.js';
 import { schedulerRoutes } from './routes/scheduler.routes.js';
 
+import fs from 'fs';
+import path from 'path';
+
+// Prioriza .env.local se existir (gerado pelo Vercel/Neon), com fallback para .env
+if (fs.existsSync(path.resolve(process.cwd(), '.env.local'))) {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+}
 dotenv.config();
 
 export function buildServer(): FastifyInstance {

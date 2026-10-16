@@ -171,6 +171,49 @@ export default function App() {
     fetchBackendProfessionals();
   }, []);
 
+  // Sincroniza pacientes cadastrados no backend Fastify/Prisma
+  useEffect(() => {
+    const fetchBackendPatients = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/patients`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.patients && Array.isArray(data.patients) && data.patients.length > 0) {
+            setPatients((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newFromBackend = data.patients
+                .filter((p) => !existingIds.has(p.id))
+                .map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  cpf: p.cpf || '000.000.000-00',
+                  birthDate: '1990-01-01',
+                  age: 45,
+                  gender: 'Feminino',
+                  phone: p.phone || '(11) 98765-4321',
+                  email: p.email || '',
+                  insurance: 'Unimed Pleno',
+                  insuranceNumber: 'PLEN-001',
+                  address: p.address || 'Endereço em rota domiciliar',
+                  latitude: p.latitude,
+                  longitude: p.longitude,
+                  caregiver: 'Cuidador(a) cadastrado',
+                  accessNotes: 'Residência autorizada para atendimento domiciliar',
+                  mobilityStatus: 'Deambula sem auxílio',
+                  careTeamMembers: p.careTeamMembers || []
+                }));
+              return [...prev, ...newFromBackend];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Sincronização de pacientes com backend ignorada:', err);
+      }
+    };
+
+    fetchBackendPatients();
+  }, []);
+
   // Sincroniza agendamentos do backend Prisma quando houver sessão autenticada
   useEffect(() => {
     const syncBackendAppointments = async () => {
@@ -347,9 +390,41 @@ export default function App() {
     setAppointments((prev) => [newApt, ...prev]);
   };
 
-  const handleSavePatient = (newPatient) => {
+  const handleSavePatient = async (newPatient) => {
     setPatients((prev) => [newPatient, ...prev]);
     setActivePatientId(newPatient.id);
+
+    // Tenta persistir no backend se disponível
+    try {
+      const token = localStorage.getItem('omnihome_jwt');
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/patients`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: newPatient.name,
+          cpf: newPatient.cpf,
+          email: newPatient.email,
+          phone: newPatient.phone,
+          address: newPatient.address,
+          latitude: newPatient.latitude,
+          longitude: newPatient.longitude,
+          professionalId: selectedDoctorId !== 'all' ? selectedDoctorId : undefined
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.patient?.id) {
+          setPatients((prev) =>
+            prev.map((p) => (p.id === newPatient.id ? { ...p, id: data.patient.id } : p))
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Persistência do paciente no backend ignorada:', err);
+    }
   };
 
   const handleResetData = () => {

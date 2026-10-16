@@ -254,6 +254,89 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
   });
 
   /**
+   * POST /api/scheduler/patients
+   * Cadastra novo paciente no banco Prisma com coordenadas geodésicas e vincula ao Care Team
+   */
+  app.post<{
+    Body: {
+      name: string;
+      cpf: string;
+      email?: string;
+      phone?: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      professionalId?: string;
+    };
+  }>('/patients', async (request, reply) => {
+    const { name, cpf, email, phone, address, latitude, longitude, professionalId } = request.body || {};
+
+    if (!name || !cpf) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Nome e CPF são obrigatórios para cadastro do paciente.'
+      });
+    }
+
+    const cleanCpf = cpf.trim();
+    const existing = await prisma.patient.findUnique({
+      where: { cpf: cleanCpf }
+    });
+
+    if (existing) {
+      return reply.status(409).send({
+        statusCode: 409,
+        error: 'Conflict',
+        message: 'Paciente com este CPF já cadastrado.'
+      });
+    }
+
+    let validProfId: string | null = null;
+    if (professionalId) {
+      const prof = await prisma.professional.findFirst({
+        where: {
+          OR: [{ id: professionalId }, { userId: professionalId }]
+        }
+      });
+      if (prof) {
+        validProfId = prof.id;
+      }
+    }
+
+    const newPatient = await prisma.patient.create({
+      data: {
+        name,
+        cpf: cleanCpf,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+        latitude: latitude ?? -23.585,
+        longitude: longitude ?? -46.638,
+        ...(validProfId
+          ? {
+              careTeamMembers: {
+                create: {
+                  professionalId: validProfId,
+                  role: 'PRIMARY_CARE',
+                  active: true
+                }
+              }
+            }
+          : {})
+      },
+      include: {
+        careTeamMembers: true
+      }
+    });
+
+    return reply.status(201).send({
+      success: true,
+      patient: newPatient
+    });
+  });
+
+  /**
    * POST /api/scheduler/monthly-plan/generate
    * Gera o plano de escala mensal automatizado cruzando demandas, disponibilidades e Care Team
    */

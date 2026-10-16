@@ -2,13 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   KeyRound,
-  ShieldCheck,
   User,
   Lock,
   CheckCircle2,
   X,
   AlertCircle,
-  Sparkles,
   UserPlus,
   MapPin,
   Award,
@@ -36,13 +34,31 @@ const COLOR_PRESETS = [
   { name: 'Verde Floresta', hex: '#059669' }
 ];
 
+import { resolveAddressCoordinates } from '../services/geocodingService';
+
 const LOCATION_PRESETS = [
-  { name: 'Vila Mariana', address: 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP', lat: -23.585000, lng: -46.638000 },
-  { name: 'Jardim Paulista', address: 'Rua Pamplona, 700 - Jardim Paulista, São Paulo - SP', lat: -23.565000, lng: -46.657000 },
-  { name: 'Cerqueira César', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563000, lng: -46.653000 },
-  { name: 'Pinheiros', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567000, lng: -46.691000 },
-  { name: 'Consolação', address: 'Rua Bela Cintra, 900 - Consolação, São Paulo - SP', lat: -23.555000, lng: -46.661000 },
-  { name: 'Moema', address: 'Av. Moema, 450 - Moema, São Paulo - SP', lat: -23.602000, lng: -46.664000 }
+  // São Paulo
+  { name: 'Paulista (SP)', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563099, lng: -46.654271 },
+  { name: 'Pinheiros (SP)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567300, lng: -46.693400 },
+  { name: 'Campinas (SP)', address: 'Av. José de Souza Campos, 500 - Cambuí, Campinas - SP', lat: -22.898400, lng: -47.051900 },
+  // Rio de Janeiro
+  { name: 'Copacabana (RJ)', address: 'Av. Atlântica, 1500 - Copacabana, Rio de Janeiro - RJ', lat: -22.971100, lng: -43.182500 },
+  { name: 'Barra da Tijuca (RJ)', address: 'Av. das Américas, 3500 - Barra da Tijuca, Rio de Janeiro - RJ', lat: -22.999700, lng: -43.365900 },
+  // Paraná
+  { name: 'Batel (Curitiba - PR)', address: 'Av. do Batel, 1500 - Batel, Curitiba - PR', lat: -25.442800, lng: -49.288900 },
+  { name: 'Centro Cívico (Curitiba - PR)', address: 'Av. Cândido de Abreu, 500 - Centro Cívico, Curitiba - PR', lat: -25.417200, lng: -49.269400 },
+  // Minas Gerais
+  { name: 'Savassi (BH - MG)', address: 'Av. Cristóvão Colombo, 500 - Savassi, Belo Horizonte - MG', lat: -19.938600, lng: -43.933300 },
+  // Distrito Federal
+  { name: 'Asa Sul (Brasília - DF)', address: 'SHCS EQS 208/408 - Asa Sul, Brasília - DF', lat: -15.811400, lng: -47.906100 },
+  // Rio Grande do Sul
+  { name: 'Moinhos de Vento (POA - RS)', address: 'Rua Padre Chagas, 300 - Moinhos de Vento, Porto Alegre - RS', lat: -30.026100, lng: -51.203600 },
+  // Bahia
+  { name: 'Barra / Ondina (Salvador - BA)', address: 'Av. Oceânica, 1200 - Barra, Salvador - BA', lat: -13.008900, lng: -38.528300 },
+  // Pernambuco
+  { name: 'Boa Viagem (Recife - PE)', address: 'Av. Boa Viagem, 2000 - Boa Viagem, Recife - PE', lat: -8.127500, lng: -34.903600 },
+  // Santa Catarina
+  { name: 'Beira-Mar (Florianópolis - SC)', address: 'Av. Beira Mar Norte, 2200 - Centro, Florianópolis - SC', lat: -27.585500, lng: -48.552400 }
 ];
 
 export default function LoginModal({
@@ -77,6 +93,7 @@ export default function LoginModal({
   const [regCoordinates, setRegCoordinates] = useState({ latitude: -23.585000, longitude: -46.638000 });
   const [regColor, setRegColor] = useState('#0d9488');
   const [regAvatar, setRegAvatar] = useState(null);
+  const [resolvedLocationName, setResolvedLocationName] = useState('São Paulo - SP');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -165,9 +182,23 @@ export default function LoginModal({
     }
   };
 
+  const handleBaseAddressChange = async (newAddr) => {
+    setRegBaseAddress(newAddr);
+    if (newAddr && newAddr.trim().length >= 3) {
+      try {
+        const res = await resolveAddressCoordinates(newAddr);
+        if (res && res.latitude && res.longitude) {
+          setRegCoordinates({ latitude: res.latitude, longitude: res.longitude });
+          setResolvedLocationName(res.matched || res.city || 'Georreferenciado com sucesso');
+        }
+      } catch {}
+    }
+  };
+
   const handleSelectLocation = (preset) => {
     setRegBaseAddress(preset.address);
     setRegCoordinates({ latitude: preset.lat, longitude: preset.lng });
+    setResolvedLocationName(preset.name);
   };
 
   const handleProfessionChange = (prof) => {
@@ -897,10 +928,18 @@ export default function LoginModal({
                     type="text"
                     className="form-input"
                     value={regBaseAddress}
-                    onChange={(e) => setRegBaseAddress(e.target.value)}
-                    placeholder="Rua, número, bairro e cidade..."
+                    onChange={(e) => handleBaseAddressChange(e.target.value)}
+                    placeholder="Rua, número, bairro e cidade (em qualquer estado do Brasil)..."
                     required
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.3rem', fontSize: '0.72rem' }}>
+                    <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <MapPin size={11} /> {resolvedLocationName}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                      {regCoordinates.latitude.toFixed(4)}, {regCoordinates.longitude.toFixed(4)}
+                    </span>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                   {LOCATION_PRESETS.map((p) => (

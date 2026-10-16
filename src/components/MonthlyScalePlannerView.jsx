@@ -10,20 +10,14 @@ import {
   TrendingUp,
   Users,
   ShieldCheck,
-  ChevronRight,
-  Filter,
   Save,
   Info,
   CalendarCheck,
   Plus,
   Trash2,
   UserPlus,
-  UserCheck,
   X,
   Stethoscope,
-  Activity,
-  Layers,
-  ArrowRight,
   Sliders,
   Ban,
   Lock
@@ -31,18 +25,10 @@ import {
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
 
-// Bairros padrão de São Paulo para facilitar coordenadas geodésicas automáticas
-const SP_PRESET_LOCATIONS = {
-  'Cerqueira César (Alameda Santos)': { latitude: -23.563099, longitude: -46.654271 },
-  'Pinheiros (Rua Fradique Coutinho)': { latitude: -23.567300, longitude: -46.693400 },
-  'Moema (Av. Moema)': { latitude: -23.602200, longitude: -46.662100 },
-  'Bela Vista (Av. Paulista)': { latitude: -23.561684, longitude: -46.655981 },
-  'Vila Mariana (Rua Vergueiro)': { latitude: -23.578100, longitude: -46.640200 },
-  'Perdizes (Rua Cardoso de Almeida)': { latitude: -23.538500, longitude: -46.669800 },
-  'Santana (Rua Voluntários da Pátria)': { latitude: -23.502100, longitude: -46.627800 },
-  'Morumbi (Av. Giovanni Gronchi)': { latitude: -23.618400, longitude: -46.728900 },
-  'Tatuapé (Rua Tuiuti)': { latitude: -23.538000, longitude: -46.578000 }
-};
+import { ALL_PRESET_LOCATIONS } from '../services/geocodingService';
+
+// Polos regionais e metropolitanos em todo o Brasil para coordenadas geodésicas automáticas
+const SP_PRESET_LOCATIONS = ALL_PRESET_LOCATIONS;
 
 const THERAPY_OPTIONS = [
   'Fisioterapia Cardiorrespiratória & Motora',
@@ -2110,7 +2096,7 @@ export default function MonthlyScalePlannerView({
                 </div>
 
                 <div className="form-group">
-                  <label>Região da Base de Saída (Ponto de Partida em SP)</label>
+                  <label>Região da Base de Saída (Ponto de Partida do Profissional)</label>
                   <select
                     className="planner-select"
                     value={newTherapistForm.neighborhood}

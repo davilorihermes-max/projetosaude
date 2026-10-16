@@ -28,15 +28,31 @@ const COLOR_PRESETS = [
   { name: 'Verde Floresta', hex: '#059669' }
 ];
 
+import { resolveAddressCoordinates } from '../services/geocodingService';
+
 const BASE_LOCATION_PRESETS = [
-  { name: 'Vila Mariana (Zona Sul)', address: 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP', lat: -23.585000, lng: -46.638000 },
-  { name: 'Jardim Paulista (Centro-Sul)', address: 'Rua Pamplona, 700 - Jardim Paulista, São Paulo - SP', lat: -23.565000, lng: -46.657000 },
-  { name: 'Cerqueira César / Paulista', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563000, lng: -46.653000 },
-  { name: 'Pinheiros (Zona Oeste)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567000, lng: -46.691000 },
-  { name: 'Consolação / Higienópolis', address: 'Rua Bela Cintra, 900 - Consolação, São Paulo - SP', lat: -23.555000, lng: -46.661000 },
-  { name: 'Moema / Ibirapuera', address: 'Av. Moema, 450 - Moema, São Paulo - SP', lat: -23.602000, lng: -46.664000 },
-  { name: 'Santana (Zona Norte)', address: 'Rua Voluntários da Pátria, 1500 - Santana, São Paulo - SP', lat: -23.504000, lng: -46.629000 },
-  { name: 'Tatuapé (Zona Leste)', address: 'Rua Tuiuti, 1800 - Tatuapé, São Paulo - SP', lat: -23.539000, lng: -46.577000 }
+  // São Paulo
+  { name: 'Paulista (SP)', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563099, lng: -46.654271 },
+  { name: 'Pinheiros (SP)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567300, lng: -46.693400 },
+  { name: 'Campinas (SP)', address: 'Av. José de Souza Campos, 500 - Cambuí, Campinas - SP', lat: -22.898400, lng: -47.051900 },
+  // Rio de Janeiro
+  { name: 'Copacabana (RJ)', address: 'Av. Atlântica, 1500 - Copacabana, Rio de Janeiro - RJ', lat: -22.971100, lng: -43.182500 },
+  { name: 'Barra da Tijuca (RJ)', address: 'Av. das Américas, 3500 - Barra da Tijuca, Rio de Janeiro - RJ', lat: -22.999700, lng: -43.365900 },
+  // Paraná
+  { name: 'Batel (Curitiba - PR)', address: 'Av. do Batel, 1500 - Batel, Curitiba - PR', lat: -25.442800, lng: -49.288900 },
+  { name: 'Centro Cívico (Curitiba - PR)', address: 'Av. Cândido de Abreu, 500 - Centro Cívico, Curitiba - PR', lat: -25.417200, lng: -49.269400 },
+  // Minas Gerais
+  { name: 'Savassi (BH - MG)', address: 'Av. Cristóvão Colombo, 500 - Savassi, Belo Horizonte - MG', lat: -19.938600, lng: -43.933300 },
+  // Distrito Federal
+  { name: 'Asa Sul (Brasília - DF)', address: 'SHCS EQS 208/408 - Asa Sul, Brasília - DF', lat: -15.811400, lng: -47.906100 },
+  // Rio Grande do Sul
+  { name: 'Moinhos de Vento (POA - RS)', address: 'Rua Padre Chagas, 300 - Moinhos de Vento, Porto Alegre - RS', lat: -30.026100, lng: -51.203600 },
+  // Bahia
+  { name: 'Barra / Ondina (Salvador - BA)', address: 'Av. Oceânica, 1200 - Barra, Salvador - BA', lat: -13.008900, lng: -38.528300 },
+  // Pernambuco
+  { name: 'Boa Viagem (Recife - PE)', address: 'Av. Boa Viagem, 2000 - Boa Viagem, Recife - PE', lat: -8.127500, lng: -34.903600 },
+  // Santa Catarina
+  { name: 'Beira-Mar (Florianópolis - SC)', address: 'Av. Beira Mar Norte, 2200 - Centro, Florianópolis - SC', lat: -27.585500, lng: -48.552400 }
 ];
 
 export default function ProfileModal({
@@ -52,6 +68,13 @@ export default function ProfileModal({
   const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || 'CREFITO/SP 88.340');
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
   const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'São Paulo - SP');
+  const [baseCoordinates, setBaseCoordinates] = useState(
+    currentDoctor?.baseCoordinates || {
+      latitude: currentDoctor?.latitude ?? -23.585,
+      longitude: currentDoctor?.longitude ?? -46.638
+    }
+  );
+  const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');
   const [color, setColor] = useState(currentDoctor?.color || '#0d9488');
   const [avatar, setAvatar] = useState(currentDoctor?.avatar || '');
 
@@ -62,8 +85,23 @@ export default function ProfileModal({
 
   if (!isOpen) return null;
 
+  const handleBaseAddressChange = async (newAddr) => {
+    setBaseAddress(newAddr);
+    if (newAddr && newAddr.trim().length >= 3) {
+      try {
+        const res = await resolveAddressCoordinates(newAddr);
+        if (res && res.latitude && res.longitude) {
+          setBaseCoordinates({ latitude: res.latitude, longitude: res.longitude });
+          setResolvedLocationName(res.matched || res.city || 'Georreferenciado com sucesso');
+        }
+      } catch {}
+    }
+  };
+
   const handleSelectLocationPreset = (preset) => {
     setBaseAddress(preset.address);
+    setBaseCoordinates({ latitude: preset.lat, longitude: preset.lng });
+    setResolvedLocationName(preset.name);
   };
 
   const handleSubmit = async (e) => {
@@ -88,7 +126,9 @@ export default function ProfileModal({
               name,
               specialty,
               councilNumber,
-              crm: councilNumber
+              crm: councilNumber,
+              latitude: baseCoordinates.latitude,
+              longitude: baseCoordinates.longitude
             })
           });
 
@@ -110,6 +150,9 @@ export default function ProfileModal({
         councilNumber,
         crm: councilNumber,
         baseAddress,
+        baseCoordinates,
+        latitude: baseCoordinates.latitude,
+        longitude: baseCoordinates.longitude,
         color,
         avatar
       };
@@ -133,6 +176,8 @@ export default function ProfileModal({
       setLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -337,16 +382,24 @@ export default function ProfileModal({
                   type="text"
                   className="form-input"
                   value={baseAddress}
-                  onChange={(e) => setBaseAddress(e.target.value)}
-                  placeholder="Endereço de partida do profissional..."
+                  onChange={(e) => handleBaseAddressChange(e.target.value)}
+                  placeholder="Endereço ou CEP de partida do profissional (em qualquer cidade)..."
                   required
                 />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem', fontSize: '0.72rem' }}>
+                  <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <MapPin size={11} /> {resolvedLocationName}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    {baseCoordinates.latitude.toFixed(4)}, {baseCoordinates.longitude.toFixed(4)}
+                  </span>
+                </div>
               </div>
 
-              {/* Sugestões Rápidas de Polos em SP */}
+              {/* Sugestões Rápidas de Polos em todo o Brasil */}
               <div>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                  Polos rápidos da Região Metropolitana:
+                  Polos rápidos em Capitais e Regiões de Atendimento:
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                   {BASE_LOCATION_PRESETS.map((p) => (

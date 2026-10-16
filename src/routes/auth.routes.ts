@@ -284,6 +284,34 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
             ...(longitude !== undefined ? { longitude } : {})
           }
         });
+      } else if (specialty || councilNumber || crm) {
+        // Se ainda não existir perfil profissional para o usuário, cria e vincula ao Care Team
+        const createdProf = await prisma.professional.create({
+          data: {
+            userId: request.user.userId,
+            crm: councilNumber || crm || 'CREFITO/UF 00.000',
+            specialty: specialty || 'Atendimento Multidisciplinar',
+            latitude: latitude ?? -23.585000,
+            longitude: longitude ?? -46.638000
+          }
+        });
+
+        // Vincula aos pacientes existentes na clínica
+        const existingPatients = await prisma.patient.findMany({ select: { id: true } });
+        if (existingPatients.length > 0) {
+          await Promise.all(
+            existingPatients.map((p) =>
+              prisma.careTeamMember.create({
+                data: {
+                  patientId: p.id,
+                  professionalId: createdProf.id,
+                  role: 'SPECIALIST',
+                  active: true
+                }
+              }).catch(() => null)
+            )
+          );
+        }
       }
 
       const updatedUser = await prisma.user.findUnique({

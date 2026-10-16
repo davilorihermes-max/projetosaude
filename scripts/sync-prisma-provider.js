@@ -4,10 +4,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const envLocalPath = path.resolve(__dirname, '../.env.local');
+const envPath = path.resolve(__dirname, '../.env');
+
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true });
+}
+dotenv.config({ path: envPath });
+
 const schemaPath = path.resolve(__dirname, '../prisma/schema.prisma');
 
 const dbUrl = process.env.DATABASE_URL || '';

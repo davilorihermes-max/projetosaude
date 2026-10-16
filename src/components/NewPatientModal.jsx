@@ -1,6 +1,7 @@
 // src/components/NewPatientModal.jsx
 import React, { useState } from 'react';
-import { X, UserPlus, Shield } from 'lucide-react';
+import { X, UserPlus, Shield, MapPin } from 'lucide-react';
+import { resolveAddressCoordinates } from '../services/geocodingService';
 
 export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
   const [name, setName] = useState('');
@@ -12,19 +13,45 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
   const [insurance, setInsurance] = useState('Unimed Pleno');
   const [insuranceNumber, setInsuranceNumber] = useState('');
   const [address, setAddress] = useState('');
+  const [patientCoordinates, setPatientCoordinates] = useState({ latitude: -23.585, longitude: -46.638 });
+  const [resolvedLocationName, setResolvedLocationName] = useState('');
   const [caregiver, setCaregiver] = useState('');
   const [accessNotes, setAccessNotes] = useState('');
   const [mobilityStatus, setMobilityStatus] = useState('Deambula sem auxílio');
 
-  if (!isOpen) return null;
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleAddressChange = async (val) => {
+    setAddress(val);
+    if (val && val.trim().length >= 3) {
+      setIsGeocoding(true);
+      try {
+        const coords = await resolveAddressCoordinates(val);
+        if (coords && coords.latitude && coords.longitude) {
+          setPatientCoordinates({ latitude: coords.latitude, longitude: coords.longitude });
+          setResolvedLocationName(coords.matched || coords.city || 'Localização identificada');
+        }
+      } catch {} finally {
+        setIsGeocoding(false);
+      }
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || !cpf || !phone || !address) return;
 
     // Calculate approximate age
     const birthYear = new Date(birthDate).getFullYear();
     const age = 2026 - birthYear;
+
+    let coords = patientCoordinates;
+    try {
+      const resolved = await resolveAddressCoordinates(address);
+      if (resolved && resolved.latitude && resolved.longitude) {
+        coords = { latitude: resolved.latitude, longitude: resolved.longitude };
+      }
+    } catch {}
 
     const newPatient = {
       id: `pat-${Date.now()}`,
@@ -38,6 +65,8 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
       insurance,
       insuranceNumber: insuranceNumber || 'PART-000',
       address,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       caregiver,
       accessNotes,
       mobilityStatus,
@@ -49,6 +78,8 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
     onSavePatient(newPatient);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -163,11 +194,19 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
               <input
                 type="text"
                 className="form-input"
-                placeholder="Ex: Rua Oscar Freire, 1200 - Apto 42, Pinheiros - São Paulo"
+                placeholder="Ex: Rua, número, bairro e cidade (ex: Curitiba, Rio de Janeiro, Salvador...)"
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(e) => handleAddressChange(e.target.value)}
                 required
               />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem', fontSize: '0.72rem' }}>
+                <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <MapPin size={11} /> {resolvedLocationName || (isGeocoding ? 'Localizando endereço...' : 'Georreferenciamento automático')}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                  {patientCoordinates.latitude.toFixed(4)}, {patientCoordinates.longitude.toFixed(4)}
+                </span>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

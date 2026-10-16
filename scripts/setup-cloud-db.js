@@ -1,14 +1,20 @@
 // scripts/setup-cloud-db.js
 import { execSync } from 'child_process';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
+const envLocalPath = path.resolve(rootDir, '.env.local');
+const envPath = path.resolve(rootDir, '.env');
+
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true });
+}
+dotenv.config({ path: envPath });
 
 const dbUrl = process.env.DATABASE_URL || '';
 
