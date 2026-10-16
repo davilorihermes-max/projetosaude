@@ -113,32 +113,17 @@ export default function MonthlyScalePlannerView({
   });
 
   // Atendimentos Fixados / Travados na Grade
-  const [fixedAppointments, setFixedAppointments] = useState([
-    {
-      id: 'fix-1',
-      patientId: 'pat-1',
-      patientName: 'Mariana Souza Lima',
-      professionalId: 'doc-3',
-      professionalName: 'Dr. Rafael Fontes',
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-      recurrenceType: 'weekly', // 'weekly' | 'date'
-      dayOfWeek: 2, // Terça-feira
-      dateStr: '',
-      time: '09:00',
-      durationMinutes: 45,
-      notes: 'Horário fixo semanal acordado em contrato'
-    }
-  ]);
+  const [fixedAppointments, setFixedAppointments] = useState([]);
 
   // Modal para cadastrar atendimento fixo
   const [fixedAppointmentModalState, setFixedAppointmentModalState] = useState({
     isOpen: false,
-    patientId: 'pat-1',
-    professionalId: 'doc-3',
+    patientId: '',
+    professionalId: '',
     therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
     recurrenceType: 'weekly', // 'weekly' | 'date'
     dayOfWeek: 2,
-    dateStr: '2026-10-14',
+    dateStr: '',
     time: '09:00',
     durationMinutes: 45,
     notes: 'Horário fixado prioritário'
@@ -170,160 +155,13 @@ export default function MonthlyScalePlannerView({
   });
 
   // 1. Estado Dinâmico: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS cada e BLOQUEIOS DE HORÁRIO
-  const [patientsWithDemands, setPatientsWithDemands] = useState([
-    {
-      patientId: 'pat-1',
-      patientName: 'Mariana Souza Lima',
-      neighborhood: 'Cerqueira César (Alameda Santos)',
-      address: 'Alameda Santos, 1000 - Cerqueira César',
-      location: { latitude: -23.563099, longitude: -46.654271 },
-      unavailabilityBlocks: [
-        { id: 'blk-pat-1', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', reason: 'Consulta Médica Externa' }
-      ],
-      demands: [
-        {
-          id: 'dem-pat-1-1',
-          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-          sessionsPerWeek: 2,
-          durationMinutes: 45,
-          preferredShift: 'morning'
-        },
-        {
-          id: 'dem-pat-1-2',
-          therapyType: 'Fisioterapia Motora & Neuroreabilitação',
-          sessionsPerWeek: 1,
-          durationMinutes: 45,
-          preferredShift: 'afternoon'
-        }
-      ]
-    },
-    {
-      patientId: 'pat-2',
-      patientName: 'Roberto Carlos Peixoto',
-      neighborhood: 'Pinheiros (Rua Fradique Coutinho)',
-      address: 'Rua Fradique Coutinho, 500 - Pinheiros',
-      location: { latitude: -23.567300, longitude: -46.693400 },
-      unavailabilityBlocks: [
-        { id: 'blk-pat-2', dayOfWeek: 5, startTime: '14:30', endTime: '17:00', reason: 'Fisiatria / Exames' }
-      ],
-      demands: [
-        {
-          id: 'dem-pat-2-1',
-          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-          sessionsPerWeek: 2,
-          durationMinutes: 45,
-          preferredShift: 'morning'
-        }
-      ]
-    },
-    {
-      patientId: 'pat-3',
-      patientName: 'Juliana Mendes Prado',
-      neighborhood: 'Moema (Av. Moema)',
-      address: 'Av. Moema, 350 - Moema',
-      location: { latitude: -23.602200, longitude: -46.662100 },
-      demands: [
-        {
-          id: 'dem-pat-3-1',
-          therapyType: 'Fonoaudiologia Domiciliar',
-          sessionsPerWeek: 2,
-          durationMinutes: 45,
-          preferredShift: 'afternoon'
-        }
-      ]
-    },
-    {
-      patientId: 'pat-4',
-      patientName: 'Gabriel Santos Oliveira',
-      neighborhood: 'Cerqueira César (Alameda Santos)',
-      address: 'Rua Bela Cintra, 1400 - Cerqueira César',
-      location: { latitude: -23.558000, longitude: -46.662000 },
-      demands: [
-        {
-          id: 'dem-pat-4-1',
-          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-          sessionsPerWeek: 3,
-          durationMinutes: 45,
-          preferredShift: 'afternoon'
-        }
-      ]
-    },
-    {
-      patientId: 'pat-5',
-      patientName: 'Helena Vasconcelos',
-      neighborhood: 'Pinheiros (Rua Fradique Coutinho)',
-      address: 'Rua Oscar Freire, 1800 - Pinheiros',
-      location: { latitude: -23.559000, longitude: -46.678000 },
-      demands: [
-        {
-          id: 'dem-pat-5-1',
-          therapyType: 'Enfermagem Estomaterapeuta & Curativos',
-          sessionsPerWeek: 2,
-          durationMinutes: 45,
-          preferredShift: 'any'
-        }
-      ]
-    }
-  ]);
+  const [patientsWithDemands, setPatientsWithDemands] = useState([]);
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
-  // Sem limites arbitrários de sessões - apenas caber na janela de início e fim da jornada
-  const [professionalAvailabilities, setProfessionalAvailabilities] = useState([
-    {
-      professionalId: 'doc-3',
-      professionalName: 'Dr. Rafael Fontes',
-      specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-      baseLocation: { latitude: -23.585000, longitude: -46.638000 },
-      unavailabilityBlocks: [
-        { id: 'blk-doc-1', dayOfWeek: 2, startTime: '09:00', endTime: '10:30', reason: 'Paciente particular externo' }
-      ],
-      weekdayWindows: {
-        1: { enabled: true, startTime: '08:00', endTime: '14:00' },
-        2: { enabled: true, startTime: '08:00', endTime: '18:30' },
-        3: { enabled: true, startTime: '08:00', endTime: '14:00' },
-        4: { enabled: true, startTime: '08:00', endTime: '18:30' },
-        5: { enabled: true, startTime: '08:00', endTime: '15:00' }
-      }
-    },
-    {
-      professionalId: 'doc-4',
-      professionalName: 'Dra. Camila Nogueira',
-      specialty: 'Enfermagem Estomaterapeuta & Curativos Complexos',
-      baseLocation: { latitude: -23.565000, longitude: -46.657000 },
-      unavailabilityBlocks: [
-        { id: 'blk-doc-2', dayOfWeek: 5, startTime: '14:30', endTime: '17:00', reason: 'Plantão hospitalar / Reunião' }
-      ],
-      weekdayWindows: {
-        1: { enabled: false, startTime: '08:00', endTime: '12:00' },
-        2: { enabled: true, startTime: '08:00', endTime: '18:00' },
-        3: { enabled: false, startTime: '08:00', endTime: '12:00' },
-        4: { enabled: true, startTime: '08:00', endTime: '18:00' },
-        5: { enabled: false, startTime: '08:00', endTime: '12:00' }
-      }
-    },
-    {
-      professionalId: 'doc-1',
-      professionalName: 'Dr. Lucas Silveira',
-      specialty: 'Medicina de Família & Atenção Domiciliar (EMAD)',
-      baseLocation: { latitude: -23.561684, longitude: -46.655981 },
-      weekdayWindows: {
-        1: { enabled: true, startTime: '08:00', endTime: '13:00' },
-        2: { enabled: false, startTime: '08:00', endTime: '12:00' },
-        3: { enabled: true, startTime: '08:00', endTime: '13:00' },
-        4: { enabled: false, startTime: '08:00', endTime: '12:00' },
-        5: { enabled: true, startTime: '08:00', endTime: '13:00' }
-      }
-    }
-  ]);
+  const [professionalAvailabilities, setProfessionalAvailabilities] = useState([]);
 
   // 3. Vínculos de Care Team (Restrição de Ouro)
-  const [careTeams, setCareTeams] = useState([
-    { patientId: 'pat-1', professionalIds: ['doc-1', 'doc-3'] },
-    { patientId: 'pat-2', professionalIds: ['doc-1', 'doc-3'] },
-    { patientId: 'pat-3', professionalIds: ['doc-1'] }, // Juliana sem fono no Care Team -> gera bottleneck
-    { patientId: 'pat-4', professionalIds: ['doc-3'] },
-    { patientId: 'pat-5', professionalIds: ['doc-4'] }
-  ]);
+  const [careTeams, setCareTeams] = useState([]);
 
   // Transforma os pacientes e suas demandas na lista plana consumida pelo motor
   const flatDemands = useMemo(() => {
@@ -1486,7 +1324,35 @@ export default function MonthlyScalePlannerView({
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
-              {professionalAvailabilities.map((prof) => (
+              {professionalAvailabilities.length === 0 ? (
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: 'var(--bg-card)',
+                  border: '1px dashed var(--border-light)',
+                  borderRadius: '12px',
+                  padding: '2.5rem',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem'
+                }}>
+                  <Stethoscope size={36} color="var(--success)" />
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum profissional configurado para a escala</div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
+                    Cadastre os profissionais da equipe e determine seus dias e horários semanais para atendimento domiciliar.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ marginTop: '0.5rem', fontSize: '0.82rem' }}
+                    onClick={() => setIsNewTherapistModalOpen(true)}
+                  >
+                    <UserPlus size={15} /> Cadastrar Terapeuta na Escala
+                  </button>
+                </div>
+              ) : (
+                professionalAvailabilities.map((prof) => (
                 <div key={prof.professionalId} style={{
                   border: '1px solid var(--border-light)',
                   borderRadius: '12px',
@@ -1646,7 +1512,7 @@ export default function MonthlyScalePlannerView({
                     )}
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
 
@@ -1668,12 +1534,12 @@ export default function MonthlyScalePlannerView({
                 className="btn-add-fixed"
                 onClick={() => setFixedAppointmentModalState({
                   isOpen: true,
-                  patientId: patientsWithDemands[0]?.patientId || 'pat-1',
-                  professionalId: professionalAvailabilities[0]?.professionalId || 'doc-3',
+                  patientId: patientsWithDemands[0]?.patientId || '',
+                  professionalId: professionalAvailabilities[0]?.professionalId || '',
                   therapyType: patientsWithDemands[0]?.demands[0]?.therapyType || 'Fisioterapia Cardiorrespiratória & Motora',
                   recurrenceType: 'weekly',
                   dayOfWeek: 2,
-                  dateStr: '2026-10-14',
+                  dateStr: '',
                   time: '09:00',
                   durationMinutes: 45,
                   notes: 'Atendimento fixo pré-estabelecido'
@@ -1745,7 +1611,35 @@ export default function MonthlyScalePlannerView({
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
-              {patientsWithDemands.map((patient) => {
+              {patientsWithDemands.length === 0 ? (
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: 'var(--bg-card)',
+                  border: '1px dashed var(--border-light)',
+                  borderRadius: '12px',
+                  padding: '2.5rem',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem'
+                }}>
+                  <Users size={36} color="var(--primary)" />
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum paciente com demanda terapêutica configurada</div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
+                    Cadastre pacientes e configure até 3 demandas terapêuticas semanais para planejar a escala mensal com roteirização inteligente.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ marginTop: '0.5rem', fontSize: '0.82rem' }}
+                    onClick={() => setIsNewPatientModalOpen(true)}
+                  >
+                    <Plus size={15} /> Cadastrar Paciente na Escala
+                  </button>
+                </div>
+              ) : (
+                patientsWithDemands.map((patient) => {
                 const patientCareTeam = careTeams.find((ct) => ct.patientId === patient.patientId) || { professionalIds: [] };
 
                 return (
@@ -1975,7 +1869,7 @@ export default function MonthlyScalePlannerView({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>
@@ -2601,9 +2495,13 @@ export default function MonthlyScalePlannerView({
                       });
                     }}
                   >
-                    {patientsWithDemands.map((p) => (
-                      <option key={p.patientId} value={p.patientId}>{p.patientName}</option>
-                    ))}
+                    {patientsWithDemands.length === 0 ? (
+                      <option value="">Nenhum paciente cadastrado</option>
+                    ) : (
+                      patientsWithDemands.map((p) => (
+                        <option key={p.patientId} value={p.patientId}>{p.patientName}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -2614,11 +2512,15 @@ export default function MonthlyScalePlannerView({
                     value={fixedAppointmentModalState.professionalId}
                     onChange={(e) => setFixedAppointmentModalState({ ...fixedAppointmentModalState, professionalId: e.target.value })}
                   >
-                    {professionalAvailabilities.map((prof) => (
-                      <option key={prof.professionalId} value={prof.professionalId}>
-                        {prof.professionalName} ({prof.specialty})
-                      </option>
-                    ))}
+                    {professionalAvailabilities.length === 0 ? (
+                      <option value="">Nenhum profissional cadastrado</option>
+                    ) : (
+                      professionalAvailabilities.map((prof) => (
+                        <option key={prof.professionalId} value={prof.professionalId}>
+                          {prof.professionalName} ({prof.specialty})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 

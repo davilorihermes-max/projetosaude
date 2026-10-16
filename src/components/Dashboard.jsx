@@ -34,8 +34,9 @@ export default function Dashboard({
 }) {
   const isAllDoctors = !activeDoctor || activeDoctor.id === 'all';
 
+  const todayDateStr = new Date().toISOString().slice(0, 10);
   const todayAppointments = appointments.filter((apt) => {
-    const isToday = apt.date === '2026-09-28' || apt.date === '2026-09-27';
+    const isToday = apt.date === todayDateStr;
     if (!isToday) return false;
     if (isAllDoctors) return true;
     return apt.doctorId === activeDoctor.id;
