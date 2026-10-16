@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import AvatarUploader from './AvatarUploader';
 import Avatar from './Avatar';
+import { API_BASE_URL } from '../services/apiConfig';
 
 const COLOR_PRESETS = [
   { name: 'Âmbar', hex: '#d97706' },
@@ -50,9 +51,9 @@ export default function ProfileModal({
   const [specialty, setSpecialty] = useState(currentDoctor?.specialty || 'Fisioterapia Cardiorrespiratória & Motora');
   const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || 'CREFITO/SP 88.340');
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
-  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP');
-  const [color, setColor] = useState(currentDoctor?.color || '#d97706');
-  const [avatar, setAvatar] = useState(currentDoctor?.avatar || 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80');
+  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'São Paulo - SP');
+  const [color, setColor] = useState(currentDoctor?.color || '#0d9488');
+  const [avatar, setAvatar] = useState(currentDoctor?.avatar || '');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -77,7 +78,7 @@ export default function ProfileModal({
       // Tenta persistir no backend via PUT /api/auth/profile se houver token ativo
       if (token) {
         try {
-          const res = await fetch('http://localhost:3001/api/auth/profile', {
+          const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -204,7 +205,7 @@ export default function ProfileModal({
                   </span>
                 </div>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  {currentUser?.email || 'profissional@omnisaude.com.br'}
+                  {currentUser?.email || ''}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontSize: '0.78rem', color: 'var(--text-body)' }}>
                   <ShieldCheck size={14} color="var(--success)" />

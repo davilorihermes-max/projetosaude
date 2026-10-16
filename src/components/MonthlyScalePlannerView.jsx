@@ -1525,7 +1525,7 @@ export default function MonthlyScalePlannerView({
                   Atendimentos Fixados / Travados na Grade ({fixedAppointments.length})
                 </div>
                 <p className="fixed-appointments-desc">
-                  Atendimentos prioritários pré-estabelecidos (ex: terças-feiras Rafael atende Mariana às 09:00). O motor aloca esses horários primeiro, reserva a agenda e deduz da meta semanal do paciente.
+                  Atendimentos prioritários pré-estabelecidos (ex: terças-feiras às 09:00 com terapeuta fixado). O motor aloca esses horários primeiro, reserva a agenda e deduz da meta semanal do paciente.
                 </p>
               </div>
 

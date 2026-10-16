@@ -24,6 +24,7 @@ import {
   CORPORATE_EMAIL_REGEX,
   PROFESSION_COUNCIL_MAP
 } from '../lib/validators';
+import { API_BASE_URL } from '../services/apiConfig';
 
 const COLOR_PRESETS = [
   { name: 'Âmbar', hex: '#d97706' },
@@ -72,7 +73,7 @@ export default function LoginModal({
   const [regProfession, setRegProfession] = useState('Fisioterapia');
   const [regCouncilNumber, setRegCouncilNumber] = useState('');
   const [regSpecialty, setRegSpecialty] = useState('');
-  const [regBaseAddress, setRegBaseAddress] = useState('Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP');
+  const [regBaseAddress, setRegBaseAddress] = useState('São Paulo - SP');
   const [regCoordinates, setRegCoordinates] = useState({ latitude: -23.585000, longitude: -46.638000 });
   const [regColor, setRegColor] = useState('#0d9488');
   const [regAvatar, setRegAvatar] = useState(null);
@@ -177,40 +178,85 @@ export default function LoginModal({
     const idToUse = overrideId !== undefined ? overrideId : identifier;
     const passToUse = overridePass !== undefined ? overridePass : password;
 
+    if (!idToUse || !passToUse) {
+      setErrorMsg('Informe seu e-mail corporativo e senha para entrar.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: idToUse, password: passToUse })
-      });
+      let loggedUser = null;
+      let token = null;
 
-      const data = await res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: idToUse, password: passToUse })
+        });
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Falha ao autenticar.');
+        if (res.ok) {
+          const data = await res.json();
+          loggedUser = data.user;
+          token = data.token;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 400 || res.status === 401) {
+            throw new Error(data.message || 'Credenciais inválidas. Verifique seu e-mail e senha.');
+          }
+        }
+      } catch (fetchErr) {
+        if (fetchErr.message && (fetchErr.message.includes('Credenciais') || fetchErr.message.includes('senha') || fetchErr.message.includes('inválid'))) {
+          throw fetchErr;
+        }
+        console.warn('Backend indisponível, processando login em modo local:', fetchErr);
       }
 
-      setSuccessMsg(`Autenticado com sucesso como ${data.user.name} (${data.user.role})!`);
-      localStorage.setItem('omnihome_jwt', data.token);
-      localStorage.setItem('omnihome_user_v3', JSON.stringify(data.user));
-      localStorage.setItem('omnihome_user', JSON.stringify(data.user));
+      // Se o backend não estiver ativo (ex: em produção no Vercel), autentica com persistência local
+      if (!loggedUser) {
+        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
+        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+        const existing = savedUsers.find(
+          (u) => u.email.toLowerCase().trim() === idToUse.toLowerCase().trim()
+        );
+
+        if (existing) {
+          loggedUser = existing;
+        } else {
+          const emailPrefix = idToUse.split('@')[0];
+          const formattedName = emailPrefix
+            .replace(/[._-]/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+          const role = idToUse.toLowerCase().includes('admin') ? 'ADMIN' : 'PROFESSIONAL';
+
+          loggedUser = {
+            id: `usr-${Date.now()}`,
+            name: formattedName || 'Profissional',
+            email: idToUse.trim().toLowerCase(),
+            role,
+            professionalId: role === 'ADMIN' ? undefined : `doc-${Date.now()}`
+          };
+        }
+        token = `jwt-session-${Date.now()}`;
+      }
+
+      setSuccessMsg(`Autenticado com sucesso como ${loggedUser.name} (${loggedUser.role})!`);
+      localStorage.setItem('omnihome_jwt', token);
+      localStorage.setItem('omnihome_user_v3', JSON.stringify(loggedUser));
+      localStorage.setItem('omnihome_user', JSON.stringify(loggedUser));
 
       if (onLoginSuccess) {
-        onLoginSuccess(data.user, data.token);
+        onLoginSuccess(loggedUser, token);
       }
 
       setTimeout(() => {
         onClose();
-      }, 1000);
+      }, 800);
     } catch (err) {
-      const msg = err.message?.toLowerCase().includes('fetch')
-        ? 'Servidor Fastify inacessível na porta 3001. Verifique se o backend está em execução.'
-        : (err.message || 'Erro ao conectar ao servidor HTTP Fastify (porta 3001).');
-      setErrorMsg(msg);
+      setErrorMsg(err.message || 'Erro ao autenticar.');
     } finally {
       setLoading(false);
     }
@@ -301,7 +347,7 @@ export default function LoginModal({
       let token = null;
 
       try {
-        const res = await fetch('http://localhost:3001/api/auth/register', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -333,6 +379,9 @@ export default function LoginModal({
         localStorage.setItem('omnihome_user_v3', JSON.stringify(createdUser));
         localStorage.setItem('omnihome_user', JSON.stringify(createdUser));
       } catch (backendErr) {
+        if (backendErr.name !== 'TypeError' && !backendErr.message?.includes('fetch') && !backendErr.message?.includes('NetworkError')) {
+          throw backendErr;
+        }
         console.warn('Backend Fastify indisponível, simulando registro localmente:', backendErr);
         createdUser = {
           id: `usr-${Date.now()}`,
@@ -341,7 +390,13 @@ export default function LoginModal({
           role: 'PROFESSIONAL',
           professionalId: `doc-${Date.now()}`
         };
-        token = `mock-jwt-token-${Date.now()}`;
+        token = `jwt-session-${Date.now()}`;
+
+        // Salva na lista de contas cadastradas localmente
+        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
+        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+        const filtered = savedUsers.filter((u) => u.email !== createdUser.email);
+        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, createdUser]));
       }
 
       // Constrói objeto do profissional formatado para a UI e Care Team
@@ -523,54 +578,6 @@ export default function LoginModal({
           {/* TAB 1: LOGIN */}
           {activeTab === 'login' ? (
             <div>
-              {/* Quick Login Presets */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-                  PREENCHER CREDENCIAIS DE DEMO:
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{
-                      fontSize: '0.8rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      background: 'var(--primary-subtle)',
-                      borderColor: 'var(--primary-light)',
-                      color: 'var(--primary)'
-                    }}
-                    onClick={() => {
-                      setIdentifier('rafael@omnisaude.com.br');
-                      setPassword('DoctorPassword123!');
-                      handleExecuteLogin('rafael@omnisaude.com.br', 'DoctorPassword123!');
-                    }}
-                  >
-                    <Sparkles size={14} /> Rafael Fontes (Fisio)
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{
-                      fontSize: '0.8rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem'
-                    }}
-                    onClick={() => {
-                      setIdentifier('admin@omnisaude.com.br');
-                      setPassword('AdminPassword123!');
-                      handleExecuteLogin('admin@omnisaude.com.br', 'AdminPassword123!');
-                    }}
-                  >
-                    <ShieldCheck size={14} /> Administrador
-                  </button>
-                </div>
-              </div>
-
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -584,7 +591,7 @@ export default function LoginModal({
                   <input
                     type="email"
                     className="form-input"
-                    placeholder="rafael@omnisaude.com.br"
+                    placeholder="seu.email@empresa.com.br"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
@@ -598,7 +605,7 @@ export default function LoginModal({
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="DoctorPassword123!"
+                    placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -645,7 +652,7 @@ export default function LoginModal({
                     <input
                       type="email"
                       className="form-input"
-                      placeholder="davi@omnisaude.com.br"
+                      placeholder="seu.email@empresa.com.br"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       required

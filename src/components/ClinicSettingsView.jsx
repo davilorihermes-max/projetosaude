@@ -220,20 +220,20 @@ export default function ClinicSettingsView({
       <div className="card" style={{ border: '1px dashed var(--danger-border)', background: 'var(--danger-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h4 style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Restaurar Dados de Exemplo</h4>
+            <h4 style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Limpar Dados Locais</h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Reinicia todos os agendamentos, pacientes e equipe para os valores de demonstração padrão.
+              Limpa todos os agendamentos, pacientes e equipe salvos localmente na sessão.
             </p>
           </div>
 
           {resetDone ? (
             <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <CheckCircle size={16} /> Dados restaurados com sucesso!
+              <CheckCircle size={16} /> Dados locais limpos com sucesso!
             </span>
           ) : confirmReset ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.82rem', color: 'var(--danger)', fontWeight: 600 }}>
-                Confirmar restauração?
+                Confirmar limpeza?
               </span>
               <button
                 type="button"
@@ -246,7 +246,7 @@ export default function ClinicSettingsView({
                   setTimeout(() => setResetDone(false), 2500);
                 }}
               >
-                Sim, Restaurar
+                Sim, Limpar Dados
               </button>
               <button
                 type="button"
