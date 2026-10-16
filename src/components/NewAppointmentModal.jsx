@@ -13,6 +13,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { API_BASE_URL } from '../services/apiConfig';
 
 export default function NewAppointmentModal({
   isOpen,
@@ -64,7 +65,7 @@ export default function NewAppointmentModal({
         const token = localStorage.getItem('omnihome_jwt');
         const proposedIso = `${date}T${time}:00.000Z`;
 
-        const res = await fetch('http://localhost:3001/api/scheduler/evaluate', {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/evaluate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -130,7 +131,7 @@ export default function NewAppointmentModal({
       // 1. Persistir no banco de dados se houver token disponível
       if (token) {
         try {
-          const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
+          const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -155,7 +156,7 @@ export default function NewAppointmentModal({
         } catch (fetchErr) {
           // Se for erro de rede/conexão (backend offline), permite prosseguir com salvamento local
           if (fetchErr.name === 'TypeError' || fetchErr.message?.toLowerCase().includes('fetch')) {
-            console.warn('Servidor Fastify (porta 3001) inacessível. Agendamento registrado localmente:', fetchErr);
+            console.warn('Servidor de agendamento offline. Agendamento registrado localmente:', fetchErr);
           } else {
             throw fetchErr;
           }
@@ -189,7 +190,7 @@ export default function NewAppointmentModal({
     } catch (err) {
       setSubmitError(
         err.message?.toLowerCase().includes('fetch')
-          ? 'Não foi possível conectar ao servidor Fastify (porta 3001).'
+          ? 'Não foi possível conectar ao servidor de agendamento.'
           : (err.message || 'Erro ao agendar.')
       );
     } finally {

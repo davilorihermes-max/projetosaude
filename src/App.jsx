@@ -18,6 +18,7 @@ import {
   INITIAL_PATIENTS,
   INITIAL_APPOINTMENTS
 } from './data/mockData';
+import { API_BASE_URL } from './services/apiConfig';
 
 export default function App() {
   // Theme state
@@ -122,7 +123,7 @@ export default function App() {
   useEffect(() => {
     const fetchBackendProfessionals = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/scheduler/professionals');
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/professionals`);
         if (res.ok) {
           const data = await res.json();
           if (data.professionals && Array.isArray(data.professionals)) {
@@ -177,7 +178,7 @@ export default function App() {
         const token = localStorage.getItem('omnihome_jwt');
         if (!token) return;
 
-        const res = await fetch('http://localhost:3001/api/scheduler/appointments', {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -359,8 +360,8 @@ export default function App() {
       {
         id: `notif-${Date.now()}`,
         type: 'info',
-        title: 'Dados Restaurados',
-        description: 'Todos os agendamentos, pacientes e equipe foram restaurados para os valores padrão.',
+        title: 'Dados Locais Limpos',
+        description: 'Todos os agendamentos, pacientes e equipe salvos localmente foram limpos.',
         time: 'Agora'
       },
       ...prev
