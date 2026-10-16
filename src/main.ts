@@ -26,13 +26,13 @@ export function buildServer(): FastifyInstance {
   });
 
   // Healthcheck
-  server.get('/health', async () => {
-    return {
-      status: 'UP',
-      service: 'OmniSaúde API & Scheduler Engine',
-      timestamp: new Date().toISOString()
-    };
+  const healthHandler = async () => ({
+    status: 'UP',
+    service: 'OmniSaúde API & Scheduler Engine',
+    timestamp: new Date().toISOString()
   });
+  server.get('/health', healthHandler);
+  server.get('/api/health', healthHandler);
 
   // Registro de Rotas
   server.register(authRoutes, { prefix: '/api/auth' });
@@ -41,7 +41,7 @@ export function buildServer(): FastifyInstance {
   return server;
 }
 
-async function start() {
+export async function start() {
   const server = buildServer();
   const port = Number(process.env.PORT) || 3001;
   const host = process.env.HOST || '0.0.0.0';
@@ -55,7 +55,16 @@ async function start() {
   }
 }
 
-// Inicia automaticamente quando executado como script principal
-if (process.env.NODE_ENV !== 'test') {
+// Inicia automaticamente quando executado diretamente como script de entrada
+const isMainScript =
+  typeof process.argv[1] === 'string' &&
+  (process.argv[1].endsWith('main.ts') || process.argv[1].endsWith('main.js'));
+
+if (
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.VERCEL &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME &&
+  isMainScript
+) {
   start();
 }

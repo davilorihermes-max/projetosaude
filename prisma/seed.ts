@@ -7,12 +7,15 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Clean old records
-  await prisma.appointment.deleteMany({});
-  await prisma.careTeamMember.deleteMany({});
-  await prisma.patient.deleteMany({});
-  await prisma.professional.deleteMany({});
-  await prisma.user.deleteMany({});
+  // Clean old records only in development/test
+  const isProduction = process.env.NODE_ENV === 'production' || (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('file:'));
+  if (!isProduction) {
+    await prisma.appointment.deleteMany({});
+    await prisma.careTeamMember.deleteMany({});
+    await prisma.patient.deleteMany({});
+    await prisma.professional.deleteMany({});
+    await prisma.user.deleteMany({});
+  }
 
   const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 10);
   const doctorPasswordHash = await bcrypt.hash('DoctorPassword123!', 10);
@@ -70,8 +73,32 @@ async function main() {
     }
   });
 
+  // 2c. Multidisciplinary Professional (Enfermagem Domiciliar - Milla Chagas)
+  const millaUser = await prisma.user.upsert({
+    where: { email: 'millachagass@gmail.com' },
+    update: {},
+    create: {
+      name: 'Milla Chagas',
+      email: 'millachagass@gmail.com',
+      passwordHash: doctorPasswordHash,
+      role: 'PROFESSIONAL',
+      professional: {
+        create: {
+          crm: 'COREN/SP 230.999',
+          specialty: 'Enfermagem Oncológica & Domiciliar',
+          latitude: -23.565,
+          longitude: -46.657
+        }
+      }
+    },
+    include: {
+      professional: true
+    }
+  });
+
   const professionalId = doctorUser.professional!.id;
   const rafaelProfessionalId = rafaelUser.professional!.id;
+  const millaProfessionalId = millaUser.professional?.id;
 
   // 3. Patients in São Paulo
   const patientMariana = await prisma.patient.create({
@@ -149,6 +176,26 @@ async function main() {
       active: true
     }
   });
+
+  if (millaProfessionalId) {
+    await prisma.careTeamMember.create({
+      data: {
+        patientId: patientMariana.id,
+        professionalId: millaProfessionalId,
+        role: 'SPECIALIST',
+        active: true
+      }
+    });
+
+    await prisma.careTeamMember.create({
+      data: {
+        patientId: patientRoberto.id,
+        professionalId: millaProfessionalId,
+        role: 'SPECIALIST',
+        active: true
+      }
+    });
+  }
 
   // 5. Existing appointments for today (2026-09-27)
   const dateBase = '2026-09-27';

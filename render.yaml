@@ -1,0 +1,30 @@
+# render.yaml - Infraestrutura como Código para OmniSaúde no Render
+services:
+  - type: web
+    name: omnisaude-backend
+    env: node
+    plan: free
+    region: ohio
+    buildCommand: npm install && node scripts/sync-prisma-provider.js && npx prisma db push && npx tsx prisma/seed.ts
+    startCommand: npm run start:server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: omnisaude-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: omnisaude-postgres
+    plan: free
+    region: ohio
+    databaseName: omnisaude_db
+    user: omnisaude_user

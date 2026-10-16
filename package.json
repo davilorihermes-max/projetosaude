@@ -5,12 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/sync-prisma-provider.js && prisma generate && vite build",
+    "vercel-build": "node scripts/sync-prisma-provider.js && prisma generate && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run test/",
     "start:server": "tsx src/main.ts",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "db:sync-provider": "node scripts/sync-prisma-provider.js",
+    "db:push": "node scripts/sync-prisma-provider.js && prisma db push",
+    "db:setup-cloud": "node scripts/setup-cloud-db.js",
+    "db:create-user": "node scripts/create-user.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
