@@ -101,6 +101,21 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(data.message).toContain('Credenciais inválidas');
     });
 
+    it('deve rejeitar e-mail de perfil inexistente não cadastrado', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: 'naoexiste@omnisaude.com.br',
+          password: 'AnyPassword123!'
+        }
+      });
+
+      expect(response.statusCode).toBe(401);
+      const data = response.json();
+      expect(data.message).toContain('Credenciais inválidas');
+    });
+
     it('deve rejeitar requisição sem e-mail ou senha', async () => {
       const response = await server.inject({
         method: 'POST',
