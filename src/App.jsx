@@ -251,7 +251,9 @@ export default function App() {
   const handleRegisterProfessional = (newProfessional, user) => {
     setDoctors((prev) => {
       const filtered = prev.filter((d) => d.id !== newProfessional.id && d.name !== newProfessional.name);
-      return [newProfessional, ...filtered];
+      const updated = [newProfessional, ...filtered];
+      localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+      return updated;
     });
     setSelectedDoctorId(newProfessional.id);
     if (user) {
@@ -272,9 +274,11 @@ export default function App() {
 
   const handleUpdateProfile = (updatedDoctorData, updatedUserData) => {
     if (updatedDoctorData) {
-      setDoctors((prev) =>
-        prev.map((d) => (d.id === updatedDoctorData.id ? { ...d, ...updatedDoctorData } : d))
-      );
+      setDoctors((prev) => {
+        const updated = prev.map((d) => (d.id === updatedDoctorData.id ? { ...d, ...updatedDoctorData } : d));
+        localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+        return updated;
+      });
     }
     if (updatedUserData) {
       setCurrentUser((prev) => {
@@ -356,6 +360,10 @@ export default function App() {
     localStorage.removeItem('omnihome_appointments_v3');
     localStorage.removeItem('omnihome_records_v3');
     localStorage.removeItem('omnihome_doctors_v3');
+    localStorage.removeItem('omnihome_registered_users');
+    localStorage.removeItem('omnihome_jwt');
+    localStorage.removeItem('omnihome_user_v3');
+    localStorage.removeItem('omnihome_user');
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,

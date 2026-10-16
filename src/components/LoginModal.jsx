@@ -215,7 +215,7 @@ export default function LoginModal({
         console.warn('Backend indisponível, processando login em modo local:', fetchErr);
       }
 
-      // Se o backend não estiver ativo (ex: em produção no Vercel), autentica com persistência local
+      // Se o backend não estiver ativo (ex: em produção no Vercel), autentica com persistência local estrita
       if (!loggedUser) {
         const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
         const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
@@ -223,24 +223,16 @@ export default function LoginModal({
           (u) => u.email.toLowerCase().trim() === idToUse.toLowerCase().trim()
         );
 
-        if (existing) {
-          loggedUser = existing;
-        } else {
-          const emailPrefix = idToUse.split('@')[0];
-          const formattedName = emailPrefix
-            .replace(/[._-]/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-          const role = idToUse.toLowerCase().includes('admin') ? 'ADMIN' : 'PROFESSIONAL';
-
-          loggedUser = {
-            id: `usr-${Date.now()}`,
-            name: formattedName || 'Profissional',
-            email: idToUse.trim().toLowerCase(),
-            role,
-            professionalId: role === 'ADMIN' ? undefined : `doc-${Date.now()}`
-          };
+        if (!existing) {
+          throw new Error('Credenciais inválidas: perfil não encontrado. Por favor, verifique o e-mail digitado ou cadastre seu perfil na aba "Cadastrar Perfil Profissional".');
         }
-        token = `jwt-session-${Date.now()}`;
+
+        if (existing.password && existing.password !== passToUse) {
+          throw new Error('Credenciais inválidas: e-mail ou senha incorretos.');
+        }
+
+        loggedUser = existing;
+        token = `session-${Date.now()}`;
       }
 
       setSuccessMsg(`Autenticado com sucesso como ${loggedUser.name} (${loggedUser.role})!`);
@@ -378,24 +370,30 @@ export default function LoginModal({
         localStorage.setItem('omnihome_jwt', token);
         localStorage.setItem('omnihome_user_v3', JSON.stringify(createdUser));
         localStorage.setItem('omnihome_user', JSON.stringify(createdUser));
+
+        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
+        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+        const filtered = savedUsers.filter((u) => u.email.toLowerCase() !== createdUser.email.toLowerCase());
+        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, { ...createdUser, password: regPassword }]));
       } catch (backendErr) {
         if (backendErr.name !== 'TypeError' && !backendErr.message?.includes('fetch') && !backendErr.message?.includes('NetworkError')) {
           throw backendErr;
         }
-        console.warn('Backend Fastify indisponível, simulando registro localmente:', backendErr);
+        console.warn('Backend Fastify indisponível, salvando registro em modo local:', backendErr);
         createdUser = {
           id: `usr-${Date.now()}`,
           name: regName.trim(),
           email: regEmail.trim().toLowerCase(),
-          role: 'PROFESSIONAL',
+          password: regPassword,
+          role: regProfession === 'Administração' || regEmail.toLowerCase().includes('admin') ? 'ADMIN' : 'PROFESSIONAL',
           professionalId: `doc-${Date.now()}`
         };
-        token = `jwt-session-${Date.now()}`;
+        token = `session-${Date.now()}`;
 
         // Salva na lista de contas cadastradas localmente
         const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
         const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-        const filtered = savedUsers.filter((u) => u.email !== createdUser.email);
+        const filtered = savedUsers.filter((u) => u.email.toLowerCase() !== createdUser.email.toLowerCase());
         localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, createdUser]));
       }
 
@@ -620,6 +618,29 @@ export default function LoginModal({
                 >
                   {loading ? 'Autenticando...' : 'Entrar na Plataforma'}
                 </button>
+
+                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Ainda não possui perfil cadastrado?{' '}
+                  <button
+                    type="button"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--primary)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontSize: '0.82rem',
+                      textDecoration: 'underline'
+                    }}
+                    onClick={() => {
+                      setActiveTab('register');
+                      setErrorMsg('');
+                    }}
+                  >
+                    Cadastre-se aqui
+                  </button>
+                </div>
               </form>
             </div>
           ) : (
