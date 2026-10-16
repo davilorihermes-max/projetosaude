@@ -45,7 +45,7 @@ export default function Header({
               onOpenLoginModal();
             }
           }}
-          title={currentUser ? "Meu Perfil Profissional (JWT Ativo)" : "Entrar ou Criar Perfil"}
+          title={currentUser ? "Meu Perfil Profissional" : "Entrar ou Criar Perfil"}
         >
           {currentUser ? (
             <Avatar src={currentUser.avatar} name={currentUser.name} size={18} />

@@ -903,7 +903,7 @@ export default function MonthlyScalePlannerView({
             <div className="planner-banner-desc">
               {activeTab === 'demands'
                 ? 'Indique o horário de início e fim da jornada diária dos terapeutas (sem limite artificial de atendimentos) e até 3 demandas por paciente abaixo.'
-                : 'Acompanhe as sessões agendadas dia a dia, horários exatos e tempos de trânsito em rota geodésica urbana.'}
+                : 'Acompanhe as sessões agendadas dia a dia, horários exatos e tempos de trânsito calculados.'}
             </div>
           </div>
         </div>
@@ -969,7 +969,7 @@ export default function MonthlyScalePlannerView({
                 Grade Distribuída: {scaleResult?.monthLabel}
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Sessões sequenciais com rota geodésica e tempos de trânsito calculados.
+                Sessões sequenciais com tempos de trânsito e rotas calculadas.
               </p>
             </div>
 
@@ -2288,7 +2288,7 @@ export default function MonthlyScalePlannerView({
                     ))}
                   </select>
                   <small style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-                    As coordenadas geodésicas da rota serão recalculadas automaticamente para este bairro.
+                    A rota será recalculada automaticamente para este bairro.
                   </small>
                 </div>
               </div>

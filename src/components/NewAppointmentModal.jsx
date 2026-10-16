@@ -222,7 +222,7 @@ export default function NewAppointmentModal({
                 Agendar Nova Sessão Domiciliar
               </h3>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Validação geodésica em tempo real & conformidade com Care Team
+                Validação de rotas em tempo real & conformidade com Care Team
               </span>
             </div>
           </div>
@@ -401,7 +401,7 @@ export default function NewAppointmentModal({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.85rem' }}>
                   {evaluating ? (
-                    <span style={{ color: 'var(--text-muted)' }}>Calculando viabilidade geodésica...</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Calculando viabilidade de rota...</span>
                   ) : viability?.viable ? (
                     <>
                       <CheckCircle2 size={16} color="var(--success)" />
@@ -495,7 +495,7 @@ export default function NewAppointmentModal({
                 cursor: viability?.viable === false ? 'not-allowed' : 'pointer'
               }}
             >
-              {saving ? 'Gravando no Prisma...' : 'Confirmar Sessão na Rota'}
+              {saving ? 'Confirmando Agendamento...' : 'Confirmar Sessão na Rota'}
             </button>
           </div>
         </form>

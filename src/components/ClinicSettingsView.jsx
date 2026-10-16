@@ -263,7 +263,7 @@ export default function ClinicSettingsView({
               className="btn btn-danger"
               onClick={() => setConfirmReset(true)}
             >
-              <RefreshCw size={15} /> Restaurar Padrões
+              <RefreshCw size={15} /> Limpar Dados Locais
             </button>
           )}
         </div>
