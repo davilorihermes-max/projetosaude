@@ -100,7 +100,9 @@ export default function Sidebar({
               <span className="profile-name">{currentUser?.name || doctor?.name || 'Profissional'}</span>
               <span className="profile-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }}></span>
-                {currentUser ? `JWT (${currentUser.role})` : `${doctor?.profession || 'Profissional'} • ${doctor?.councilNumber || doctor?.crm || 'Registro Ativo'}`}
+                {currentUser
+                  ? (currentUser.role === 'ADMIN' ? 'Administrador' : (doctor?.profession || 'Profissional de Saúde'))
+                  : `${doctor?.profession || 'Profissional'} • ${doctor?.councilNumber || doctor?.crm || 'Registro Ativo'}`}
               </span>
             </div>
           </div>

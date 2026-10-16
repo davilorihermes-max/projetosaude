@@ -560,7 +560,7 @@ export default function App() {
               id: `notif-${Date.now()}`,
               type: 'info',
               title: 'Login Realizado com Sucesso',
-              description: `Conectado como ${user.name} (${user.role}) via Fastify JWT.`,
+              description: `Conectado como ${user.name} (${user.role === 'ADMIN' ? 'Administrador' : 'Profissional'}).`,
               time: 'Agora'
             },
             ...prev

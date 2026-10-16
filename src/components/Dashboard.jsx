@@ -1,5 +1,5 @@
 // src/components/Dashboard.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Calendar,
@@ -73,6 +73,32 @@ export default function Dashboard({
     })
     .filter(Boolean);
 
+  // Dynamic modality distribution calculated from real appointments
+  const modalityStats = useMemo(() => {
+    if (!appointments || appointments.length === 0) return [];
+
+    const counts = {};
+    appointments.forEach((apt) => {
+      const modality = apt.type || apt.therapyType || 'Atendimento Geral';
+      counts[modality] = (counts[modality] || 0) + 1;
+    });
+
+    const total = appointments.length;
+    const colors = ['#0284c7', '#9333ea', '#d97706', '#059669', '#e11d48', '#4f46e5'];
+
+    return Object.entries(counts)
+      .map(([name, count], index) => {
+        const percentage = Math.round((count / total) * 100);
+        return {
+          name,
+          percentage,
+          count,
+          color: colors[index % colors.length]
+        };
+      })
+      .sort((a, b) => b.percentage - a.percentage);
+  }, [appointments]);
+
   const handleCompleteWithCelebration = (aptId) => {
     onUpdateAppointmentStatus(aptId, 'completed');
     confetti({
@@ -106,7 +132,7 @@ export default function Dashboard({
           <p>
             {totalSessions > 0 ? (
               <>
-                Você possui <strong>{totalSessions} sessões domiciliares</strong> programadas hoje. Rota estimada em <strong>{totalDistanceKm} km</strong> de deslocamento urbano com cálculo geodésico.
+                Você possui <strong>{totalSessions} sessões domiciliares</strong> programadas hoje. Rota estimada em <strong>{totalDistanceKm} km</strong> de deslocamento urbano estimado.
               </>
             ) : (
               <>
@@ -138,7 +164,7 @@ export default function Dashboard({
 
         <div className="kpi-card">
           <div className="kpi-top">
-            <span className="kpi-label">Distância Prevista (Haversine)</span>
+            <span className="kpi-label">Deslocamento Estimado</span>
             <div className="kpi-icon-box" style={{ background: 'var(--info-subtle)', color: 'var(--info)' }}>
               <Compass size={20} />
             </div>
@@ -370,7 +396,7 @@ export default function Dashboard({
             <div className="alert-card-item alert-info-soft">
               <Compass size={20} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Scheduler Geodésico Ativo</strong>
+                <strong>Otimizador de Rotas Ativo</strong>
                 <p style={{ marginTop: '0.2rem', fontSize: '0.78rem' }}>
                   Janelas de trânsito calculadas automaticamente com velocidade média urbana de 30 km/h e 10 min de margem para estacionamento e acesso.
                 </p>
@@ -387,45 +413,29 @@ export default function Dashboard({
               </h2>
             </div>
 
-            <div className="specialty-row">
-              <div className="specialty-meta">
-                <span>Fisioterapia e Reabilitação Motora Domiciliar</span>
-                <span style={{ color: '#0284c7' }}>35%</span>
+            {modalityStats.length > 0 ? (
+              modalityStats.map((item) => (
+                <div key={item.name} className="specialty-row">
+                  <div className="specialty-meta">
+                    <span>{item.name}</span>
+                    <span style={{ color: item.color }}>{item.percentage}%</span>
+                  </div>
+                  <div className="specialty-bar-track">
+                    <div
+                      className="specialty-bar-fill"
+                      style={{ width: `${item.percentage}%`, background: item.color }}
+                    ></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <p style={{ margin: 0, fontWeight: 500 }}>Nenhum atendimento registrado no momento.</p>
+                <span style={{ fontSize: '0.78rem', display: 'block', marginTop: '0.3rem' }}>
+                  A distribuição será calculada automaticamente conforme novas sessões forem agendadas.
+                </span>
               </div>
-              <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '35%', background: '#0284c7' }}></div>
-              </div>
-            </div>
-
-            <div className="specialty-row">
-              <div className="specialty-meta">
-                <span>Enfermagem e Cuidados no Domicílio</span>
-                <span style={{ color: '#9333ea' }}>30%</span>
-              </div>
-              <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '30%', background: '#9333ea' }}></div>
-              </div>
-            </div>
-
-            <div className="specialty-row">
-              <div className="specialty-meta">
-                <span>Fonoaudiologia e Terapia Ocupacional</span>
-                <span style={{ color: '#d97706' }}>20%</span>
-              </div>
-              <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '20%', background: '#d97706' }}></div>
-              </div>
-            </div>
-
-            <div className="specialty-row">
-              <div className="specialty-meta">
-                <span>Avaliação Inicial e Treinamento de Cuidador</span>
-                <span style={{ color: '#059669' }}>15%</span>
-              </div>
-              <div className="specialty-bar-track">
-                <div className="specialty-bar-fill" style={{ width: '15%', background: '#059669' }}></div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

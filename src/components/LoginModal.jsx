@@ -336,7 +336,7 @@ export default function LoginModal({
 
     // 8. Validação de Endereço Base para Roteirização
     if (!regBaseAddress || regBaseAddress.trim().length < 8) {
-      setErrorMsg('Requisito de Roteirização: Informe o endereço residencial ou base de saída para o cálculo geodésico.');
+      setErrorMsg('Requisito de Roteirização: Informe o endereço residencial ou base de saída para o cálculo de rotas.');
       return;
     }
 
@@ -463,7 +463,7 @@ export default function LoginModal({
               </h2>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 {activeTab === 'login'
-                  ? 'Acesso seguro com Fastify JWT & Hash Bcrypt'
+                  ? 'Acesso seguro à plataforma de atendimento'
                   : 'Requisitos estritos de segurança, conselho de classe e auditoria clínica'}
               </span>
             </div>
@@ -600,7 +600,7 @@ export default function LoginModal({
 
                 <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Lock size={14} /> Senha Segura (Bcrypt)
+                    <Lock size={14} /> Senha de Acesso
                   </label>
                   <input
                     type="password"
@@ -618,7 +618,7 @@ export default function LoginModal({
                   style={{ width: '100%', padding: '0.75rem' }}
                   disabled={loading}
                 >
-                  {loading ? 'Autenticando via Bcrypt + JWT...' : 'Entrar na Plataforma'}
+                  {loading ? 'Autenticando...' : 'Entrar na Plataforma'}
                 </button>
               </form>
             </div>
