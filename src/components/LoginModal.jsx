@@ -56,8 +56,8 @@ export default function LoginModal({
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // Login Form States
-  const [identifier, setIdentifier] = useState('rafael@omnisaude.com.br');
-  const [password, setPassword] = useState('DoctorPassword123!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
 
   // Register / Profile Creation States (Strict Healthcare Standards)
   const [regName, setRegName] = useState('');

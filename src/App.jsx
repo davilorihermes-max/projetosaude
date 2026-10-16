@@ -84,7 +84,7 @@ export default function App() {
     }
     return 'all';
   });
-  const [activePatientId, setActivePatientId] = useState(patients[0]?.id || 'pat-1');
+  const [activePatientId, setActivePatientId] = useState(patients[0]?.id || null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginModalTab, setLoginModalTab] = useState('login');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -96,36 +96,14 @@ export default function App() {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [modalInitialPatientId, setModalInitialPatientId] = useState(null);
   const [modalInitialTime, setModalInitialTime] = useState('09:00');
-  const [modalInitialDate, setModalInitialDate] = useState('2026-09-28');
+  const [modalInitialDate, setModalInitialDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [modalInitialDuration, setModalInitialDuration] = useState(45);
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Home Care Operational Notifications
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      type: 'alert',
-      title: 'Acesso Restrito ao Condomínio',
-      description: 'Mariana Souza Lima: Portaria exige aviso prévio de 15 min e cadastro na guarita.',
-      time: 'Há 15 min'
-    },
-    {
-      id: 'notif-2',
-      type: 'lab',
-      title: 'Check-in Realizado com Sucesso',
-      description: 'Rafael Fontes iniciou atendimento domiciliar em Pinheiros (Roberto Carlos).',
-      time: 'Há 25 min'
-    },
-    {
-      id: 'notif-3',
-      type: 'info',
-      title: 'Confirmação do Cuidador',
-      description: 'Cuidadora de Juliana confirmou presença e autorizou entrada para as 14:00.',
-      time: 'Há 1 hora'
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -210,10 +188,7 @@ export default function App() {
               const dateObj = new Date(a.scheduledTime);
               const dateStr = dateObj.toISOString().slice(0, 10);
               const timeStr = dateObj.toISOString().slice(11, 16);
-              const doctorId =
-                a.professionalId === 'doc-3' || a.professional?.user?.name?.includes('Rafael')
-                  ? 'doc-3'
-                  : a.professionalId;
+              const doctorId = a.professionalId;
 
               return {
                 id: a.id,
@@ -264,7 +239,7 @@ export default function App() {
   const activeDoctor =
     selectedDoctorId === 'all'
       ? { id: 'all', name: 'Toda a Equipe Multidisciplinar', profession: 'Central Operacional' }
-      : (doctors.find((d) => d.id === selectedDoctorId) || doctors[0] || DOCTORS[0]);
+      : (doctors.find((d) => d.id === selectedDoctorId) || doctors[0] || null);
 
   // Actions
   const handleOpenNewProfessional = () => {
@@ -351,10 +326,11 @@ export default function App() {
     setActiveTab('patients');
   };
 
-  const handleOpenNewAppointment = (patientId = null, time = '09:00', date = '2026-09-28', duration = 45, docId = null) => {
+  const handleOpenNewAppointment = (patientId = null, time = '09:00', date = null, duration = 45, docId = null) => {
+    const defaultDate = date || new Date().toISOString().slice(0, 10);
     setModalInitialPatientId(patientId);
     setModalInitialTime(time);
-    setModalInitialDate(date);
+    setModalInitialDate(defaultDate);
     setModalInitialDuration(duration);
     if (docId && docId !== 'all') {
       setSelectedDoctorId(docId);
@@ -392,8 +368,9 @@ export default function App() {
   };
 
   // Waiting in reception count
+  const todayStr = new Date().toISOString().slice(0, 10);
   const waitingCount = appointments.filter(
-    (a) => a.date === '2026-09-28' && a.status === 'waiting'
+    (a) => a.date === todayStr && a.status === 'waiting'
   ).length;
 
   return (
@@ -429,7 +406,7 @@ export default function App() {
           }}
           onOpenProfileModal={() => setIsProfileModalOpen(true)}
           onOpenNewProfessional={handleOpenNewProfessional}
-          onOpenNewAppointment={() => handleOpenNewAppointment(null, '09:00', '2026-09-28', 45, activeDoctor?.id)}
+          onOpenNewAppointment={() => handleOpenNewAppointment(null, '09:00', todayStr, 45, activeDoctor?.id)}
           onOpenNewPatient={() => setIsPatientModalOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           unreadCount={notifications.length}
@@ -443,7 +420,7 @@ export default function App() {
               doctors={doctors}
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               onOpenPatientRecord={handleOpenPatientRecord}
-              onOpenNewAppointment={() => handleOpenNewAppointment(null, '09:00', '2026-09-28', 45, activeDoctor?.id)}
+              onOpenNewAppointment={() => handleOpenNewAppointment(null, '09:00', todayStr, 45, activeDoctor?.id)}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               activeDoctor={activeDoctor}
             />
@@ -465,7 +442,7 @@ export default function App() {
           {activeTab === 'monthly-planner' && (
             <MonthlyScalePlannerView
               patients={patients}
-              doctors={DOCTORS}
+              doctors={doctors}
               onCommitScaleToAppointments={(newAppointments) => {
                 setAppointments((prev) => [...newAppointments, ...prev]);
                 setActiveTab('schedule');
@@ -480,7 +457,7 @@ export default function App() {
               activeDoctor={activeDoctor}
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
-              onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', '2026-09-28', 45, activeDoctor?.id)}
+              onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
             />
           )}
@@ -574,10 +551,6 @@ export default function App() {
               setSelectedDoctorId(matched.id);
             } else if (user.professionalId) {
               setSelectedDoctorId(user.professionalId);
-            } else if (user.name.toLowerCase().includes('camila')) {
-              setSelectedDoctorId('doc-4');
-            } else if (user.name.toLowerCase().includes('rafael')) {
-              setSelectedDoctorId('doc-3');
             }
           }
 

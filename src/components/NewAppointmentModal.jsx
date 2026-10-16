@@ -23,12 +23,13 @@ export default function NewAppointmentModal({
   initialPatientId = null,
   initialDoctorId = null,
   initialTime = '14:00',
-  initialDate = '2026-09-28',
+  initialDate = null,
   initialDuration = 45
 }) {
+  const getTodayStr = () => new Date().toISOString().slice(0, 10);
   const [patientId, setPatientId] = useState(initialPatientId || patients[0]?.id || '');
   const [doctorId, setDoctorId] = useState(initialDoctorId || doctors[0]?.id || '');
-  const [date, setDate] = useState(initialDate);
+  const [date, setDate] = useState(initialDate || getTodayStr());
   const [time, setTime] = useState(initialTime);
   const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
   const [durationMinutes, setDurationMinutes] = useState(initialDuration || 45);
@@ -46,7 +47,7 @@ export default function NewAppointmentModal({
       if (initialPatientId) setPatientId(initialPatientId);
       if (initialDoctorId) setDoctorId(initialDoctorId);
       if (initialTime) setTime(initialTime);
-      if (initialDate) setDate(initialDate);
+      setDate(initialDate || getTodayStr());
       if (initialDuration) setDurationMinutes(Number(initialDuration) || 45);
       setSubmitError('');
     }

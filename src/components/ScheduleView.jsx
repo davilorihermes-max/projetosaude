@@ -41,8 +41,7 @@ export default function ScheduleView({
   selectedDoctorId,
   setSelectedDoctorId
 }) {
-  // Padrão alinhado com os dados demonstrativos e sessões cadastradas
-  const [selectedDate, setSelectedDate] = useState('2026-09-28');
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [statusFilter, setStatusFilter] = useState('all');
 
   const filteredAppointments = appointments.filter((apt) => {
@@ -141,9 +140,9 @@ export default function ScheduleView({
           <button
             className="btn btn-secondary"
             style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem', fontWeight: 600 }}
-            onClick={() => setSelectedDate('2026-09-28')}
+            onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
           >
-            Hoje (28/09)
+            Hoje
           </button>
           <button className="btn btn-primary" onClick={() => onOpenNewAppointment(null, '09:00', selectedDate)}>
             <Plus size={16} /> Nova Sessão Domiciliar
