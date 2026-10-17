@@ -26,10 +26,13 @@ import {
   FileDown,
   FileText,
   Calendar as CalendarIcon,
-  Edit3
+  Edit3,
+  Bot
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
+import ScaleAIChatWidget from './ScaleAIChatWidget';
 import './MonthlyScalePlannerView.css';
+import './ScaleAIChatWidget.css';
 
 import { ALL_PRESET_LOCATIONS, resolveAddressCoordinates } from '../services/geocodingService';
 
@@ -84,6 +87,7 @@ export default function MonthlyScalePlannerView({
   const [selectedPatientFilter, setSelectedPatientFilter] = useState('all');
   const [committedSuccess, setCommittedSuccess] = useState(false);
   const [saveExplicitSuccess, setSaveExplicitSuccess] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false); // Gaveta / Janela flutuante do Copiloto IA
 
   // Estados para Modal de Exportação da Escala em PDF
   const [isPdfExportModalOpen, setIsPdfExportModalOpen] = useState(false);
@@ -367,6 +371,35 @@ export default function MonthlyScalePlannerView({
       setScaleResult(result);
       setIsGenerating(false);
     }, 300);
+  };
+
+  // Contexto sincronizado para o Copiloto IA da Escala
+  const aiAgentContext = useMemo(() => ({
+    scaleResult,
+    patientsWithDemands,
+    professionalAvailabilities,
+    careTeams,
+    fixedAppointments
+  }), [scaleResult, patientsWithDemands, professionalAvailabilities, careTeams, fixedAppointments]);
+
+  // Aplica mutação disparada pelo Copiloto IA ou botões interativos
+  const handleApplyAiMutation = ({
+    newPatientsWithDemands,
+    newProfessionalAvailabilities,
+    newCareTeams,
+    newFixedAppointments
+  }) => {
+    let nextPatients = newPatientsWithDemands || patientsWithDemands;
+    let nextProfs = newProfessionalAvailabilities || professionalAvailabilities;
+    let nextCare = newCareTeams || careTeams;
+    let nextFixed = newFixedAppointments || fixedAppointments;
+
+    if (newPatientsWithDemands) setPatientsWithDemands(nextPatients);
+    if (newProfessionalAvailabilities) setProfessionalAvailabilities(nextProfs);
+    if (newCareTeams) setCareTeams(nextCare);
+    if (newFixedAppointments) setFixedAppointments(nextFixed);
+
+    runGeneration(nextPatients, nextProfs, nextCare, nextFixed);
   };
 
   // ----------------------------------------------------
@@ -1273,6 +1306,39 @@ export default function MonthlyScalePlannerView({
             <span>📄 Exportar Escala em PDF</span>
           </button>
 
+          {/* Botão do Copiloto IA (Diagnóstico e Ajustes Inteligentes) */}
+          <button
+            className="btn btn-secondary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.6rem 1.05rem',
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.15) 100%)',
+              border: '1.5px solid #818cf8',
+              color: '#4f46e5',
+              cursor: 'pointer'
+            }}
+            onClick={() => setIsAiChatOpen(true)}
+            title="Abrir o Copiloto IA para analisar gargalos da escala e alterar parâmetros por comando"
+          >
+            <Bot size={18} color="#6366f1" />
+            <span>🧠 Copiloto IA</span>
+            {scaleResult?.bottlenecks?.length > 0 && (
+              <span style={{
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: '0.72rem',
+                borderRadius: '999px',
+                padding: '1px 6px',
+                fontWeight: 800
+              }}>
+                {scaleResult.bottlenecks.length}
+              </span>
+            )}
+          </button>
+
           {scaleResult && scaleResult.plannedSessions.length > 0 && (
             <button
               className="btn-commit-scale"
@@ -1442,6 +1508,28 @@ export default function MonthlyScalePlannerView({
           {scaleResult?.bottlenecks?.length > 0 && (
             <span className="tab-badge badge-amber">{scaleResult.bottlenecks.length}</span>
           )}
+        </button>
+
+        <button
+          className={`planner-tab-btn ${activeTab === 'ai-chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai-chat')}
+          style={{
+            borderColor: activeTab === 'ai-chat' ? '#6366f1' : undefined,
+            background: activeTab === 'ai-chat' ? 'rgba(99, 102, 241, 0.08)' : undefined
+          }}
+        >
+          <Bot size={18} color={activeTab === 'ai-chat' ? '#6366f1' : undefined} />
+          🧠 5. Copiloto IA (Diagnóstico & Ações)
+          <span
+            className="tab-badge"
+            style={{
+              background: activeTab === 'ai-chat' ? '#6366f1' : 'rgba(99, 102, 241, 0.2)',
+              color: activeTab === 'ai-chat' ? '#fff' : '#4f46e5',
+              fontWeight: 700
+            }}
+          >
+            Interativo
+          </span>
         </button>
       </div>
 
@@ -2402,6 +2490,18 @@ export default function MonthlyScalePlannerView({
               }))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Conteúdo da Aba 5: COPILOTO IA (DIAGNÓSTICO E GESTÃO DE PARÂMETROS) */}
+      {activeTab === 'ai-chat' && (
+        <div className="tab-content" style={{ padding: 0, marginTop: '1rem' }}>
+          <ScaleAIChatWidget
+            isDocked={true}
+            context={aiAgentContext}
+            onApplyMutation={handleApplyAiMutation}
+            onClose={() => setActiveTab('demands')}
+          />
         </div>
       )}
 
@@ -3886,6 +3986,32 @@ export default function MonthlyScalePlannerView({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Copiloto IA em Gaveta / Drawer Flutuante (Permite conversar de qualquer aba) */}
+      <ScaleAIChatWidget
+        isOpen={isAiChatOpen}
+        onClose={() => setIsAiChatOpen(false)}
+        context={aiAgentContext}
+        onApplyMutation={handleApplyAiMutation}
+        isDocked={false}
+      />
+
+      {/* Botão Flutuante (Floating Trigger) no canto inferior direito quando o chat flutuante estiver fechado e não estiver na aba 5 */}
+      {!isAiChatOpen && activeTab !== 'ai-chat' && (
+        <button
+          className="scale-ai-floating-trigger"
+          onClick={() => setIsAiChatOpen(true)}
+          title="Abrir Copiloto IA da Escala Mensal"
+        >
+          <Bot size={22} />
+          <span>Copiloto IA</span>
+          {scaleResult?.bottlenecks?.length > 0 && (
+            <span className="scale-ai-floating-badge">
+              {scaleResult.bottlenecks.length}
+            </span>
+          )}
+        </button>
       )}
     </div>
   );
