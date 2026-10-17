@@ -14,17 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme, Spacing, BorderRadius } from './src/theme';
 import { Header } from './src/components/Header';
 import { RouteScreen } from './src/screens/RouteScreen';
-import { ClinicalRecordScreen } from './src/screens/ClinicalRecordScreen';
-import { ScalePlannerScreen } from './src/screens/ScalePlannerScreen';
-import { PatientsScreen } from './src/screens/PatientsScreen';
-import { FinancialScreen } from './src/screens/FinancialScreen';
 import { AppStorage } from './src/services/storage';
 import { PROFESSIONALS } from './src/data/mockData';
+import { NewAppointmentModal } from './src/components/NewAppointmentModal';
 import {
   Appointment,
   Patient,
   Professional,
-  ClinicalEvolution,
   UserRole,
   CheckInRecord,
   CheckOutRecord,
@@ -32,16 +28,13 @@ import {
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
-  const [role, setRole] = useState<UserRole>('PROFESSIONAL');
-  const [activeTab, setActiveTab] = useState<string>('route');
   const [loading, setLoading] = useState(true);
+  const [isNewAptModalOpen, setIsNewAptModalOpen] = useState(false);
 
   // Core Data State
   const [professionals, setProfessionals] = useState<Professional[]>(PROFESSIONALS);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [evolutions, setEvolutions] = useState<ClinicalEvolution[]>([]);
-  const [selectedPatientForPEP, setSelectedPatientForPEP] = useState<Patient | null>(null);
 
   const activeProfessional =
     professionals.find((p) => p.name.toLowerCase().includes('sergio')) ||
@@ -55,12 +48,10 @@ export default function App() {
 
   const loadInitialData = async () => {
     try {
-      const [savedProfs, savedPatients, savedEvos, savedRole, savedDark] =
+      const [savedProfs, savedPatients, savedDark] =
         await Promise.all([
           AppStorage.getProfessionals(),
           AppStorage.getPatients(),
-          AppStorage.getEvolutions(),
-          AppStorage.getActiveRole(),
           AppStorage.getDarkMode(),
         ]);
 
@@ -69,14 +60,7 @@ export default function App() {
       setProfessionals(savedProfs);
       setAppointments(savedApts);
       setPatients(savedPatients);
-      setEvolutions(savedEvos);
-      setRole(savedRole);
       setIsDark(savedDark);
-      if (savedRole === 'MANAGER') {
-        setActiveTab('scale');
-      } else {
-        setActiveTab('route');
-      }
     } finally {
       setLoading(false);
     }
@@ -86,13 +70,6 @@ export default function App() {
     const next = !isDark;
     setIsDark(next);
     await AppStorage.setDarkMode(next);
-  };
-
-  const handleToggleRole = async () => {
-    const nextRole: UserRole = role === 'PROFESSIONAL' ? 'MANAGER' : 'PROFESSIONAL';
-    setRole(nextRole);
-    await AppStorage.setActiveRole(nextRole);
-    setActiveTab(nextRole === 'PROFESSIONAL' ? 'route' : 'scale');
   };
 
   const handleUpdateCheckIn = async (appointmentId: string, record: CheckInRecord) => {
@@ -105,19 +82,10 @@ export default function App() {
     setAppointments(updated);
   };
 
-  const handleAddPatient = async (newPatient: Patient) => {
-    const updated = await AppStorage.savePatient(newPatient);
-    setPatients(updated);
-  };
-
-  const handleSaveEvolution = async (newEvolution: ClinicalEvolution) => {
-    const updated = await AppStorage.saveEvolution(newEvolution);
-    setEvolutions(updated);
-  };
-
-  const handleSelectPatientForPEP = (patient: Patient) => {
-    setSelectedPatientForPEP(patient);
-    setActiveTab('pep');
+  const handleSaveNewAppointment = async (newApt: Appointment) => {
+    const updated = [newApt, ...appointments];
+    setAppointments(updated);
+    await AppStorage.saveAppointments(updated);
   };
 
   if (loading) {
@@ -142,213 +110,34 @@ export default function App() {
       {/* Main Top Header */}
       <Header
         theme={theme}
-        role={role}
-        onToggleRole={handleToggleRole}
+        role="PROFESSIONAL"
+        onToggleRole={() => {}}
         isDark={isDark}
         onToggleDark={handleToggleDark}
         professional={activeProfessional}
       />
 
-      {/* Screen Content View */}
+      {/* Screen Content View: Focado 100% em Agenda, Deslocamento, Google Maps e Check-in */}
       <View style={[styles.screenContainer, { backgroundColor: theme.background }]}>
-        {role === 'PROFESSIONAL' ? (
-          <>
-            {activeTab === 'route' && (
-              <RouteScreen
-                theme={theme}
-                appointments={appointments}
-                patients={patients}
-                onSelectPatientForPEP={handleSelectPatientForPEP}
-                onUpdateCheckIn={handleUpdateCheckIn}
-                onUpdateCheckOut={handleUpdateCheckOut}
-              />
-            )}
-            {activeTab === 'pep' && (
-              <ClinicalRecordScreen
-                theme={theme}
-                patients={patients}
-                selectedPatient={selectedPatientForPEP}
-                onSelectPatient={setSelectedPatientForPEP}
-                evolutions={evolutions}
-                onSaveEvolution={handleSaveEvolution}
-                activeProfessional={activeProfessional}
-              />
-            )}
-            {activeTab === 'patients' && (
-              <PatientsScreen
-                theme={theme}
-                patients={patients}
-                onSelectPatientForPEP={handleSelectPatientForPEP}
-                onAddPatient={handleAddPatient}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            {activeTab === 'scale' && (
-              <ScalePlannerScreen
-                theme={theme}
-                appointments={appointments}
-                patients={patients}
-                professionals={professionals}
-              />
-            )}
-            {activeTab === 'patients' && (
-              <PatientsScreen
-                theme={theme}
-                patients={patients}
-                onSelectPatientForPEP={handleSelectPatientForPEP}
-                onAddPatient={handleAddPatient}
-              />
-            )}
-            {activeTab === 'financial' && (
-              <FinancialScreen
-                theme={theme}
-                appointments={appointments}
-                patients={patients}
-                professionals={professionals}
-              />
-            )}
-          </>
-        )}
+        <RouteScreen
+          theme={theme}
+          appointments={appointments}
+          patients={patients}
+          onOpenNewAppointment={() => setIsNewAptModalOpen(true)}
+          onUpdateCheckIn={handleUpdateCheckIn}
+          onUpdateCheckOut={handleUpdateCheckOut}
+        />
       </View>
 
-      {/* Bottom Navigation Tab Bar */}
-      <View
-        style={[
-          styles.tabBar,
-          {
-            backgroundColor: theme.tabBarBackground,
-            borderTopColor: theme.tabBarBorder,
-          },
-        ]}
-      >
-        {role === 'PROFESSIONAL' ? (
-          <>
-            <TouchableOpacity
-              onPress={() => setActiveTab('route')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'route' ? 'map' : 'map-outline'}
-                size={22}
-                color={activeTab === 'route' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'route' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Rota Hoje
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('pep')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'pep' ? 'document-text' : 'document-text-outline'}
-                size={22}
-                color={activeTab === 'pep' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'pep' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Prontuário
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('patients')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'patients' ? 'people' : 'people-outline'}
-                size={22}
-                color={activeTab === 'patients' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'patients' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Pacientes
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              onPress={() => setActiveTab('scale')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'scale' ? 'calendar' : 'calendar-outline'}
-                size={22}
-                color={activeTab === 'scale' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'scale' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Escalas
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('patients')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'patients' ? 'people' : 'people-outline'}
-                size={22}
-                color={activeTab === 'patients' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'patients' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Pacientes
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('financial')}
-              activeOpacity={0.7}
-              style={styles.tabItem}
-            >
-              <Ionicons
-                name={activeTab === 'financial' ? 'cash' : 'cash-outline'}
-                size={22}
-                color={activeTab === 'financial' ? theme.primary : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === 'financial' ? theme.primary : theme.textMuted },
-                ]}
-              >
-                Financeiro
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+      {/* Modal de Agendar Sessão Específica */}
+      <NewAppointmentModal
+        visible={isNewAptModalOpen}
+        theme={theme}
+        patients={patients}
+        professional={activeProfessional}
+        onClose={() => setIsNewAptModalOpen(false)}
+        onSave={handleSaveNewAppointment}
+      />
     </SafeAreaView>
   );
 }

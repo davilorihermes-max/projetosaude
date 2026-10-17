@@ -42,44 +42,12 @@ export const Header: React.FC<HeaderProps> = ({
               Omni<Text style={{ color: theme.primary }}>Saúde</Text>
             </Text>
             <Text style={[styles.brandSubtitle, { color: theme.textMuted }]}>
-              {role === 'PROFESSIONAL' ? 'Home Care Mobile' : 'Coordenação Clínica'}
+              Agenda & Deslocamentos
             </Text>
           </View>
         </View>
 
         <View style={styles.actionsRow}>
-          {/* Toggle Role Button */}
-          <TouchableOpacity
-            onPress={onToggleRole}
-            activeOpacity={0.8}
-            style={[
-              styles.roleBadge,
-              {
-                backgroundColor:
-                  role === 'PROFESSIONAL' ? theme.primaryMuted : theme.infoBg,
-                borderColor:
-                  role === 'PROFESSIONAL' ? theme.primary : theme.info,
-              },
-            ]}
-          >
-            <Ionicons
-              name={role === 'PROFESSIONAL' ? 'medkit' : 'business'}
-              size={14}
-              color={role === 'PROFESSIONAL' ? theme.primaryDark : theme.info}
-            />
-            <Text
-              style={[
-                styles.roleText,
-                {
-                  color:
-                    role === 'PROFESSIONAL' ? theme.primaryDark : theme.info,
-                },
-              ]}
-            >
-              {role === 'PROFESSIONAL' ? 'Campo' : 'Gestão'}
-            </Text>
-          </TouchableOpacity>
-
           {/* Dark Mode Toggle */}
           <TouchableOpacity
             onPress={onToggleDark}

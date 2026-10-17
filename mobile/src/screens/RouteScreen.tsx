@@ -18,7 +18,7 @@ interface RouteScreenProps {
   theme: ColorTheme;
   appointments: Appointment[];
   patients: Patient[];
-  onSelectPatientForPEP: (patient: Patient) => void;
+  onOpenNewAppointment?: () => void;
   onUpdateCheckIn: (appointmentId: string, record: CheckInRecord) => void;
   onUpdateCheckOut: (appointmentId: string, record: CheckOutRecord) => void;
 }
@@ -27,7 +27,7 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
   theme,
   appointments,
   patients,
-  onSelectPatientForPEP,
+  onOpenNewAppointment,
   onUpdateCheckIn,
   onUpdateCheckOut,
 }) => {
@@ -56,16 +56,16 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
   };
 
   const openNavigationApp = (patient: Patient) => {
-    const { latitude, longitude } = patient.coordinates;
-    const label = encodeURIComponent(patient.name);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
-      android: `geo:0,0?q=${latitude},${longitude}(${label})`,
-      default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
-    });
+    const { latitude, longitude } = patient.coordinates || {};
+    const hasValidCoords = typeof latitude === 'number' && typeof longitude === 'number' && latitude !== 0;
+    
+    // Google Maps URL (web & mobile app direct deep link)
+    const googleMapsUrl = hasValidCoords
+      ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(patient.address || 'Vitória - ES')}`;
 
-    Linking.openURL(url || `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`).catch(() => {
-      alert('Não foi possível abrir o aplicativo de mapas.');
+    Linking.openURL(googleMapsUrl).catch(() => {
+      alert('Não foi possível abrir o Google Maps.');
     });
   };
 
@@ -147,14 +147,26 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
           </View>
         </View>
 
-        {/* Section Title */}
+        {/* Section Title & Agendar Button */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Itinerário do Dia
-          </Text>
-          <Text style={[styles.sectionBadge, { color: theme.primary, backgroundColor: theme.primaryMuted }]}>
-            {inProgressCount > 0 ? '1 em atendimento' : 'Todos os dados sincronizados'}
-          </Text>
+          <View>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Agenda de Atendimentos
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
+              {appointments.length} sessões • Toque no endereço para abrir no Google Maps
+            </Text>
+          </View>
+          {onOpenNewAppointment && (
+            <TouchableOpacity
+              onPress={onOpenNewAppointment}
+              activeOpacity={0.8}
+              style={[styles.newAptBtn, { backgroundColor: theme.primary }]}
+            >
+              <Ionicons name="add" size={18} color="#ffffff" />
+              <Text style={styles.newAptBtnText}>Agendar</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Appointments List */}
@@ -259,18 +271,27 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
                   {apt.type}
                 </Text>
 
-                <View style={styles.addressRow}>
-                  <Ionicons name="location-outline" size={16} color={theme.textSecondary} />
-                  <Text style={[styles.addressText, { color: theme.textSecondary }]}>
+                {/* Clickable Address that opens Google Maps */}
+                <TouchableOpacity
+                  onPress={() => openNavigationApp(patient)}
+                  activeOpacity={0.7}
+                  style={[styles.addressRow, { backgroundColor: theme.surfaceVariant, padding: 8, borderRadius: BorderRadius.md }]}
+                >
+                  <Ionicons name="location" size={16} color={theme.primary} />
+                  <Text style={[styles.addressText, { color: theme.textPrimary, fontWeight: '600' }]}>
                     {patient.address}
                   </Text>
-                </View>
+                  <View style={styles.mapsBadge}>
+                    <Ionicons name="open-outline" size={12} color={theme.primary} />
+                    <Text style={[styles.mapsBadgeText, { color: theme.primary }]}>Google Maps</Text>
+                  </View>
+                </TouchableOpacity>
 
                 {/* Distance and Transit */}
                 <View style={styles.transitInfoRow}>
                   <Ionicons name="navigate-outline" size={14} color={theme.info} />
                   <Text style={[styles.transitInfoText, { color: theme.info }]}>
-                    {apt.distanceFromPrevKm} km da parada anterior (~{apt.transitTimeMinutes} min)
+                    {apt.distanceFromPrevKm} km da parada anterior (~{apt.transitTimeMinutes} min de deslocamento)
                   </Text>
                 </View>
 
@@ -317,9 +338,9 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
                 )}
               </View>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: Google Maps & Check-in */}
               <View style={[styles.cardActions, { borderTopColor: theme.borderSubtle }]}>
-                {/* Waze / Maps */}
+                {/* Abrir no Google Maps */}
                 <TouchableOpacity
                   onPress={() => openNavigationApp(patient)}
                   activeOpacity={0.7}
@@ -328,24 +349,9 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
                     { backgroundColor: theme.surfaceVariant, borderColor: theme.border },
                   ]}
                 >
-                  <Ionicons name="map-outline" size={16} color={theme.info} />
+                  <Ionicons name="navigate" size={16} color={theme.primary} />
                   <Text style={[styles.actionBtnText, { color: theme.textPrimary }]}>
-                    Navegar
-                  </Text>
-                </TouchableOpacity>
-
-                {/* PEP / Prontuário Rápido */}
-                <TouchableOpacity
-                  onPress={() => onSelectPatientForPEP(patient)}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.actionBtn,
-                    { backgroundColor: theme.surfaceVariant, borderColor: theme.border },
-                  ]}
-                >
-                  <Ionicons name="document-text-outline" size={16} color={theme.primary} />
-                  <Text style={[styles.actionBtnText, { color: theme.textPrimary }]}>
-                    Prontuário
+                    Abrir no Maps
                   </Text>
                 </TouchableOpacity>
 
@@ -383,10 +389,10 @@ export const RouteScreen: React.FC<RouteScreenProps> = ({
                     ]}
                   >
                     {isInProgress
-                      ? 'Check-out'
+                      ? 'Fazer Check-out'
                       : isCompleted
                       ? 'Revê Check-in'
-                      : 'Check-in GPS'}
+                      : 'Fazer Check-in GPS'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -475,6 +481,36 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  newAptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  newAptBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  mapsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginLeft: 6,
+  },
+  mapsBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   sectionBadge: {
     fontSize: 11,
