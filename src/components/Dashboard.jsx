@@ -185,7 +185,7 @@ export default function Dashboard({
         </div>
         <div className="welcome-badge-date">
           <Navigation size={15} />
-          <span>Central Operacional • São Paulo</span>
+          <span>Central Operacional • Grande Vitória (ES)</span>
         </div>
       </div>
 

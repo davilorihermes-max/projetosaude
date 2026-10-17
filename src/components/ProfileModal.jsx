@@ -62,11 +62,11 @@ export default function ProfileModal({
 
   const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || '');
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
-  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'São Paulo - SP');
+  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'Praia do Canto, Vitória - ES');
   const [baseCoordinates, setBaseCoordinates] = useState(
     currentDoctor?.baseCoordinates || {
-      latitude: currentDoctor?.latitude ?? -23.585,
-      longitude: currentDoctor?.longitude ?? -46.638
+      latitude: currentDoctor?.latitude ?? -20.3012,
+      longitude: currentDoctor?.longitude ?? -40.2925
     }
   );
   const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');

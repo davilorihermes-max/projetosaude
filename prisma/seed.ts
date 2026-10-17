@@ -39,10 +39,10 @@ async function main() {
       role: 'PROFESSIONAL',
       professional: {
         create: {
-          crm: 'CRM/SP 142.890',
+          crm: 'CRM/ES 14.289',
           specialty: 'Cardiologia',
-          latitude: -23.561684,
-          longitude: -46.655981
+          latitude: -20.315500,
+          longitude: -40.291500
         }
       }
     },
@@ -61,10 +61,10 @@ async function main() {
       professional: {
         create: {
           id: 'doc-3',
-          crm: 'CREFITO/SP 88.340',
-          specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-          latitude: -23.585000,
-          longitude: -46.638000
+          crm: 'CREFITO/ES 88.340',
+          specialty: 'Fisioterapia Motora',
+          latitude: -20.301200,
+          longitude: -40.292500
         }
       }
     },
@@ -84,10 +84,10 @@ async function main() {
       role: 'PROFESSIONAL',
       professional: {
         create: {
-          crm: 'COREN/SP 230.999',
+          crm: 'COREN/ES 230.999',
           specialty: 'Enfermagem Oncológica & Domiciliar',
-          latitude: -23.565,
-          longitude: -46.657
+          latitude: -20.338500,
+          longitude: -40.286200
         }
       }
     },
@@ -100,17 +100,17 @@ async function main() {
   const rafaelProfessionalId = rafaelUser.professional!.id;
   const millaProfessionalId = millaUser.professional?.id;
 
-  // 3. Patients in São Paulo
+  // 3. Patients na Grande Vitória (Vitória e Vila Velha - ES)
   const patientMariana = await prisma.patient.create({
     data: {
       id: 'pat-1',
       name: 'Mariana Souza Lima',
       cpf: '284.912.839-44',
       email: 'mariana.lima@exemplo.com.br',
-      phone: '(11) 98452-1920',
-      latitude: -23.563099,
-      longitude: -46.654271,
-      address: 'Alameda Santos, 1000 - Cerqueira César, São Paulo - SP'
+      phone: '(27) 98452-1920',
+      latitude: -20.301200,
+      longitude: -40.292500,
+      address: 'Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES'
     }
   });
 
@@ -120,10 +120,10 @@ async function main() {
       name: 'Roberto Carlos Peixoto',
       cpf: '109.834.721-12',
       email: 'roberto.peixoto@exemplo.com.br',
-      phone: '(11) 97123-4567',
-      latitude: -23.567300,
-      longitude: -46.693400,
-      address: 'Rua Fradique Coutinho, 500 - Pinheiros, São Paulo - SP'
+      phone: '(27) 97123-4567',
+      latitude: -20.338500,
+      longitude: -40.286200,
+      address: 'Av. Hugo Musso, 1200 - Praia da Costa, Vila Velha - ES'
     }
   });
 
@@ -133,10 +133,10 @@ async function main() {
       name: 'Juliana Mendes Prado',
       cpf: '418.992.301-85',
       email: 'juliana.prado@exemplo.com.br',
-      phone: '(11) 99881-2233',
-      latitude: -23.602200,
-      longitude: -46.662100,
-      address: 'Av. Moema, 350 - Moema, São Paulo - SP'
+      phone: '(27) 99881-2233',
+      latitude: -20.267800,
+      longitude: -40.284200,
+      address: 'Av. Dante Michelini, 3500 - Jardim Camburi, Vitória - ES'
     }
   });
 

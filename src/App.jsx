@@ -154,10 +154,10 @@ export default function App() {
                     crm: p.crm || 'Registro Ativo',
                     avatar: p.user?.avatar || null,
                     color: '#0d9488',
-                    baseAddress: 'São Paulo - SP',
+                    baseAddress: 'Praia do Canto, Vitória - ES',
                     baseCoordinates: {
-                      latitude: p.latitude ?? -23.585000,
-                      longitude: p.longitude ?? -46.638000
+                      latitude: p.latitude ?? -20.301200,
+                      longitude: p.longitude ?? -40.292500
                     }
                   };
                 });
@@ -244,7 +244,7 @@ export default function App() {
                 time: timeStr,
                 type: a.notes || 'Sessão Domiciliar',
                 durationMinutes: a.durationMinutes || 45,
-                address: a.patient?.address || 'São Paulo - SP',
+                address: a.patient?.address || 'Vitória - ES',
                 notes: a.notes || '',
                 status: a.status ? a.status.toLowerCase() : 'scheduled'
               };
@@ -666,10 +666,10 @@ export default function App() {
                 crm: user.professional.crm || 'Registro Ativo',
                 avatar: user.avatar || null,
                 color: '#0d9488',
-                baseAddress: 'São Paulo - SP',
+                baseAddress: 'Praia do Canto, Vitória - ES',
                 baseCoordinates: {
-                  latitude: user.professional.latitude ?? -23.585,
-                  longitude: user.professional.longitude ?? -46.638
+                  latitude: user.professional.latitude ?? -20.3012,
+                  longitude: user.professional.longitude ?? -40.2925
                 }
               };
               return [prof, ...prev];

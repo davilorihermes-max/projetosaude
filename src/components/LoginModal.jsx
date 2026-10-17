@@ -69,11 +69,11 @@ export default function LoginModal({
   const [regProfession, setRegProfession] = useState('Fisioterapia');
   const [regCouncilNumber, setRegCouncilNumber] = useState('');
   const [regSpecialties, setRegSpecialties] = useState(['Fisioterapia Motora']);
-  const [regBaseAddress, setRegBaseAddress] = useState('São Paulo - SP');
-  const [regCoordinates, setRegCoordinates] = useState({ latitude: -23.585000, longitude: -46.638000 });
+  const [regBaseAddress, setRegBaseAddress] = useState('Praia do Canto, Vitória - ES');
+  const [regCoordinates, setRegCoordinates] = useState({ latitude: -20.301200, longitude: -40.292500 });
   const [regColor, setRegColor] = useState('#0d9488');
   const [regAvatar, setRegAvatar] = useState(null);
-  const [resolvedLocationName, setResolvedLocationName] = useState('São Paulo - SP');
+  const [resolvedLocationName, setResolvedLocationName] = useState('Praia do Canto, Vitória - ES');
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -305,8 +305,8 @@ export default function LoginModal({
     const specialtyStr = regSpecialties.join(', ') || 'Fisioterapia Motora';
     const councilToUse = regCouncilNumber.trim() || 'Registro Ativo';
     const cpfToUse = regCpf.trim() || `000.${Date.now().toString().slice(-6)}-00`;
-    const phoneToUse = regPhone.trim() || '(11) 99999-9999';
-    const addressToUse = regBaseAddress.trim() || 'São Paulo - SP';
+    const phoneToUse = regPhone.trim() || '(27) 99999-9999';
+    const addressToUse = regBaseAddress.trim() || 'Praia do Canto, Vitória - ES';
 
     setLoading(true);
 

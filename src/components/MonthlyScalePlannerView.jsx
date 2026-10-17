@@ -1,5 +1,6 @@
 // src/components/MonthlyScalePlannerView.jsx
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CalendarDays,
   Sparkles,
@@ -24,7 +25,8 @@ import {
   Printer,
   FileDown,
   FileText,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Edit3
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
@@ -61,7 +63,9 @@ const WEEKDAY_NAMES = {
   2: 'Terça-feira',
   3: 'Quarta-feira',
   4: 'Quinta-feira',
-  5: 'Sexta-feira'
+  5: 'Sexta-feira',
+  6: 'Sábado',
+  0: 'Domingo'
 };
 
 const WEEKDAY_SHORT = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 0: 'Dom' };
@@ -139,17 +143,30 @@ export default function MonthlyScalePlannerView({
   const [newTherapistForm, setNewTherapistForm] = useState({
     professionalName: '',
     specialties: ['Fisioterapia Motora'],
-    baseAddress: 'São Paulo - SP',
-    baseCoordinates: { latitude: -23.585, longitude: -46.638 },
+    baseAddress: 'Praia do Canto, Vitória - ES',
+    baseCoordinates: { latitude: -20.3012, longitude: -40.2925 },
     isGeocoding: false,
     weekdayWindows: {
       1: { enabled: true, startTime: '08:00', endTime: '18:00' },
       2: { enabled: true, startTime: '08:00', endTime: '18:00' },
       3: { enabled: true, startTime: '08:00', endTime: '18:00' },
       4: { enabled: true, startTime: '08:00', endTime: '18:00' },
-      5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+      5: { enabled: true, startTime: '08:00', endTime: '18:00' },
+      6: { enabled: false, startTime: '08:00', endTime: '12:00' },
+      0: { enabled: false, startTime: '08:00', endTime: '12:00' }
     },
     assignedPatientIds: []
+  });
+
+  // Modal para editar dados de Fisioterapeutas criados na sessão (sem conta)
+  const [editTherapistModalState, setEditTherapistModalState] = useState({
+    isOpen: false,
+    professionalId: null,
+    professionalName: '',
+    specialties: ['Fisioterapia Motora'],
+    baseAddress: 'Praia do Canto, Vitória - ES',
+    baseCoordinates: { latitude: -20.3012, longitude: -40.2925 },
+    isGeocoding: false
   });
 
   // 1. Estado Dinâmico: Pacientes com DEMANDAS TERAPÊUTICAS do cadastro e BLOQUEIOS DE HORÁRIO
@@ -167,7 +184,7 @@ export default function MonthlyScalePlannerView({
       const initialPatients = patients.map((pat) => {
         const coords = (pat.latitude && pat.longitude)
           ? { latitude: pat.latitude, longitude: pat.longitude }
-          : (SP_PRESET_LOCATIONS[pat.address] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'] || { latitude: -23.585, longitude: -46.638 });
+          : (SP_PRESET_LOCATIONS[pat.address] || SP_PRESET_LOCATIONS['Praia do Canto, Vitória - ES'] || { latitude: -20.3012, longitude: -40.2925 });
 
         const patDemands = pat.demands && pat.demands.length > 0
           ? pat.demands
@@ -184,8 +201,8 @@ export default function MonthlyScalePlannerView({
         return {
           patientId: pat.id,
           patientName: pat.name,
-          neighborhood: pat.address || 'São Paulo - SP',
-          address: pat.address || 'São Paulo - SP',
+          neighborhood: pat.address || 'Vitória - ES',
+          address: pat.address || 'Vitória - ES',
           location: coords,
           demands: patDemands,
           unavailabilityBlocks: pat.unavailabilityBlocks || []
@@ -210,7 +227,7 @@ export default function MonthlyScalePlannerView({
       const initialProfs = doctors.map((doc) => {
         const coords = (doc.baseCoordinates?.latitude && doc.baseCoordinates?.longitude)
           ? doc.baseCoordinates
-          : (SP_PRESET_LOCATIONS[doc.baseAddress] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'] || { latitude: -23.585, longitude: -46.638 });
+          : (SP_PRESET_LOCATIONS[doc.baseAddress] || SP_PRESET_LOCATIONS['Praia do Canto, Vitória - ES'] || { latitude: -20.3012, longitude: -40.2925 });
 
         return {
           professionalId: doc.id,
@@ -223,7 +240,9 @@ export default function MonthlyScalePlannerView({
             2: { enabled: true, startTime: '08:00', endTime: '18:00' },
             3: { enabled: true, startTime: '08:00', endTime: '18:00' },
             4: { enabled: true, startTime: '08:00', endTime: '18:00' },
-            5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+            5: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            6: { enabled: false, startTime: '08:00', endTime: '12:00' },
+            0: { enabled: false, startTime: '08:00', endTime: '12:00' }
           }
         };
       });
@@ -897,20 +916,110 @@ export default function MonthlyScalePlannerView({
     setNewTherapistForm({
       professionalName: '',
       specialties: ['Fisioterapia Motora'],
-      baseAddress: 'São Paulo - SP',
-      baseCoordinates: { latitude: -23.585, longitude: -46.638 },
+      baseAddress: 'Praia do Canto, Vitória - ES',
+      baseCoordinates: { latitude: -20.3012, longitude: -40.2925 },
       isGeocoding: false,
       weekdayWindows: {
         1: { enabled: true, startTime: '08:00', endTime: '18:00' },
         2: { enabled: true, startTime: '08:00', endTime: '18:00' },
         3: { enabled: true, startTime: '08:00', endTime: '18:00' },
         4: { enabled: true, startTime: '08:00', endTime: '18:00' },
-        5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+        5: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        6: { enabled: false, startTime: '08:00', endTime: '12:00' },
+        0: { enabled: false, startTime: '08:00', endTime: '12:00' }
       },
       assignedPatientIds: []
     });
 
     runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
+  };
+
+  // Abrir modal de edição para Fisioterapeuta criado na sessão (sem conta)
+  const handleOpenEditTherapist = (prof) => {
+    // Para profissionais cadastrados com conta, não permite editar dados cadastrais
+    if (prof.hasAccount !== false) {
+      alert('Para fisioterapeutas com conta no sistema, o planejador pode apenas editar as informações de disponibilidade de dias e horários (e bloqueios) nos controles abaixo.');
+      return;
+    }
+
+    const currentSpecs = (prof.specialties && Array.isArray(prof.specialties) && prof.specialties.length > 0)
+      ? prof.specialties
+      : (prof.specialty ? prof.specialty.split(',').map((s) => s.trim()) : ['Fisioterapia Motora']);
+
+    setEditTherapistModalState({
+      isOpen: true,
+      professionalId: prof.professionalId,
+      professionalName: prof.professionalName || prof.name || '',
+      specialties: currentSpecs,
+      baseAddress: prof.baseAddress || 'Praia do Canto, Vitória - ES',
+      baseCoordinates: prof.baseLocation || prof.baseCoordinates || { latitude: -20.3012, longitude: -40.2925 },
+      isGeocoding: false
+    });
+  };
+
+  // Alternar especialidade na edição do fisioterapeuta sem conta (até 3)
+  const handleToggleEditTherapistSpecialty = (spec) => {
+    setEditTherapistModalState((prev) => {
+      const current = prev.specialties || [];
+      if (current.includes(spec)) {
+        if (current.length === 1) return prev; // manter ao menos 1
+        return { ...prev, specialties: current.filter((s) => s !== spec) };
+      } else {
+        if (current.length >= 3) return prev; // max 3
+        return { ...prev, specialties: [...current, spec] };
+      }
+    });
+  };
+
+  // Geocodificar endereço do fisioterapeuta em edição
+  const handleGeocodeEditTherapistAddress = async () => {
+    const addr = editTherapistModalState.baseAddress;
+    if (!addr || addr.trim().length < 3) return;
+    setEditTherapistModalState((prev) => ({ ...prev, isGeocoding: true }));
+    try {
+      const res = await resolveAddressCoordinates(addr);
+      if (res && res.latitude && res.longitude) {
+        setEditTherapistModalState((prev) => ({
+          ...prev,
+          baseCoordinates: { latitude: res.latitude, longitude: res.longitude },
+          isGeocoding: false
+        }));
+      } else {
+        setEditTherapistModalState((prev) => ({ ...prev, isGeocoding: false }));
+      }
+    } catch {
+      setEditTherapistModalState((prev) => ({ ...prev, isGeocoding: false }));
+    }
+  };
+
+  // Salvar alterações cadastrais do fisioterapeuta criado na sessão
+  const handleSaveEditTherapist = (e) => {
+    e.preventDefault();
+    const { professionalId, professionalName, specialties, baseAddress, baseCoordinates } = editTherapistModalState;
+    if (!professionalId || !professionalName.trim()) return;
+
+    const specList = specialties && specialties.length > 0 ? specialties : ['Fisioterapia Motora'];
+    const specStr = specList.join(', ');
+
+    const updated = professionalAvailabilities.map((prof) => {
+      if (prof.professionalId === professionalId) {
+        return {
+          ...prof,
+          professionalName: professionalName.trim(),
+          name: professionalName.trim(),
+          specialties: specList,
+          specialty: specStr,
+          baseAddress: baseAddress.trim() || 'Praia do Canto, Vitória - ES',
+          baseCoordinates: baseCoordinates || { latitude: -20.3012, longitude: -40.2925 },
+          baseLocation: baseCoordinates || { latitude: -20.3012, longitude: -40.2925 }
+        };
+      }
+      return prof;
+    });
+
+    setProfessionalAvailabilities(updated);
+    setEditTherapistModalState((prev) => ({ ...prev, isOpen: false }));
+    runGeneration(patientsWithDemands, updated, careTeams);
   };
 
   // Salvar explicitamente a escala e seus parâmetros no localStorage E sincronizar com a Agenda e Rota do Dia
@@ -1747,27 +1856,74 @@ export default function MonthlyScalePlannerView({
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontWeight: 700, color: 'var(--text-headline)', fontSize: '1rem' }}>
-                        {prof.professionalName}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-headline)', fontSize: '1rem' }}>
+                          {prof.professionalName}
+                        </span>
+                        {prof.hasAccount === false ? (
+                          <span style={{
+                            background: '#ecfdf5',
+                            color: '#047857',
+                            border: '1px solid #a7f3d0',
+                            fontSize: '0.72rem',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 700
+                          }}>
+                            📝 Criado na Sessão (Editável)
+                          </span>
+                        ) : (
+                          <span style={{
+                            background: '#f8fafc',
+                            color: '#475569',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '0.72rem',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600
+                          }}>
+                            🔒 Cadastrado com Conta
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '0.82rem', color: 'var(--success)', fontWeight: 600, marginTop: '0.2rem' }}>
                         🩺 {prof.specialty}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        📍 Base de Partida: {prof.baseLocation.latitude.toFixed(4)}, {prof.baseLocation.longitude.toFixed(4)}
+                        📍 Base de Partida: {prof.baseAddress || `${prof.baseLocation.latitude.toFixed(4)}, ${prof.baseLocation.longitude.toFixed(4)}`}
                       </div>
                     </div>
 
-                    <button
-                      className="btn-danger-icon"
-                      title="Remover Profissional"
-                      onClick={() => handleDeleteProfessional(prof.professionalId)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      {prof.hasAccount === false && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '4px 8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontWeight: 600
+                          }}
+                          title="Editar Dados do Fisioterapeuta da Sessão"
+                          onClick={() => handleOpenEditTherapist(prof)}
+                        >
+                          <Edit3 size={13} /> Editar Dados
+                        </button>
+                      )}
+                      <button
+                        className="btn-danger-icon"
+                        title="Remover Profissional"
+                        onClick={() => handleDeleteProfessional(prof.professionalId)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Janelas de Horário Diárias (Segunda a Sexta) */}
+                  {/* Janelas de Horário Diárias (Segunda a Domingo) */}
                   <div style={{ fontSize: '0.82rem' }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-headline)', marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between' }}>
                       <span>Horário de Jornada por Dia da Semana:</span>
@@ -1775,7 +1931,7 @@ export default function MonthlyScalePlannerView({
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {[1, 2, 3, 4, 5].map((dayNum) => {
+                      {[1, 2, 3, 4, 5, 6, 0].map((dayNum) => {
                         const win = prof.weekdayWindows?.[dayNum] || { enabled: false, startTime: '08:00', endTime: '18:00' };
                         return (
                           <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
@@ -2657,8 +2813,8 @@ export default function MonthlyScalePlannerView({
                   <div className="form-group">
                     <label>Jornada Diária por Dia da Semana (Horário de Início e Fim):</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {[1, 2, 3, 4, 5].map((dayNum) => {
-                        const win = newTherapistForm.weekdayWindows[dayNum];
+                      {[1, 2, 3, 4, 5, 6, 0].map((dayNum) => {
+                        const win = newTherapistForm.weekdayWindows[dayNum] || { enabled: false, startTime: '08:00', endTime: '18:00' };
                         return (
                           <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
                             <label className="day-check-label">
@@ -2778,6 +2934,163 @@ export default function MonthlyScalePlannerView({
         </div>
       )}
 
+      {/* MODAL: Editar Fisioterapeuta Criado na Sessão (Sem Conta) */}
+      {editTherapistModalState.isOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setEditTherapistModalState({ ...editTherapistModalState, isOpen: false })}>
+          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <Stethoscope size={20} color="#059669" />
+                Editar Dados do Fisioterapeuta (Criado na Sessão)
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setEditTherapistModalState({ ...editTherapistModalState, isOpen: false })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditTherapist}>
+              <div className="modal-body">
+                <div style={{
+                  fontSize: '0.82rem',
+                  color: '#047857',
+                  marginBottom: '0.75rem',
+                  background: '#ecfdf5',
+                  padding: '0.6rem 0.85rem',
+                  borderRadius: '8px',
+                  border: '1px solid #a7f3d0'
+                }}>
+                  Este fisioterapeuta foi criado exclusivamente nesta sessão de planejamento (sem conta de acesso cadastrada). Você pode alterar livremente seu nome, até 3 especialidades e seu endereço/coordenadas base de partida.
+                </div>
+
+                <div className="form-group">
+                  <label>Nome Completo do Fisioterapeuta *</label>
+                  <input
+                    type="text"
+                    required
+                    className="planner-input"
+                    value={editTherapistModalState.professionalName}
+                    onChange={(e) => setEditTherapistModalState({ ...editTherapistModalState, professionalName: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Especialidades Clínicas (Escolha até 3):
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 400 }}>
+                      ({editTherapistModalState.specialties.length}/3 selecionadas)
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', marginTop: '0.35rem' }}>
+                    {CLINICAL_SPECIALTY_OPTIONS.map((spec) => {
+                      const isSelected = editTherapistModalState.specialties.includes(spec);
+                      return (
+                        <button
+                          key={spec}
+                          type="button"
+                          onClick={() => handleToggleEditTherapistSpecialty(spec)}
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '8px',
+                            border: isSelected ? '2px solid #059669' : '1px solid var(--border-light)',
+                            background: isSelected ? '#ecfdf5' : 'var(--bg-card)',
+                            color: isSelected ? '#047857' : 'var(--text-main)',
+                            fontWeight: isSelected ? 700 : 500,
+                            fontSize: '0.82rem',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span style={{
+                            width: '14px',
+                            height: '14px',
+                            borderRadius: '3px',
+                            border: isSelected ? '2px solid #059669' : '1px solid var(--border-light)',
+                            background: isSelected ? '#059669' : 'transparent',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#fff',
+                            fontSize: '10px'
+                          }}>
+                            {isSelected ? '✓' : ''}
+                          </span>
+                          {spec}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Endereço do Ponto Base de Partida (Casa / Consultório) *</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Praia do Canto, Vitória ou Av. Hugo Musso, Vila Velha..."
+                      className="planner-input"
+                      value={editTherapistModalState.baseAddress}
+                      onChange={(e) => setEditTherapistModalState({ ...editTherapistModalState, baseAddress: e.target.value })}
+                      onBlur={handleGeocodeEditTherapistAddress}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', padding: '0 0.85rem' }}
+                      onClick={handleGeocodeEditTherapistAddress}
+                      disabled={editTherapistModalState.isGeocoding}
+                    >
+                      {editTherapistModalState.isGeocoding ? 'Buscando...' : 'Localizar'}
+                    </button>
+                  </div>
+                  <small style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                    Coordenadas: {editTherapistModalState.baseCoordinates.latitude.toFixed(6)}, {editTherapistModalState.baseCoordinates.longitude.toFixed(6)}
+                  </small>
+                </div>
+
+                {/* Mini Mapa do OpenStreetMap */}
+                <div style={{ marginTop: '0.5rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)', height: '150px' }}>
+                  <iframe
+                    title="Mapa Ponto de Partida Terapeuta em Edição"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    scrolling="no"
+                    marginHeight="0"
+                    marginWidth="0"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${editTherapistModalState.baseCoordinates.longitude - 0.008}%2C${editTherapistModalState.baseCoordinates.latitude - 0.006}%2C${editTherapistModalState.baseCoordinates.longitude + 0.008}%2C${editTherapistModalState.baseCoordinates.latitude + 0.006}&layer=mapnik&marker=${editTherapistModalState.baseCoordinates.latitude}%2C${editTherapistModalState.baseCoordinates.longitude}`}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditTherapistModalState({ ...editTherapistModalState, isOpen: false })}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ background: '#059669', fontWeight: 700 }}
+                >
+                  Salvar Dados do Terapeuta & Recalcular
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 4: Editar Dados Básicos do Paciente (Nome e Bairro/Região) */}
       {editPatientModalState.isOpen && (
         <div className="planner-modal-backdrop" onClick={() => setEditPatientModalState({ ...editPatientModalState, isOpen: false })}>
@@ -2893,6 +3206,8 @@ export default function MonthlyScalePlannerView({
                       <option value={3}>Quarta-feira</option>
                       <option value={4}>Quinta-feira</option>
                       <option value={5}>Sexta-feira</option>
+                      <option value={6}>Sábado</option>
+                      <option value={0}>Domingo</option>
                     </select>
                   </div>
                 )}
@@ -3097,6 +3412,8 @@ export default function MonthlyScalePlannerView({
                       <option value={3}>Quarta-feira</option>
                       <option value={4}>Quinta-feira</option>
                       <option value={5}>Sexta-feira</option>
+                      <option value={6}>Sábado</option>
+                      <option value={0}>Domingo</option>
                     </select>
                   </div>
                 ) : (
@@ -3457,116 +3774,119 @@ export default function MonthlyScalePlannerView({
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* ÁREA DE IMPRESSÃO DEDICADA (@media print / .print-only)                    */}
+      {/* ÁREA DE IMPRESSÃO DEDICADA RENDERIZADA DIRETAMENTE NO BODY VIA PORTAL      */}
       {/* -------------------------------------------------------------------------- */}
-      <div className="print-only" style={{ padding: '20px', fontFamily: 'Inter, system-ui, sans-serif', color: '#000000', background: '#ffffff' }}>
-        <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: '10px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              PROJETO SAÚDE • GESTÃO INTEGRADA DE REABILITAÇÃO DOMICILIAR
+      {typeof document !== 'undefined' && createPortal(
+        <div className="print-only" style={{ padding: '20px', fontFamily: 'Inter, system-ui, sans-serif', color: '#000000', background: '#ffffff' }}>
+          <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: '10px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                PROJETO SAÚDE • GESTÃO INTEGRADA DE REABILITAÇÃO DOMICILIAR
+              </div>
+              <h1 style={{ margin: '3px 0', fontSize: '18px', color: '#0f172a', fontWeight: 800 }}>
+                ESCALA MENSAL DE ATENDIMENTO — {calendarMonthData.monthTitle.toUpperCase()}
+              </h1>
+              <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600 }}>
+                {pdfTargetType === 'patient' && (
+                  <span>
+                    Paciente: <strong>{patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.patientName || 'Todos os Pacientes'}</strong>
+                    {' '}• Endereço: {patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.address}
+                  </span>
+                )}
+                {pdfTargetType === 'professional' && (
+                  <span>
+                    Profissional: <strong>{professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.professionalName || 'Toda a Equipe'}</strong>
+                    {' '}• Especialidade: {professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.specialty}
+                  </span>
+                )}
+                {pdfTargetType === 'all' && (
+                  <span>Escala Geral Multidisciplinar da Equipe • Todas as Especialidades</span>
+                )}
+              </div>
             </div>
-            <h1 style={{ margin: '3px 0', fontSize: '18px', color: '#0f172a', fontWeight: 800 }}>
-              ESCALA MENSAL DE ATENDIMENTO — {calendarMonthData.monthTitle.toUpperCase()}
-            </h1>
-            <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600 }}>
-              {pdfTargetType === 'patient' && (
-                <span>
-                  Paciente: <strong>{patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.patientName || 'Todos os Pacientes'}</strong>
-                  {' '}• Endereço: {patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.address}
-                </span>
-              )}
-              {pdfTargetType === 'professional' && (
-                <span>
-                  Profissional: <strong>{professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.professionalName || 'Toda a Equipe'}</strong>
-                  {' '}• Especialidade: {professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.specialty}
-                </span>
-              )}
-              {pdfTargetType === 'all' && (
-                <span>Escala Geral Multidisciplinar da Equipe • Todas as Especialidades</span>
-              )}
+
+            <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+              <div>Total de Sessões no Mês: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{pdfSessions.length}</strong></div>
+              <div>Carga Estimada: <strong>~{Math.round((pdfSessions.length * 45) / 60)}h</strong> de reabilitação</div>
             </div>
           </div>
 
-          <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
-            <div>Total de Sessões no Mês: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{pdfSessions.length}</strong></div>
-            <div>Carga Estimada: <strong>~{Math.round((pdfSessions.length * 45) / 60)}h</strong> de reabilitação</div>
+          {/* Grade 7 Colunas para Impressão */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: '#94a3b8', border: '1px solid #64748b' }}>
+            {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((dayName) => (
+              <div
+                key={dayName}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  padding: '5px 2px',
+                  textAlign: 'center',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase'
+                }}
+              >
+                {dayName}
+              </div>
+            ))}
+
+            {calendarMonthData.weeks.map((week, wIdx) => (
+              <React.Fragment key={wIdx}>
+                {week.map((cell, cIdx) => {
+                  const sessionsInCell = cell.dateStr ? pdfSessions.filter((s) => s.date === cell.dateStr) : [];
+                  return (
+                    <div
+                      key={cIdx}
+                      style={{
+                        background: cell.isCurrentMonth ? '#ffffff' : '#f1f5f9',
+                        minHeight: '90px',
+                        padding: '4px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        border: '1px solid #cbd5e1'
+                      }}
+                    >
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: cell.isCurrentMonth ? '#000000' : '#94a3b8', marginBottom: '2px' }}>
+                        {cell.dayNumber || ''}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                        {sessionsInCell.map((sess) => (
+                          <div
+                            key={sess.id}
+                            style={{
+                              background: '#f8fafc',
+                              border: '1px solid #94a3b8',
+                              borderRadius: '2px',
+                              padding: '2px 4px',
+                              fontSize: '9px',
+                              lineHeight: 1.2
+                            }}
+                          >
+                            <div style={{ fontWeight: 800 }}>⏰ {sess.time} ({sess.durationMinutes || 45}m)</div>
+                            <div style={{ fontWeight: 700 }}>
+                              {pdfTargetType === 'patient' ? `🧑‍⚕️ ${sess.professionalName}` : `👤 ${sess.patientName}`}
+                            </div>
+                            <div style={{ fontSize: '8px', color: '#475569' }}>
+                              🏥 {sess.therapyType}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
           </div>
-        </div>
 
-        {/* Grade 7 Colunas para Impressão */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: '#94a3b8', border: '1px solid #64748b' }}>
-          {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((dayName) => (
-            <div
-              key={dayName}
-              style={{
-                background: '#0284c7',
-                color: '#ffffff',
-                padding: '5px 2px',
-                textAlign: 'center',
-                fontSize: '11px',
-                fontWeight: 800,
-                textTransform: 'uppercase'
-              }}
-            >
-              {dayName}
-            </div>
-          ))}
-
-          {calendarMonthData.weeks.map((week, wIdx) => (
-            <React.Fragment key={wIdx}>
-              {week.map((cell, cIdx) => {
-                const sessionsInCell = cell.dateStr ? pdfSessions.filter((s) => s.date === cell.dateStr) : [];
-                return (
-                  <div
-                    key={cIdx}
-                    style={{
-                      background: cell.isCurrentMonth ? '#ffffff' : '#f1f5f9',
-                      minHeight: '90px',
-                      padding: '4px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      border: '1px solid #cbd5e1'
-                    }}
-                  >
-                    <div style={{ fontSize: '10px', fontWeight: 800, color: cell.isCurrentMonth ? '#000000' : '#94a3b8', marginBottom: '2px' }}>
-                      {cell.dayNumber || ''}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                      {sessionsInCell.map((sess) => (
-                        <div
-                          key={sess.id}
-                          style={{
-                            background: '#f8fafc',
-                            border: '1px solid #94a3b8',
-                            borderRadius: '2px',
-                            padding: '2px 4px',
-                            fontSize: '9px',
-                            lineHeight: 1.2
-                          }}
-                        >
-                          <div style={{ fontWeight: 800 }}>⏰ {sess.time} ({sess.durationMinutes || 45}m)</div>
-                          <div style={{ fontWeight: 700 }}>
-                            {pdfTargetType === 'patient' ? `🧑‍⚕️ ${sess.professionalName}` : `👤 ${sess.patientName}`}
-                          </div>
-                          <div style={{ fontSize: '8px', color: '#475569' }}>
-                            🏥 {sess.therapyType}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
-        </div>
-
-        <div style={{ marginTop: '15px', paddingTop: '8px', borderTop: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#475569' }}>
-          <span>Projeto Saúde • Sistema de Gestão Clínica</span>
-          <span>Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</span>
-        </div>
-      </div>
+          <div style={{ marginTop: '15px', paddingTop: '8px', borderTop: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#475569' }}>
+            <span>Projeto Saúde • Sistema de Gestão Clínica</span>
+            <span>Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</span>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

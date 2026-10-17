@@ -172,7 +172,7 @@ export default function NewAppointmentModal({
         time,
         type,
         durationMinutes: Number(durationMinutes) || 45,
-        address: selectedPatient?.address || 'São Paulo - SP',
+        address: selectedPatient?.address || 'Vitória - ES',
         notes,
         status: 'scheduled'
       };

@@ -236,9 +236,15 @@ export class MonthlyScaleGenerator {
     }
 
     // 2. Checa configuração por dia da semana
-    if (professional.weekdayWindows && professional.weekdayWindows[dayOfWeek]) {
+    if (professional.weekdayWindows) {
       const window = professional.weekdayWindows[dayOfWeek];
-      return window.enabled ? window : null;
+      if (window) {
+        return window.enabled ? window : null;
+      }
+      // Se o profissional possui grade configurada e este dia não está presente, é folga/indisponível
+      if (Object.keys(professional.weekdayWindows).length > 0) {
+        return null;
+      }
     }
 
     // 3. Fallback para campos legados (se existirem)
@@ -284,26 +290,31 @@ export class MonthlyScaleGenerator {
   }): MonthlyScaleResult {
     const { year, month, demands, availabilities, careTeams, fixedAppointments = [] } = params;
 
-    // 1. Mapear dias úteis do mês (Segunda a Sexta)
+    // 1. Mapear todos os dias do mês (incluindo fins de semana / domingos)
+    // Uma semana começa na Segunda-feira e termina no Domingo
     const daysInMonth = new Date(year, month, 0).getDate();
     const workingDays: { dateStr: string; dayOfWeek: number; weekNumber: number; dayOfMonth: number }[] = [];
 
+    let currentWeek = 1;
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(year, month - 1, day);
-      const dayOfWeek = d.getDay(); // 0 = Domingo, 6 = Sábado
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        const weekNumber = Math.min(Math.ceil(day / 7), 5);
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        workingDays.push({
-          dateStr,
-          dayOfWeek,
-          weekNumber,
-          dayOfMonth: day
-        });
+      const dayOfWeek = d.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+
+      // Se for Segunda-feira e não for o primeiro dia do mês, inicia uma nova semana
+      if (dayOfWeek === 1 && day > 1) {
+        currentWeek++;
       }
+
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      workingDays.push({
+        dateStr,
+        dayOfWeek,
+        weekNumber: currentWeek,
+        dayOfMonth: day
+      });
     }
 
-    const totalWeeksInMonth = Math.max(...workingDays.map((w) => w.weekNumber), 4);
+    const totalWeeksInMonth = Math.max(...workingDays.map((w) => w.weekNumber), 1);
 
     // Mapeamento do Care Team por Paciente
     const careTeamMap = new Map<string, Set<string>>();
@@ -490,9 +501,9 @@ export class MonthlyScaleGenerator {
           if (sessionsAllocatedInWeek >= demand.sessionsPerWeek) break;
 
           // Checa se o paciente disponibilizou este dia da semana para esta necessidade terapêutica
-          if (demand.availableWindows && demand.availableWindows[day.dayOfWeek]) {
+          if (demand.availableWindows && Object.keys(demand.availableWindows).length > 0) {
             const patDayWindow = demand.availableWindows[day.dayOfWeek];
-            if (!patDayWindow.enabled) {
+            if (!patDayWindow || !patDayWindow.enabled) {
               continue; // O paciente não pode receber atendimento nesta terapia neste dia
             }
           }

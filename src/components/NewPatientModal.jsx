@@ -18,7 +18,8 @@ const WEEKDAYS = [
   { num: 3, label: 'Qua', full: 'Quarta-feira' },
   { num: 4, label: 'Qui', full: 'Quinta-feira' },
   { num: 5, label: 'Sex', full: 'Sexta-feira' },
-  { num: 6, label: 'Sáb', full: 'Sábado' }
+  { num: 6, label: 'Sáb', full: 'Sábado' },
+  { num: 0, label: 'Dom', full: 'Domingo' }
 ];
 
 const createDefaultWindows = (shift = 'any') => {
@@ -30,7 +31,8 @@ const createDefaultWindows = (shift = 'any') => {
     3: { enabled: true, startTime: start, endTime: end },
     4: { enabled: true, startTime: start, endTime: end },
     5: { enabled: true, startTime: start, endTime: end },
-    6: { enabled: false, startTime: '08:00', endTime: '12:00' }
+    6: { enabled: false, startTime: '08:00', endTime: '12:00' },
+    0: { enabled: false, startTime: '08:00', endTime: '12:00' }
   };
 };
 
@@ -48,7 +50,7 @@ export default function NewPatientModal({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-  const [patientCoordinates, setPatientCoordinates] = useState({ latitude: -23.585, longitude: -46.638 });
+  const [patientCoordinates, setPatientCoordinates] = useState({ latitude: -20.3155, longitude: -40.2925 });
   const [resolvedLocationName, setResolvedLocationName] = useState('');
   const [caregiver, setCaregiver] = useState('');
 

@@ -11,10 +11,10 @@ import {
 describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () => {
   const generator = new MonthlyScaleGenerator(30, 10);
 
-  // Coordenadas em São Paulo
-  const locPaulista = { latitude: -23.561684, longitude: -46.655981 };
-  const locCerqueiraCesar = { latitude: -23.563099, longitude: -46.654271 }; // ~200m da Paulista
-  const locPinheiros = { latitude: -23.567300, longitude: -46.693400 }; // ~3.9km da Paulista
+  // Coordenadas na Grande Vitória, ES
+  const locPraiaDoCanto = { latitude: -20.301200, longitude: -40.292500 };
+  const locEnseadaSua = { latitude: -20.315500, longitude: -40.291500 }; // ~1.5km da Praia do Canto
+  const locPraiaDaCosta = { latitude: -20.338500, longitude: -40.286200 }; // ~4.3km da Praia do Canto
 
   const mockDemands: PatientTherapyDemand[] = [
     {
@@ -24,8 +24,8 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       sessionsPerWeek: 2,
       durationMinutes: 45,
       preferredShift: 'morning',
-      location: locCerqueiraCesar,
-      address: 'Alameda Santos, 1000 - Cerqueira César'
+      location: locEnseadaSua,
+      address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES'
     },
     {
       patientId: 'pat-2',
@@ -34,8 +34,8 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       sessionsPerWeek: 2,
       durationMinutes: 45,
       preferredShift: 'morning',
-      location: locPinheiros,
-      address: 'Rua Fradique Coutinho, 500 - Pinheiros'
+      location: locPraiaDaCosta,
+      address: 'Av. Hugo Musso, 1200 - Praia da Costa, Vila Velha - ES'
     }
   ];
 
@@ -45,7 +45,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       professionalId: 'doc-3',
       professionalName: 'Dr. Rafael Fontes',
       specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-      baseLocation: locPaulista,
+      baseLocation: locPraiaDoCanto,
       weekdayWindows: {
         1: { enabled: false, startTime: '08:00', endTime: '12:00' }, // Seg: Folga / outros pacientes
         2: { enabled: true, startTime: '08:00', endTime: '13:00' },  // Ter: Manhã até 13:00
@@ -128,8 +128,8 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         sessionsPerWeek: 2,
         durationMinutes: 45,
         preferredShift: 'morning',
-        location: locCerqueiraCesar,
-        address: 'Alameda Santos, 1000'
+        location: locEnseadaSua,
+        address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES'
       },
       {
         patientId: 'pat-1',
@@ -138,8 +138,8 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         sessionsPerWeek: 2,
         durationMinutes: 45,
         preferredShift: 'morning',
-        location: locCerqueiraCesar,
-        address: 'Alameda Santos, 1000'
+        location: locEnseadaSua,
+        address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES'
       },
       {
         patientId: 'pat-1',
@@ -148,8 +148,8 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         sessionsPerWeek: 1,
         durationMinutes: 45,
         preferredShift: 'afternoon',
-        location: locCerqueiraCesar,
-        address: 'Alameda Santos, 1000'
+        location: locEnseadaSua,
+        address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES'
       }
     ];
 
@@ -158,7 +158,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-3',
         professionalName: 'Dr. Rafael Fontes',
         specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           2: { enabled: true, startTime: '08:00', endTime: '12:00' },
           4: { enabled: true, startTime: '08:00', endTime: '12:00' }
@@ -168,7 +168,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-fono',
         professionalName: 'Dra. Aline Castro',
         specialty: 'Fonoaudiologia Domiciliar',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           2: { enabled: true, startTime: '09:00', endTime: '13:00' },
           4: { enabled: true, startTime: '09:00', endTime: '13:00' }
@@ -178,7 +178,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-4',
         professionalName: 'Dra. Camila Nogueira',
         specialty: 'Enfermagem Estomaterapeuta & Curativos',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           3: { enabled: true, startTime: '13:30', endTime: '18:00' }
         }
@@ -235,7 +235,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-3',
         professionalName: 'Dr. Rafael Fontes',
         specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           2: { enabled: true, startTime: '08:00', endTime: '13:00' }
         },
@@ -300,7 +300,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-3',
         professionalName: 'Dr. Rafael Fontes',
         specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           2: { enabled: true, startTime: '08:00', endTime: '13:00' }
         }
@@ -347,7 +347,7 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
         professionalId: 'doc-3',
         professionalName: 'Dr. Rafael Fontes',
         specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-        baseLocation: locPaulista,
+        baseLocation: locPraiaDoCanto,
         weekdayWindows: {
           1: { enabled: true, startTime: '08:00', endTime: '18:00' },
           2: { enabled: true, startTime: '08:00', endTime: '18:00' },
@@ -474,5 +474,52 @@ describe('MonthlyScaleGenerator - Planejador de Escala Mensal Inteligente', () =
       expect(weekSessions.length).toBeLessThanOrEqual(2);
     });
   });
+
+  it('deve permitir agendamento aos domingos quando paciente e terapeuta declaram disponibilidade no domingo', () => {
+    // Paciente Mariana precisa de 1 sessão por semana de Fisioterapia e tem disponibilidade no domingo
+    const sundayDemand: PatientTherapyDemand = {
+      patientId: 'pat-sunday',
+      patientName: 'Sr. João Silva',
+      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+      sessionsPerWeek: 1,
+      durationMinutes: 45,
+      preferredShift: 'morning',
+      location: locEnseadaSua,
+      address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES',
+      availableWindows: {
+        0: { enabled: true, startTime: '08:00', endTime: '12:00' } // Domingo
+      }
+    };
+
+    // Terapeuta com atendimento configurado aos domingos
+    const sundayProf: ProfessionalAvailability = {
+      professionalId: 'prof-sunday',
+      professionalName: 'Dra. Beatriz Santos',
+      specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+      baseLocation: locPraiaDoCanto,
+      weekdayWindows: {
+        0: { enabled: true, startTime: '08:00', endTime: '12:00' } // Domingo
+      }
+    };
+
+    const careTeams: CareTeamRelation[] = [
+      { patientId: 'pat-sunday', professionalIds: ['prof-sunday'] }
+    ];
+
+    const result = generator.generateMonthlyScale({
+      year: 2026,
+      month: 10,
+      demands: [sundayDemand],
+      availabilities: [sundayProf],
+      careTeams
+    });
+
+    expect(result.plannedSessions.length).toBeGreaterThan(0);
+    result.plannedSessions.forEach((s) => {
+      const d = new Date(s.date + 'T12:00:00Z');
+      expect(d.getUTCDay(), `Sessão deveria estar em um domingo (0), mas foi em ${d.getUTCDay()}`).toBe(0);
+    });
+  });
 });
+
 

@@ -523,17 +523,37 @@ select option {
   background: var(--text-muted);
 }
 
-/* Print Styles for Digital Prescription / Atestado */
+/* Print Styles for Digital Prescription / Atestado / Escala Mensal */
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .app-container, .sidebar, .header-container, .no-print {
+
+  /* Oculta layout da tela e modais na impressão */
+  .app-container,
+  .sidebar,
+  .header-container,
+  .no-print,
+  .modal-backdrop {
     display: none !important;
   }
+
+  /* Exibe o documento de impressão em página inteira */
   .print-only {
     display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    visibility: visible !important;
   }
 }
 

@@ -202,7 +202,7 @@ export default function PatientsView({
                       <MapPin size={13} /> Domicílio:
                     </span>
                     <strong style={{ fontSize: '0.8rem', textAlign: 'right', maxWidth: '65%' }}>
-                      {patient.address || 'São Paulo - SP'}
+                      {patient.address || 'Vitória - ES'}
                     </strong>
                   </div>
 
