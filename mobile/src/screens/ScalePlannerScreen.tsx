@@ -150,7 +150,7 @@ export const ScalePlannerScreen: React.FC<ScalePlannerScreenProps> = ({
                     },
                   ]}
                 >
-                  <Image source={{ uri: prof.avatar }} style={styles.profFilterAvatar} />
+                  {prof.avatar ? <Image source={{ uri: prof.avatar }} style={styles.profFilterAvatar} /> : null}
                   <Text
                     style={[
                       styles.profFilterText,
@@ -186,7 +186,7 @@ export const ScalePlannerScreen: React.FC<ScalePlannerScreenProps> = ({
               >
                 <View style={styles.scaleCardHeader}>
                   <View style={styles.profRow}>
-                    <Image source={{ uri: prof.avatar }} style={styles.cardAvatar} />
+                    {prof.avatar ? <Image source={{ uri: prof.avatar }} style={styles.cardAvatar} /> : null}
                     <View>
                       <Text style={[styles.cardProfName, { color: theme.textPrimary }]}>
                         {prof.name}

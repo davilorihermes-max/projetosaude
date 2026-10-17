@@ -110,7 +110,7 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
                     },
                   ]}
                 >
-                  <Image source={{ uri: p.avatar }} style={styles.pillAvatar} />
+                  {p.avatar ? <Image source={{ uri: p.avatar }} style={styles.pillAvatar} /> : null}
                   <Text
                     style={[
                       styles.pillName,
@@ -134,13 +134,13 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
             ]}
           >
             <View style={styles.heroTopRow}>
-              <Image source={{ uri: patient.avatar }} style={styles.heroAvatar} />
+              {patient.avatar ? <Image source={{ uri: patient.avatar }} style={styles.heroAvatar} /> : null}
               <View style={{ flex: 1, marginLeft: Spacing.md }}>
                 <Text style={[styles.heroName, { color: theme.textPrimary }]}>
                   {patient.name}
                 </Text>
                 <Text style={[styles.heroInfo, { color: theme.textSecondary }]}>
-                  {patient.age} anos • {patient.gender} • CPF: {patient.cpf}
+                  {patient.age ? `${patient.age} anos • ` : ''}{patient.gender ? `${patient.gender} • ` : ''}CPF: {patient.cpf}
                 </Text>
                 <Text style={[styles.heroPlan, { color: theme.primary }]}>
                   {patient.insurance}
@@ -183,7 +183,7 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
                 Nova Evolução Clínica (SOAP)
               </Text>
               <Text style={[styles.formSubtitle, { color: theme.textMuted }]}>
-                Registrado por {activeProfessional.name}
+                Registrado por {activeProfessional?.name || 'Profissional'}
               </Text>
             </View>
           </View>

@@ -384,15 +384,17 @@ export default function App() {
     fetchBackendPatients();
   }, []);
 
-  // Sincroniza agendamentos do backend Prisma quando houver sessão autenticada
+  // Sincroniza agendamentos do backend Prisma (com ou sem sessão autenticada)
   useEffect(() => {
     const syncBackendAppointments = async () => {
       try {
         const token = localStorage.getItem('omnihome_jwt');
-        if (!token) return;
+        const endpoint = token
+          ? `${API_BASE_URL}/api/scheduler/appointments`
+          : `${API_BASE_URL}/api/scheduler/schedule`;
 
-        const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch(endpoint, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
 
         if (res.ok) {

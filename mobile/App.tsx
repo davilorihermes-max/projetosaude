@@ -23,6 +23,7 @@ import { PROFESSIONALS } from './src/data/mockData';
 import {
   Appointment,
   Patient,
+  Professional,
   ClinicalEvolution,
   UserRole,
   CheckInRecord,
@@ -36,12 +37,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   // Core Data State
+  const [professionals, setProfessionals] = useState<Professional[]>(PROFESSIONALS);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [evolutions, setEvolutions] = useState<ClinicalEvolution[]>([]);
   const [selectedPatientForPEP, setSelectedPatientForPEP] = useState<Patient | null>(null);
 
-  const activeProfessional = PROFESSIONALS[0] || null;
+  const activeProfessional =
+    professionals.find((p) => p.name.toLowerCase().includes('sergio')) ||
+    professionals[0] ||
+    null;
   const theme = isDark ? darkTheme : lightTheme;
 
   useEffect(() => {
@@ -50,15 +55,18 @@ export default function App() {
 
   const loadInitialData = async () => {
     try {
-      const [savedApts, savedPatients, savedEvos, savedRole, savedDark] =
+      const [savedProfs, savedPatients, savedEvos, savedRole, savedDark] =
         await Promise.all([
-          AppStorage.getAppointments(),
+          AppStorage.getProfessionals(),
           AppStorage.getPatients(),
           AppStorage.getEvolutions(),
           AppStorage.getActiveRole(),
           AppStorage.getDarkMode(),
         ]);
 
+      const savedApts = await AppStorage.getAppointments(savedPatients);
+
+      setProfessionals(savedProfs);
       setAppointments(savedApts);
       setPatients(savedPatients);
       setEvolutions(savedEvos);
@@ -182,7 +190,7 @@ export default function App() {
                 theme={theme}
                 appointments={appointments}
                 patients={patients}
-                professionals={PROFESSIONALS}
+                professionals={professionals}
               />
             )}
             {activeTab === 'patients' && (
@@ -198,7 +206,7 @@ export default function App() {
                 theme={theme}
                 appointments={appointments}
                 patients={patients}
-                professionals={PROFESSIONALS}
+                professionals={professionals}
               />
             )}
           </>

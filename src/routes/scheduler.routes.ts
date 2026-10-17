@@ -68,6 +68,28 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
   );
 
   /**
+   * GET /api/scheduler/schedule
+   * Lista de agendamentos da escala ativa para sincronização Web/Mobile (PWA e React Native)
+   */
+  app.get<{ Querystring: { professionalId?: string; date?: string } }>(
+    '/schedule',
+    async (request, reply) => {
+      const { professionalId, date } = request.query || {};
+
+      const appointments = await SchedulingService.listAppointments({
+        professionalId,
+        date
+      });
+
+      return reply.status(200).send({
+        success: true,
+        count: appointments.length,
+        appointments
+      });
+    }
+  );
+
+  /**
    * POST /api/scheduler/appointments
    * Cria um agendamento após validação estrita de viabilidade (CareTeam e deslocamento)
    */
