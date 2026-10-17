@@ -1,6 +1,6 @@
 // test/gabriel-fisio-optimization.test.ts
 import { describe, it, expect } from 'vitest';
-import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator';
+import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator.js';
 
 describe('Diagnóstico da Alocação de Gabriel e fisio1', () => {
   it('deve diagnosticar por que Gabriel não atinge as metas quando outros pacientes disputam a manhã', () => {

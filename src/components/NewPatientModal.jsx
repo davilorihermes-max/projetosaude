@@ -313,9 +313,7 @@ export default function NewPatientModal({
         role: 'PRIMARY_CARE',
         active: true
       })),
-      avatar: gender === 'Masculino'
-        ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80'
+      avatar: initialPatientData?.avatar || null
     };
 
     onSavePatient(newPatient);

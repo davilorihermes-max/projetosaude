@@ -39,20 +39,80 @@ export default function App() {
   // Main navigation tab
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Core Data States (with LocalStorage)
+  // Helper filters to prevent mock/test data contamination from old caches
+  const isMockPatient = (p) => {
+    if (!p) return true;
+    const name = (p.name || '').toLowerCase().trim();
+    const id = String(p.id || '');
+    const cpf = String(p.cpf || '');
+    const address = (p.address || '').toLowerCase();
+    return (
+      ['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(id) ||
+      ['123.456.789-00', '12345678901', '284.912.839-44', '910.283.746-11', '418.992.301-85'].includes(cpf) ||
+      name.includes('mariana souza') ||
+      name.includes('roberto carlos') ||
+      name.includes('juliana mendes') ||
+      (name === 'ana clara' && address.includes('xv de novembro')) ||
+      (name === 'maria silva' && address.includes('rua das flores'))
+    );
+  };
+
+  const isMockDoctor = (d) => {
+    if (!d) return true;
+    const name = (d.name || '').toLowerCase().trim();
+    const id = String(d.id || '');
+    return (
+      ['doc-1', 'doc-2', 'doc-3', 'doc-4'].includes(id) ||
+      name.includes('lucas silveira') ||
+      name.includes('rafael fontes') ||
+      name.includes('camila nogueira') ||
+      name.includes('fernanda prado')
+    );
+  };
+
+  // Core Data States (with LocalStorage filtered from stale mock cache)
   const [doctors, setDoctors] = useState(() => {
     const saved = localStorage.getItem('omnihome_doctors_v3');
-    return saved ? JSON.parse(saved) : DOCTORS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((d) => !isMockDoctor(d));
+        }
+      } catch {}
+    }
+    return DOCTORS;
   });
 
   const [patients, setPatients] = useState(() => {
     const saved = localStorage.getItem('omnihome_patients_v3');
-    return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => !isMockPatient(p));
+        }
+      } catch {}
+    }
+    return INITIAL_PATIENTS;
   });
 
   const [appointments, setAppointments] = useState(() => {
     const saved = localStorage.getItem('omnihome_appointments_v3');
-    return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (a) =>
+              !['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(
+                a.patientId
+              )
+          );
+        }
+      } catch {}
+    }
+    return INITIAL_APPOINTMENTS;
   });
 
   // Active Authenticated User (JWT)
@@ -108,7 +168,7 @@ export default function App() {
   // Home Care Operational Notifications
   const [notifications, setNotifications] = useState([]);
 
-  // Sync to LocalStorage
+  // Sync to LocalStorage (filtered)
   useEffect(() => {
     localStorage.setItem('omnihome_doctors_v3', JSON.stringify(doctors));
   }, [doctors]);
@@ -121,6 +181,17 @@ export default function App() {
     localStorage.setItem('omnihome_appointments_v3', JSON.stringify(appointments));
   }, [appointments]);
 
+  // Keep activePatientId valid when patients change
+  useEffect(() => {
+    if (patients.length > 0) {
+      if (!patients.some((p) => p.id === activePatientId)) {
+        setActivePatientId(patients[0].id);
+      }
+    } else {
+      setActivePatientId(null);
+    }
+  }, [patients, activePatientId]);
+
   // Sincroniza profissionais cadastrados no backend Fastify/Prisma
   useEffect(() => {
     const fetchBackendProfessionals = async () => {
@@ -129,39 +200,64 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.professionals && Array.isArray(data.professionals)) {
-            setDoctors((prev) => {
-              const existingIds = new Set(prev.map((d) => d.id));
-              const newFromBackend = data.professionals
-                .filter((p) => !existingIds.has(p.id))
-                .map((p) => {
-                  const spec = p.specialty || '';
-                  const profName = spec.includes('Enfermagem')
-                    ? 'Enfermagem'
-                    : spec.includes('Fono')
-                    ? 'Fonoaudiologia'
-                    : spec.includes('Nutri')
-                    ? 'Nutrição'
-                    : 'Fisioterapia';
+            const mapped = data.professionals
+              .filter((p) => !isMockDoctor(p.user))
+              .map((p) => {
+                const spec = (p.specialty || '').toLowerCase();
+                const crm = (p.crm || '').toUpperCase();
+                let profName = 'Fisioterapia';
+                if (crm.startsWith('CRM') || spec.includes('cardio') || spec.includes('médic')) {
+                  profName = 'Medicina';
+                } else if (crm.startsWith('COREN') || spec.includes('enferm')) {
+                  profName = 'Enfermagem';
+                } else if (crm.startsWith('CRFA') || spec.includes('fono')) {
+                  profName = 'Fonoaudiologia';
+                } else if (crm.startsWith('CRN') || spec.includes('nutri')) {
+                  profName = 'Nutrição';
+                } else if (crm.startsWith('CREFITO') || spec.includes('fisio')) {
+                  profName = 'Fisioterapia';
+                } else if (p.profession) {
+                  profName = p.profession;
+                }
 
-                  return {
-                    id: p.id,
-                    userId: p.userId,
-                    name: p.user?.name || 'Profissional',
-                    email: p.user?.email || '',
-                    profession: profName,
-                    specialty: p.specialty || 'Atendimento Multidisciplinar',
-                    councilNumber: p.crm || 'Registro Ativo',
-                    crm: p.crm || 'Registro Ativo',
-                    avatar: p.user?.avatar || null,
-                    color: '#0d9488',
-                    baseAddress: 'Praia do Canto, Vitória - ES',
-                    baseCoordinates: {
-                      latitude: p.latitude ?? -20.301200,
-                      longitude: p.longitude ?? -40.292500
-                    }
-                  };
-                });
-              return [...prev, ...newFromBackend];
+                return {
+                  id: p.id,
+                  userId: p.userId,
+                  name: p.user?.name || 'Profissional',
+                  email: p.user?.email || '',
+                  profession: profName,
+                  specialty: p.specialty || 'Atendimento Multidisciplinar',
+                  councilNumber: p.crm || 'Registro Ativo',
+                  crm: p.crm || 'Registro Ativo',
+                  avatar: p.user?.avatar || null,
+                  color: '#0d9488',
+                  baseAddress: 'Praia do Canto, Vitória - ES',
+                  baseCoordinates: {
+                    latitude: p.latitude ?? -20.301200,
+                    longitude: p.longitude ?? -40.292500
+                  }
+                };
+              });
+
+            // Deduplica por email e id
+            const uniqueDocs = [];
+            const seen = new Set();
+            for (const doc of mapped) {
+              const key = doc.email ? doc.email.toLowerCase().trim() : doc.id;
+              if (!seen.has(key)) {
+                seen.add(key);
+                uniqueDocs.push(doc);
+              }
+            }
+
+            setDoctors((prev) => {
+              const backendIds = new Set(uniqueDocs.map((d) => d.id));
+              const localWithoutAccount = prev.filter(
+                (d) => d.hasAccount === false && !backendIds.has(d.id) && !isMockDoctor(d)
+              );
+              const combined = [...uniqueDocs, ...localWithoutAccount];
+              localStorage.setItem('omnihome_doctors_v3', JSON.stringify(combined));
+              return combined;
             });
           }
         }
@@ -180,32 +276,66 @@ export default function App() {
         const res = await fetch(`${API_BASE_URL}/api/scheduler/patients`);
         if (res.ok) {
           const data = await res.json();
-          if (data.patients && Array.isArray(data.patients) && data.patients.length > 0) {
-            setPatients((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const newFromBackend = data.patients
-                .filter((p) => !existingIds.has(p.id))
-                .map((p) => ({
+          if (data.patients && Array.isArray(data.patients)) {
+            let localById = {};
+            try {
+              const savedLocal = JSON.parse(localStorage.getItem('omnihome_patients_v3') || '[]');
+              if (Array.isArray(savedLocal)) {
+                for (const lp of savedLocal) {
+                  if (lp && lp.id) localById[lp.id] = lp;
+                }
+              }
+            } catch {}
+
+            const mapped = data.patients
+              .filter((p) => !isMockPatient(p))
+              .map((p) => {
+                const existing = localById[p.id] || {};
+                const cleanPhone = p.phone && p.phone !== '(11) 98765-4321' ? p.phone : existing.phone && existing.phone !== '(11) 98765-4321' ? existing.phone : '';
+                const cleanInsurance = existing.insurance && existing.insurance !== 'Unimed Pleno' ? existing.insurance : '';
+                const cleanInsuranceNumber = existing.insuranceNumber && existing.insuranceNumber !== 'PLEN-001' ? existing.insuranceNumber : '';
+                const cleanCaregiver = existing.caregiver && existing.caregiver !== 'Cuidador(a) cadastrado' ? existing.caregiver : '';
+                const cleanAccessNotes = existing.accessNotes && existing.accessNotes !== 'Residência autorizada para atendimento domiciliar' ? existing.accessNotes : '';
+                const cleanMobility = existing.mobilityStatus && existing.mobilityStatus !== 'Deambula sem auxílio' ? existing.mobilityStatus : '';
+
+                return {
                   id: p.id,
                   name: p.name,
-                  cpf: p.cpf || '000.000.000-00',
-                  birthDate: '1990-01-01',
-                  age: 45,
-                  gender: 'Feminino',
-                  phone: p.phone || '(11) 98765-4321',
-                  email: p.email || '',
-                  insurance: 'Unimed Pleno',
-                  insuranceNumber: 'PLEN-001',
-                  address: p.address || 'Endereço em rota domiciliar',
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  caregiver: 'Cuidador(a) cadastrado',
-                  accessNotes: 'Residência autorizada para atendimento domiciliar',
-                  mobilityStatus: 'Deambula sem auxílio',
-                  careTeamMembers: p.careTeamMembers || []
-                }));
-              return [...prev, ...newFromBackend];
-            });
+                  cpf: p.cpf || existing.cpf || '',
+                  birthDate: existing.birthDate && existing.birthDate !== '1990-01-01' ? existing.birthDate : '',
+                  age: existing.age && existing.age !== 45 ? existing.age : null,
+                  gender: existing.gender || '',
+                  phone: cleanPhone,
+                  email: p.email || existing.email || '',
+                  insurance: cleanInsurance,
+                  insuranceNumber: cleanInsuranceNumber,
+                  address: p.address || existing.address || '',
+                  latitude: p.latitude ?? existing.latitude,
+                  longitude: p.longitude ?? existing.longitude,
+                  caregiver: cleanCaregiver,
+                  accessNotes: cleanAccessNotes,
+                  mobilityStatus: cleanMobility,
+                  avatar: null,
+                  demands: existing.demands || [],
+                  careTeamProfessionalIds:
+                    existing.careTeamProfessionalIds ||
+                    (Array.isArray(p.careTeamMembers) ? p.careTeamMembers.map((m) => m.professionalId) : []),
+                  careTeamMembers: p.careTeamMembers || existing.careTeamMembers || []
+                };
+              });
+
+            const uniquePats = [];
+            const seen = new Set();
+            for (const pat of mapped) {
+              const key = pat.cpf && pat.cpf !== '000.000.000-00' ? pat.cpf : pat.id;
+              if (!seen.has(key)) {
+                seen.add(key);
+                uniquePats.push(pat);
+              }
+            }
+
+            setPatients(uniquePats);
+            localStorage.setItem('omnihome_patients_v3', JSON.stringify(uniquePats));
           }
         }
       } catch (err) {
@@ -230,30 +360,36 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.appointments && Array.isArray(data.appointments)) {
-            const mapped = data.appointments.map((a) => {
-              const dateObj = new Date(a.scheduledTime);
-              const dateStr = dateObj.toISOString().slice(0, 10);
-              const timeStr = dateObj.toISOString().slice(11, 16);
-              const doctorId = a.professionalId;
+            const mapped = data.appointments
+              .filter((a) => !isMockPatient(a.patient))
+              .map((a) => {
+                const dateObj = new Date(a.scheduledTime);
+                const dateStr = dateObj.toISOString().slice(0, 10);
+                const timeStr = dateObj.toISOString().slice(11, 16);
+                const doctorId = a.professionalId;
 
-              return {
-                id: a.id,
-                patientId: a.patientId,
-                doctorId,
-                date: dateStr,
-                time: timeStr,
-                type: a.notes || 'Sessão Domiciliar',
-                durationMinutes: a.durationMinutes || 45,
-                address: a.patient?.address || 'Vitória - ES',
-                notes: a.notes || '',
-                status: a.status ? a.status.toLowerCase() : 'scheduled'
-              };
-            });
+                return {
+                  id: a.id,
+                  patientId: a.patientId,
+                  doctorId,
+                  date: dateStr,
+                  time: timeStr,
+                  type: a.notes || 'Sessão Domiciliar',
+                  durationMinutes: a.durationMinutes || 45,
+                  address: a.patient?.address || 'Vitória - ES',
+                  notes: a.notes || '',
+                  status: a.status ? a.status.toLowerCase() : 'scheduled'
+                };
+              });
 
             setAppointments((prev) => {
               const backendIds = new Set(mapped.map((m) => m.id));
-              const localOnly = prev.filter((p) => !backendIds.has(p.id));
-              return [...mapped, ...localOnly];
+              const localPlanned = prev.filter(
+                (p) => String(p.id || '').startsWith('apt-plan-') && !backendIds.has(p.id)
+              );
+              const combined = [...mapped, ...localPlanned];
+              localStorage.setItem('omnihome_appointments_v3', JSON.stringify(combined));
+              return combined;
             });
           }
         }
@@ -264,6 +400,7 @@ export default function App() {
 
     syncBackendAppointments();
   }, [currentUser]);
+
 
   // Sincroniza automaticamente o profissional selecionado com o usuário autenticado
   useEffect(() => {
@@ -454,6 +591,28 @@ export default function App() {
     }
   };
 
+  const handleDeletePatient = async (patientId) => {
+    if (!patientId) return;
+    setPatients((prev) => {
+      const updated = prev.filter((p) => p.id !== patientId);
+      localStorage.setItem('omnihome_patients_v3', JSON.stringify(updated));
+      return updated;
+    });
+    setAppointments((prev) => {
+      const updated = prev.filter((a) => a.patientId !== patientId);
+      localStorage.setItem('omnihome_appointments_v3', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await fetch(`${API_BASE_URL}/api/scheduler/patients/${patientId}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn('Exclusão de paciente no backend ignorada:', err);
+    }
+  };
+
   const handleResetData = () => {
     setPatients(INITIAL_PATIENTS);
     setAppointments(INITIAL_APPOINTMENTS);
@@ -591,6 +750,7 @@ export default function App() {
               }}
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
+              onDeletePatient={handleDeletePatient}
             />
           )}
 

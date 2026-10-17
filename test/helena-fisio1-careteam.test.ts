@@ -1,6 +1,6 @@
 // test/helena-fisio1-careteam.test.ts
 import { describe, it, expect } from 'vitest';
-import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator';
+import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator.js';
 
 describe('Care Team de Helena com fisio1 e Estabilidade de Semanas', () => {
   it('deve reconhecer fisio1 no Care Team de Helena mesmo quando cadastrada por nome ou ID variado', () => {

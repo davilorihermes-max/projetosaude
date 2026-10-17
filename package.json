@@ -15,7 +15,8 @@
     "db:sync-provider": "node scripts/sync-prisma-provider.js",
     "db:push": "node scripts/sync-prisma-provider.js && prisma db push",
     "db:setup-cloud": "node scripts/setup-cloud-db.js",
-    "db:create-user": "node scripts/create-user.js"
+    "db:create-user": "node scripts/create-user.js",
+    "db:cleanup-mock": "tsx scripts/cleanup-mock-data.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

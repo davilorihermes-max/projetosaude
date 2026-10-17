@@ -20,7 +20,7 @@ interface ClinicalRecordScreenProps {
   onSelectPatient: (patient: Patient) => void;
   evolutions: ClinicalEvolution[];
   onSaveEvolution: (evolution: ClinicalEvolution) => void;
-  activeProfessional: Professional;
+  activeProfessional?: Professional | null;
 }
 
 export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
@@ -50,6 +50,7 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
   const patientEvolutions = evolutions.filter((e) => e.patientId === patient?.id);
 
   const handleSaveForm = () => {
+    if (!patient) return;
     if (!subjective.trim() && !objective.trim()) {
       alert('Preencha ao menos o relato subjetivo ou o exame objetivo.');
       return;
@@ -58,8 +59,10 @@ export const ClinicalRecordScreen: React.FC<ClinicalRecordScreenProps> = ({
     const newEvo: ClinicalEvolution = {
       id: `evo-${Date.now()}`,
       patientId: patient.id,
-      professionalId: activeProfessional.id,
-      professionalName: `${activeProfessional.name} (${activeProfessional.profession})`,
+      professionalId: activeProfessional?.id || '',
+      professionalName: activeProfessional
+        ? `${activeProfessional.name} (${activeProfessional.profession})`
+        : 'Profissional',
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       vitals: {

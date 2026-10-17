@@ -12,7 +12,8 @@ import {
   UserCheck,
   Stethoscope,
   Edit,
-  MapPin
+  MapPin,
+  Trash2
 } from 'lucide-react';
 import './PatientsView.css';
 import Avatar from './Avatar';
@@ -25,17 +26,29 @@ export default function PatientsView({
   onOpenNewPatient,
   onEditPatient,
   onOpenNewAppointment,
-  onNavigateToPlanner
+  onNavigateToPlanner,
+  onDeletePatient
 }) {
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState(activeDoctor && activeDoctor.id !== 'all' ? 'my' : 'all');
 
-  // IDs de pacientes vinculados aos atendimentos do profissional ativo
-  const myPatientIds = new Set(
-    appointments
+  // IDs de pacientes vinculados aos atendimentos ou Care Team do profissional ativo
+  const myPatientIds = new Set([
+    ...appointments
       .filter((a) => !activeDoctor || activeDoctor.id === 'all' || a.doctorId === activeDoctor.id)
-      .map((a) => a.patientId)
-  );
+      .map((a) => a.patientId),
+    ...patients
+      .filter(
+        (p) =>
+          !activeDoctor ||
+          activeDoctor.id === 'all' ||
+          (Array.isArray(p.careTeamProfessionalIds) &&
+            p.careTeamProfessionalIds.includes(activeDoctor.id)) ||
+          (Array.isArray(p.careTeamMembers) &&
+            p.careTeamMembers.some((ct) => (ct.professionalId || ct) === activeDoctor.id))
+      )
+      .map((p) => p.id)
+  ]);
 
   const scopedPatients = scope === 'my' && activeDoctor && activeDoctor.id !== 'all'
     ? patients.filter((p) => myPatientIds.has(p.id))
@@ -178,14 +191,14 @@ export default function PatientsView({
 
             return (
               <div key={patient.id} className="patient-card">
-                <div className="patient-card-header">
+                <div className="patient-card-header" style={{ position: 'relative' }}>
                   <Avatar
                     src={patient.avatar}
                     name={patient.name}
                     size={48}
                     className="patient-card-avatar"
                   />
-                  <div className="patient-card-info">
+                  <div className="patient-card-info" style={{ flex: 1 }}>
                     <h4>{patient.name}</h4>
                     <p>
                       {patient.age} anos • {patient.gender}
@@ -194,6 +207,17 @@ export default function PatientsView({
                       {patient.phone || 'Sem telefone informado'}
                     </span>
                   </div>
+                  {onDeletePatient && (
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      title="Excluir paciente"
+                      style={{ color: 'var(--danger, #ef4444)', padding: '0.35rem' }}
+                      onClick={() => onDeletePatient(patient.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="patient-card-body">

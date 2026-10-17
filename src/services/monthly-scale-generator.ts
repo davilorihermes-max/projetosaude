@@ -44,6 +44,8 @@ export interface PatientTherapyDemand {
   availableWindows?: { [dayOfWeek: number]: DayTimeWindow };
   // Bloqueios de indisponibilidade do paciente (consultas externas, diálise, compromissos familiares)
   unavailabilityBlocks?: TimeBlock[];
+  // Profissionais do Care Team associados diretamente à demanda
+  careTeamProfessionalIds?: string[];
 }
 
 export interface DayTimeWindow {
@@ -53,6 +55,8 @@ export interface DayTimeWindow {
 }
 
 export interface ProfessionalAvailability {
+  id?: string;
+  name?: string;
   professionalId: string;
   professionalName: string;
   specialty: string;
@@ -72,6 +76,7 @@ export interface ProfessionalAvailability {
 
 export interface CareTeamRelation {
   patientId: string;
+  patientName?: string;
   professionalIds: string[];
 }
 

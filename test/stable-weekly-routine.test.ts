@@ -1,6 +1,6 @@
 // test/stable-weekly-routine.test.ts
 import { describe, it, expect } from 'vitest';
-import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator';
+import { MonthlyScaleGenerator } from '../src/services/monthly-scale-generator.js';
 
 describe('Estabilidade e Repetição Idêntica das Semanas na Escala Mensal', () => {
   it('deve manter dias da semana, horários e profissionais fixos entre semanas para cada paciente', () => {

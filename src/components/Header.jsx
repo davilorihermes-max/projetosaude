@@ -66,11 +66,16 @@ export default function Header({
             onChange={(e) => setSelectedDoctorId(e.target.value)}
           >
             <option value="all">Toda a Equipe Multidisciplinar</option>
-            {doctors.map((doc) => (
-              <option key={doc.id} value={doc.id}>
-                {doc.name} • {doc.profession || 'Especialista'} ({doc.councilNumber || doc.crm || doc.specialty})
-              </option>
-            ))}
+            {doctors
+              .filter((doc, idx, arr) => {
+                const key = doc.email ? doc.email.toLowerCase().trim() : doc.id;
+                return arr.findIndex((d) => (d.email ? d.email.toLowerCase().trim() : d.id) === key) === idx;
+              })
+              .map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.name} • {doc.profession || 'Especialista'} ({doc.councilNumber || doc.crm || doc.specialty})
+                </option>
+              ))}
           </select>
         </div>
 

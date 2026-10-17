@@ -11,7 +11,7 @@ interface HeaderProps {
   onToggleRole: () => void;
   isDark: boolean;
   onToggleDark: () => void;
-  professional: Professional;
+  professional?: Professional | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -102,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
       </View>
 
       {/* Profile quick bar (Only for Professional mode) */}
-      {role === 'PROFESSIONAL' && (
+      {role === 'PROFESSIONAL' && professional && (
         <View
           style={[
             styles.profileBar,
@@ -112,10 +112,12 @@ export const Header: React.FC<HeaderProps> = ({
             },
           ]}
         >
-          <Image
-            source={{ uri: professional.avatar }}
-            style={styles.avatar}
-          />
+          {professional.avatar ? (
+            <Image
+              source={{ uri: professional.avatar }}
+              style={styles.avatar}
+            />
+          ) : null}
           <View style={styles.profileInfo}>
             <Text style={[styles.profName, { color: theme.textPrimary }]}>
               {professional.name}
