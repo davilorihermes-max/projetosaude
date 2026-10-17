@@ -73,3 +73,12 @@ Bem-vindo ao **Projeto Saúde**, um sistema robusto de gestão clínica, escalas
 
 - **Zero vazamento de segredos:** Nunca subir chaves, senhas ou tokens. Usar exclusivamente variáveis de ambiente (`.env`).
 - **Anonimização & Conformidade:** Dados clínicos e cadastrais são confidenciais. Nunca expor identificadores pessoais em logs de erro ou payloads de depuração.
+
+---
+
+## 🚀 5. Deploy na Vercel (Desenvolvimento & Produção)
+
+- **SEMPRE atualizar ambos os domínios ao fazer deploy:**
+  1. **Development / Staging:** `https://projetosaude-gamma.vercel.app` (`npx vercel --prod --yes`)
+  2. **Production Oficial:** `https://omnihomecare.vercel.app` (`npx vercel alias set <deployment-url> omnihomecare.vercel.app`)
+

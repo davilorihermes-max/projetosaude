@@ -110,34 +110,6 @@ export default function LoginModal({
     setRegPhone(formatted);
   };
 
-  // Password Security Criteria
-  const passwordCriteria = {
-    minChars: regPassword.length >= 8,
-    hasUpper: /[A-Z]/.test(regPassword),
-    hasLower: /[a-z]/.test(regPassword),
-    hasNumber: /[0-9]/.test(regPassword),
-    hasSpecial: /[^A-Za-z0-9]/.test(regPassword),
-    matchesConfirm: Boolean(regPassword && regConfirmPassword && regPassword === regConfirmPassword)
-  };
-
-  const passedCriteriaCount = [
-    passwordCriteria.minChars,
-    passwordCriteria.hasUpper,
-    passwordCriteria.hasLower,
-    passwordCriteria.hasNumber,
-    passwordCriteria.hasSpecial
-  ].filter(Boolean).length;
-
-  const getStrengthInfo = () => {
-    if (regPassword.length === 0) return { label: 'Não informada', color: 'var(--text-muted)', percent: 0 };
-    if (passedCriteriaCount <= 2) return { label: 'Fraca (Muito vulnerável)', color: '#ef4444', percent: 25 };
-    if (passedCriteriaCount <= 3) return { label: 'Média (Insuficiente)', color: '#f59e0b', percent: 50 };
-    if (passedCriteriaCount === 4) return { label: 'Boa (Recomendada)', color: '#0284c7', percent: 75 };
-    return { label: 'Excelente (Forte & Segura)', color: '#10b981', percent: 100 };
-  };
-
-  const strength = getStrengthInfo();
-
   const getCouncilPlaceholder = (prof) => {
     switch (prof) {
       case 'Fisioterapia': return 'ex: CREFITO-3/SP 88.340-F';
@@ -148,18 +120,6 @@ export default function LoginModal({
       case 'Psicologia': return 'ex: CRP-06/SP 98.760';
       case 'Medicina': return 'ex: CRM-SP 123.456';
       default: return 'ex: Órgão/UF 00.000';
-    }
-  };
-
-  const getSpecialtyPlaceholder = (prof) => {
-    switch (prof) {
-      case 'Fisioterapia': return 'ex: Fisioterapia Cardiorrespiratória & Motora no Leito';
-      case 'Enfermagem': return 'ex: Enfermagem Estomaterapeuta & Curativos Complexos';
-      case 'Fonoaudiologia': return 'ex: Reabilitação de Deglutição (Disfagia) & Voz';
-      case 'Nutrição': return 'ex: Terapia Nutricional Enteral no Domicílio';
-      case 'Terapia Ocupacional': return 'ex: Reabilitação de AVDs & Tecnologia Assistiva';
-      case 'Psicologia': return 'ex: Psicologia Clínica & Apoio a Cuidadores';
-      default: return 'ex: Atenção Domiciliar Especializada';
     }
   };
 
@@ -217,52 +177,20 @@ export default function LoginModal({
     setSuccessMsg('');
 
     try {
-      let loggedUser = null;
-      let token = null;
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: idToUse.trim().toLowerCase(), password: passToUse })
+      });
 
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: idToUse, password: passToUse })
-        });
+      const data = await res.json().catch(() => ({}));
 
-        if (res.ok) {
-          const data = await res.json();
-          loggedUser = data.user;
-          token = data.token;
-        } else {
-          const data = await res.json().catch(() => ({}));
-          if (res.status === 400 || res.status === 401) {
-            throw new Error(data.message || 'Credenciais inválidas. Verifique seu e-mail e senha.');
-          }
-        }
-      } catch (fetchErr) {
-        if (fetchErr.message && (fetchErr.message.includes('Credenciais') || fetchErr.message.includes('senha') || fetchErr.message.includes('inválid'))) {
-          throw fetchErr;
-        }
-        console.warn('Backend indisponível, processando login em modo local:', fetchErr);
+      if (!res.ok) {
+        throw new Error(data.message || 'Credenciais inválidas. Verifique seu e-mail e senha.');
       }
 
-      // Se o backend não estiver ativo (ex: em produção no Vercel), autentica com persistência local estrita
-      if (!loggedUser) {
-        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
-        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-        const existing = savedUsers.find(
-          (u) => u.email.toLowerCase().trim() === idToUse.toLowerCase().trim()
-        );
-
-        if (!existing) {
-          throw new Error('Credenciais inválidas: perfil não encontrado. Por favor, verifique o e-mail digitado ou cadastre seu perfil na aba "Cadastrar Perfil Profissional".');
-        }
-
-        if (existing.password && existing.password !== passToUse) {
-          throw new Error('Credenciais inválidas: e-mail ou senha incorretos.');
-        }
-
-        loggedUser = existing;
-        token = `session-${Date.now()}`;
-      }
+      const loggedUser = data.user;
+      const token = data.token;
 
       setSuccessMsg(`Autenticado com sucesso como ${loggedUser.name} (${loggedUser.role})!`);
       localStorage.setItem('omnihome_jwt', token);
@@ -277,7 +205,7 @@ export default function LoginModal({
         onClose();
       }, 800);
     } catch (err) {
-      setErrorMsg(err.message || 'Erro ao autenticar.');
+      setErrorMsg(err.message || 'Erro ao autenticar no servidor em nuvem.');
     } finally {
       setLoading(false);
     }
@@ -288,9 +216,8 @@ export default function LoginModal({
     setErrorMsg('');
     setSuccessMsg('');
 
-    // Requisito: Apenas Nome e E-mail são obrigatórios!
     const nameTrimmed = regName.trim();
-    if (!nameTrimmed) {
+    if (!nameTrimmed || nameTrimmed.length < 2) {
       setErrorMsg('Informe o nome do profissional.');
       return;
     }
@@ -300,98 +227,72 @@ export default function LoginModal({
       return;
     }
 
-    // Senha: não é preciso senha forte, qualquer senha serve
     const passwordToUse = regPassword.trim() || '123456';
     const specialtyStr = regSpecialties.join(', ') || 'Fisioterapia Motora';
     const councilToUse = regCouncilNumber.trim() || 'Registro Ativo';
-    const cpfToUse = regCpf.trim() || `000.${Date.now().toString().slice(-6)}-00`;
-    const phoneToUse = regPhone.trim() || '(27) 99999-9999';
+    const cpfToUse = regCpf.trim() || undefined;
+    const phoneToUse = regPhone.trim() || undefined;
     const addressToUse = regBaseAddress.trim() || 'Praia do Canto, Vitória - ES';
 
     setLoading(true);
 
     try {
-      let createdUser = null;
-      let token = null;
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: nameTrimmed,
-            email: regEmail.trim().toLowerCase(),
-            password: passwordToUse,
-            role: 'PROFESSIONAL',
-            profession: regProfession,
-            specialty: specialtyStr,
-            specialties: regSpecialties,
-            councilNumber: councilToUse,
-            crm: councilToUse,
-            cpf: cpfToUse,
-            phone: phoneToUse,
-            latitude: regCoordinates.latitude,
-            longitude: regCoordinates.longitude,
-            linkToCareTeams: true
-          })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.message || 'Falha ao cadastrar perfil profissional.');
-        }
-
-        createdUser = data.user;
-        token = data.token;
-        localStorage.setItem('omnihome_jwt', token);
-        localStorage.setItem('omnihome_user_v3', JSON.stringify(createdUser));
-        localStorage.setItem('omnihome_user', JSON.stringify(createdUser));
-
-        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
-        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-        const filtered = savedUsers.filter((u) => u.email.toLowerCase() !== createdUser.email.toLowerCase());
-        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, { ...createdUser, password: passwordToUse }]));
-      } catch (backendErr) {
-        if (backendErr.name !== 'TypeError' && !backendErr.message?.includes('fetch') && !backendErr.message?.includes('NetworkError')) {
-          throw backendErr;
-        }
-        console.warn('Backend Fastify indisponível, salvando registro em modo local:', backendErr);
-        createdUser = {
-          id: `usr-${Date.now()}`,
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name: nameTrimmed,
           email: regEmail.trim().toLowerCase(),
           password: passwordToUse,
-          role: regProfession === 'Administração' || regEmail.toLowerCase().includes('admin') ? 'ADMIN' : 'PROFESSIONAL',
-          professionalId: `doc-${Date.now()}`
-        };
-        token = `session-${Date.now()}`;
+          role: 'PROFESSIONAL',
+          profession: regProfession,
+          specialty: specialtyStr,
+          specialties: regSpecialties,
+          councilNumber: regCouncilNumber.trim() || undefined,
+          crm: councilToUse,
+          cpf: cpfToUse,
+          phone: phoneToUse,
+          latitude: regCoordinates.latitude,
+          longitude: regCoordinates.longitude,
+          linkToCareTeams: true
+        })
+      });
 
-        // Salva na lista de contas cadastradas localmente
-        const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
-        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-        const filtered = savedUsers.filter((u) => u.email.toLowerCase() !== createdUser.email.toLowerCase());
-        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, createdUser]));
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Falha ao cadastrar perfil profissional no banco em nuvem.');
       }
 
-      // Constrói objeto do profissional formatado para a UI e Care Team
+      const createdUser = data.user;
+      const token = data.token;
+      localStorage.setItem('omnihome_jwt', token);
+      localStorage.setItem('omnihome_user_v3', JSON.stringify(createdUser));
+      localStorage.setItem('omnihome_user', JSON.stringify(createdUser));
+
+      // Constrói objeto do profissional formatado para a UI e Care Team a partir do registro em nuvem
       const newProfessional = {
-        id: createdUser?.professionalId || `doc-${Date.now()}`,
-        name: nameTrimmed,
+        id: createdUser?.professional?.id || createdUser?.professionalId,
+        userId: createdUser?.id,
+        name: createdUser?.name || nameTrimmed,
+        email: createdUser?.email || regEmail.trim().toLowerCase(),
         profession: regProfession,
-        specialty: specialtyStr,
+        specialty: createdUser?.professional?.specialty || specialtyStr,
         specialties: regSpecialties,
-        councilNumber: councilToUse,
-        crm: councilToUse,
-        cpf: cpfToUse,
-        phone: phoneToUse,
+        councilNumber: createdUser?.professional?.crm || councilToUse,
+        crm: createdUser?.professional?.crm || councilToUse,
+        cpf: cpfToUse || '',
+        phone: phoneToUse || '',
         avatar: regAvatar,
         color: regColor,
         baseAddress: addressToUse,
-        baseCoordinates: regCoordinates
+        baseCoordinates: {
+          latitude: createdUser?.professional?.latitude ?? regCoordinates.latitude,
+          longitude: createdUser?.professional?.longitude ?? regCoordinates.longitude
+        }
       };
 
-      setSuccessMsg(`Perfil de ${regName} credenciado com sucesso no Care Team!`);
+      setSuccessMsg(`Perfil de ${nameTrimmed} credenciado com sucesso no banco em nuvem!`);
 
       if (onRegisterSuccess) {
         onRegisterSuccess(newProfessional, createdUser, token);
@@ -403,7 +304,7 @@ export default function LoginModal({
         onClose();
       }, 1200);
     } catch (err) {
-      setErrorMsg(err.message || 'Erro ao registrar novo perfil profissional.');
+      setErrorMsg(err.message || 'Erro ao registrar novo perfil profissional no servidor em nuvem.');
     } finally {
       setLoading(false);
     }

@@ -143,52 +143,37 @@ export const RegisterSchema = z
   .object({
     name: z
       .string()
-      .min(5, 'Nome completo deve ter pelo menos 5 caracteres')
-      .refine(
-        (val) => {
-          const parts = val.trim().split(/\s+/);
-          return parts.length >= 2 && parts.every((p) => p.length >= 2);
-        },
-        {
-          message: 'Informe nome e sobrenome completos (ex: Dr. Henrique Silva)'
-        }
-      ),
+      .min(2, 'Informe o nome do profissional (mínimo 2 caracteres)'),
     email: z
       .string()
       .email('E-mail em formato inválido')
-      .regex(CORPORATE_EMAIL_REGEX, 'E-mail corporativo deve conter domínio e extensão válidos (ex: profissional@omnisaude.com.br)'),
+      .regex(CORPORATE_EMAIL_REGEX, 'E-mail deve conter domínio e extensão válidos (ex: profissional@omnisaude.com.br)'),
     password: z
       .string()
-      .min(8, 'A senha deve conter no mínimo 8 caracteres')
-      .regex(/[A-Z]/, 'A senha deve conter ao menos uma letra maiúscula')
-      .regex(/[a-z]/, 'A senha deve conter ao menos uma letra minúscula')
-      .regex(/[0-9]/, 'A senha deve conter ao menos um número')
-      .regex(/[^A-Za-z0-9]/, 'A senha deve conter ao menos um caractere especial (!@#$%^&*...)'),
+      .min(1, 'A senha é obrigatória'),
     role: z.string().default('PROFESSIONAL'),
-    profession: z.string().min(3, 'Selecione a profissão de atuação multidisciplinar').optional(),
-    specialty: z.string().min(4, 'Especialidade clínica deve ter pelo menos 4 caracteres').optional(),
-    councilNumber: z.string().min(4, 'Registro no conselho é obrigatório (mínimo 4 caracteres)').optional(),
+    profession: z.string().optional(),
+    specialty: z.string().optional(),
+    specialties: z.array(z.string()).optional(),
+    councilNumber: z.string().optional(),
     crm: z.string().optional(),
     cpf: z
       .string()
       .optional()
-      .refine((val) => !val || isValidCPF(val), {
+      .refine((val) => !val || val.startsWith('000.') || isValidCPF(val), {
         message: 'CPF informado é inválido pelo algoritmo da Receita Federal'
       }),
     phone: z
       .string()
-      .optional()
-      .refine((val) => !val || val.replace(/\D/g, '').length >= 10, {
-        message: 'Telefone com DDD deve conter pelo menos 10 dígitos'
-      }),
+      .optional(),
     latitude: z.number().optional(),
     longitude: z.number().optional(),
     linkToCareTeams: z.boolean().default(true)
   })
   .superRefine((data, ctx) => {
-    // Validação cruzada estrita entre profissão e conselho
-    if (data.profession && (data.councilNumber || data.crm)) {
-      const council = (data.councilNumber || data.crm || '').trim();
+    // Validação cruzada entre profissão e conselho apenas se um registro específico foi informado
+    const council = (data.councilNumber || data.crm || '').trim();
+    if (data.profession && council && council !== 'Registro Ativo' && !council.includes('Reg. Ativo')) {
       const check = validateCouncilForProfession(data.profession, council);
       if (!check.isValid) {
         ctx.addIssue({
@@ -201,3 +186,4 @@ export const RegisterSchema = z
   });
 
 export type RegisterInput = z.infer<typeof RegisterSchema>;
+

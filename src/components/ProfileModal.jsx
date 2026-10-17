@@ -1,5 +1,5 @@
 // src/components/ProfileModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
@@ -46,27 +46,30 @@ export default function ProfileModal({
   onLogout
 }) {
   const [name, setName] = useState(currentUser?.name || currentDoctor?.name || '');
-  
+
   // Especialidades clínicas selecionadas (até 3)
   const [selectedSpecialties, setSelectedSpecialties] = useState(() => {
     if (Array.isArray(currentDoctor?.specialties) && currentDoctor.specialties.length > 0) {
       return currentDoctor.specialties.slice(0, 3);
     }
-    if (currentDoctor?.specialty) {
-      const parts = currentDoctor.specialty.split(',').map((s) => s.trim()).filter(Boolean);
+    const rawSpec = currentDoctor?.specialty || currentUser?.professional?.specialty || '';
+    if (rawSpec) {
+      const parts = rawSpec.split(',').map((s) => s.trim()).filter(Boolean);
       const matched = parts.filter((p) => CLINICAL_SPECIALTY_OPTIONS.includes(p));
       if (matched.length > 0) return matched.slice(0, 3);
     }
     return ['Fisioterapia Motora'];
   });
 
-  const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || '');
+  const [councilNumber, setCouncilNumber] = useState(
+    currentDoctor?.councilNumber || currentDoctor?.crm || currentUser?.professional?.crm || ''
+  );
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
   const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'Praia do Canto, Vitória - ES');
   const [baseCoordinates, setBaseCoordinates] = useState(
     currentDoctor?.baseCoordinates || {
-      latitude: currentDoctor?.latitude ?? -20.3012,
-      longitude: currentDoctor?.longitude ?? -40.2925
+      latitude: currentDoctor?.latitude ?? currentUser?.professional?.latitude ?? -20.3012,
+      longitude: currentDoctor?.longitude ?? currentUser?.professional?.longitude ?? -40.2925
     }
   );
   const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');
@@ -78,6 +81,41 @@ export default function ProfileModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [confirmLogout, setConfirmLogout] = useState(false);
+
+  // Sincroniza campos sempre que o modal abre ou currentUser / currentDoctor mudam do backend em nuvem
+  useEffect(() => {
+    if (!isOpen) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+    setConfirmLogout(false);
+
+    const doc = currentDoctor && currentDoctor.id !== 'all' ? currentDoctor : null;
+    setName(currentUser?.name || doc?.name || '');
+
+    const rawSpec = doc?.specialty || currentUser?.professional?.specialty || '';
+    if (Array.isArray(doc?.specialties) && doc.specialties.length > 0) {
+      setSelectedSpecialties(doc.specialties.slice(0, 3));
+    } else if (rawSpec) {
+      const parts = rawSpec.split(',').map((s) => s.trim()).filter(Boolean);
+      const matched = parts.filter((p) => CLINICAL_SPECIALTY_OPTIONS.includes(p));
+      setSelectedSpecialties(matched.length > 0 ? matched.slice(0, 3) : ['Fisioterapia Motora']);
+    } else {
+      setSelectedSpecialties(['Fisioterapia Motora']);
+    }
+
+    setCouncilNumber(doc?.councilNumber || doc?.crm || currentUser?.professional?.crm || '');
+    setProfession(doc?.profession || 'Fisioterapia');
+    setBaseAddress(doc?.baseAddress || 'Praia do Canto, Vitória - ES');
+    setBaseCoordinates(
+      doc?.baseCoordinates || {
+        latitude: doc?.latitude ?? currentUser?.professional?.latitude ?? -20.3012,
+        longitude: doc?.longitude ?? currentUser?.professional?.longitude ?? -40.2925
+      }
+    );
+    setResolvedLocationName(doc?.baseAddress || 'Localização definida');
+    setColor(doc?.color || '#0d9488');
+    setAvatar(doc?.avatar || '');
+  }, [isOpen, currentUser, currentDoctor]);
 
   if (!isOpen) return null;
 
@@ -121,62 +159,66 @@ export default function ProfileModal({
 
     try {
       const token = localStorage.getItem('omnihome_jwt');
-
-      // Tenta persistir no backend via PUT /api/auth/profile se houver token ativo
-      if (token) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              name,
-              specialty: selectedSpecialties.join(', '),
-              councilNumber,
-              crm: councilNumber,
-              latitude: baseCoordinates.latitude,
-              longitude: baseCoordinates.longitude
-            })
-          });
-
-          if (!res.ok) {
-            const data = await res.json();
-            console.warn('Aviso ao sincronizar perfil no backend:', data.message);
-          }
-        } catch (backendErr) {
-          console.warn('Backend offline ou inacessível para update, salvando localmente:', backendErr);
-        }
+      if (!token) {
+        throw new Error('Sessão expirada. Faça login novamente para atualizar seu perfil no servidor em nuvem.');
       }
 
-      // Atualiza o estado da aplicação
+      const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          specialty: selectedSpecialties.join(', '),
+          councilNumber: councilNumber.trim() || 'Registro Ativo',
+          crm: councilNumber.trim() || 'Registro Ativo',
+          latitude: baseCoordinates.latitude,
+          longitude: baseCoordinates.longitude
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Erro ao sincronizar perfil no banco em nuvem.');
+      }
+
+      const cloudUser = data.user || currentUser;
+      const profId = cloudUser?.professional?.id || currentDoctor?.id || currentUser?.professionalId;
+
       const updatedDoctorData = {
-        ...(currentDoctor || {}),
-        name,
+        ...(currentDoctor && currentDoctor.id !== 'all' ? currentDoctor : {}),
+        id: profId,
+        userId: cloudUser?.id || currentUser?.id,
+        name: cloudUser?.name || name.trim(),
         profession,
-        specialty: selectedSpecialties.join(', '),
+        specialty: cloudUser?.professional?.specialty || selectedSpecialties.join(', '),
         specialties: selectedSpecialties,
-        councilNumber,
-        crm: councilNumber,
+        councilNumber: cloudUser?.professional?.crm || councilNumber.trim() || 'Registro Ativo',
+        crm: cloudUser?.professional?.crm || councilNumber.trim() || 'Registro Ativo',
         baseAddress,
-        baseCoordinates,
-        latitude: baseCoordinates.latitude,
-        longitude: baseCoordinates.longitude,
+        baseCoordinates: {
+          latitude: cloudUser?.professional?.latitude ?? baseCoordinates.latitude,
+          longitude: cloudUser?.professional?.longitude ?? baseCoordinates.longitude
+        },
+        latitude: cloudUser?.professional?.latitude ?? baseCoordinates.latitude,
+        longitude: cloudUser?.professional?.longitude ?? baseCoordinates.longitude,
         color,
         avatar
       };
 
       const updatedUserData = {
         ...(currentUser || {}),
-        name
+        ...cloudUser,
+        professionalId: profId
       };
 
       if (onUpdateProfile) {
         onUpdateProfile(updatedDoctorData, updatedUserData);
       }
 
-      setSuccessMsg('Perfil atualizado com sucesso!');
+      setSuccessMsg('Perfil atualizado com sucesso no banco em nuvem!');
       setTimeout(() => {
         onClose();
       }, 1000);

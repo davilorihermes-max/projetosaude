@@ -192,6 +192,41 @@ export default function App() {
     }
   }, [patients, activePatientId]);
 
+  // Verifica e sincroniza o perfil do usuário autenticado diretamente no backend em nuvem (GET /api/auth/me)
+  useEffect(() => {
+    localStorage.removeItem('omnihome_registered_users');
+    const verifyCloudProfile = async () => {
+      const token = localStorage.getItem('omnihome_jwt');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            const enriched = {
+              ...data.user,
+              professionalId: data.user.professional?.id || data.user.professionalId || null
+            };
+            setCurrentUser(enriched);
+            localStorage.setItem('omnihome_user_v3', JSON.stringify(enriched));
+            localStorage.setItem('omnihome_user', JSON.stringify(enriched));
+          }
+        } else if (res.status === 401 || res.status === 404) {
+          setCurrentUser(null);
+          setSelectedDoctorId('all');
+          localStorage.removeItem('omnihome_jwt');
+          localStorage.removeItem('omnihome_user_v3');
+          localStorage.removeItem('omnihome_user');
+        }
+      } catch (err) {
+        console.warn('Verificação de perfil em nuvem ignorada:', err);
+      }
+    };
+    verifyCloudProfile();
+  }, []);
+
   // Sincroniza profissionais cadastrados no backend Fastify/Prisma
   useEffect(() => {
     const fetchBackendProfessionals = async () => {
@@ -529,7 +564,7 @@ export default function App() {
     setAppointments((prev) => [newApt, ...prev]);
   };
 
-  const handleRegisterDoctorWithoutAccount = (newDoctor) => {
+  const handleRegisterDoctorWithoutAccount = async (newDoctor) => {
     setDoctors((prev) => {
       const filtered = prev.filter((d) => d.id !== newDoctor.id);
       const updated = [newDoctor, ...filtered];
@@ -541,11 +576,45 @@ export default function App() {
         id: `notif-${Date.now()}`,
         type: 'info',
         title: 'Fisioterapeuta Cadastrado na Escala',
-        description: `${newDoctor.name} (${newDoctor.specialty}) foi adicionado(a) sem conta para atendimento domiciliar.`,
+        description: `${newDoctor.name} (${newDoctor.specialty}) foi adicionado(a) na equipe em nuvem.`,
         time: 'Agora'
       },
       ...prev
     ]);
+
+    try {
+      const generatedEmail =
+        newDoctor.email ||
+        `${newDoctor.name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.')}.${Date.now()}@equipe.omnisaude.com.br`;
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newDoctor.name,
+          email: generatedEmail,
+          profession: newDoctor.profession || 'Fisioterapia',
+          specialty: newDoctor.specialty,
+          councilNumber: newDoctor.councilNumber || newDoctor.crm || 'Registro Ativo',
+          crm: newDoctor.crm || 'Registro Ativo',
+          latitude: newDoctor.baseCoordinates?.latitude ?? -20.3012,
+          longitude: newDoctor.baseCoordinates?.longitude ?? -40.2925
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.professional?.id) {
+          setDoctors((prev) => {
+            const updated = prev.map((d) =>
+              d.id === newDoctor.id ? { ...d, id: data.professional.id, userId: data.professional.userId } : d
+            );
+            localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Persistência de profissional no backend em nuvem ignorada:', err);
+    }
   };
 
   const handleSavePatient = async (savedPatient) => {
@@ -558,7 +627,7 @@ export default function App() {
     });
     setActivePatientId(savedPatient.id);
 
-    // Tenta persistir no backend se disponível
+    // Persiste no backend em nuvem
     try {
       const token = localStorage.getItem('omnihome_jwt');
       const res = await fetch(`${API_BASE_URL}/api/scheduler/patients`, {
@@ -568,6 +637,7 @@ export default function App() {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
+          id: savedPatient.id,
           name: savedPatient.name,
           cpf: savedPatient.cpf,
           email: savedPatient.email,
@@ -575,14 +645,23 @@ export default function App() {
           address: savedPatient.address,
           latitude: savedPatient.latitude,
           longitude: savedPatient.longitude,
-          professionalId: selectedDoctorId !== 'all' ? selectedDoctorId : undefined
+          professionalId: selectedDoctorId !== 'all' ? selectedDoctorId : undefined,
+          careTeamProfessionalIds: savedPatient.careTeamProfessionalIds
         })
       });
       if (res.ok) {
         const data = await res.json();
         if (data.patient?.id) {
           setPatients((prev) =>
-            prev.map((p) => (p.id === savedPatient.id ? { ...p, id: data.patient.id } : p))
+            prev.map((p) =>
+              p.id === savedPatient.id
+                ? {
+                    ...p,
+                    id: data.patient.id,
+                    careTeamMembers: data.patient.careTeamMembers || p.careTeamMembers
+                  }
+                : p
+            )
           );
         }
       }

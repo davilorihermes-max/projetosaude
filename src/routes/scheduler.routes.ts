@@ -255,10 +255,11 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
   /**
    * POST /api/scheduler/patients
-   * Cadastra novo paciente no banco Prisma com coordenadas geodésicas e vincula ao Care Team
+   * Cadastra ou atualiza paciente no banco Prisma com coordenadas geodésicas e vincula ao Care Team
    */
   app.post<{
     Body: {
+      id?: string;
       name: string;
       cpf: string;
       email?: string;
@@ -267,9 +268,21 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       latitude?: number;
       longitude?: number;
       professionalId?: string;
+      careTeamProfessionalIds?: string[];
     };
   }>('/patients', async (request, reply) => {
-    const { name, cpf, email, phone, address, latitude, longitude, professionalId } = request.body || {};
+    const {
+      id,
+      name,
+      cpf,
+      email,
+      phone,
+      address,
+      latitude,
+      longitude,
+      professionalId,
+      careTeamProfessionalIds
+    } = request.body || {};
 
     if (!name || !cpf) {
       return reply.status(400).send({
@@ -280,17 +293,13 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     }
 
     const cleanCpf = cpf.trim();
-    const existing = await prisma.patient.findUnique({
+    const existingById = id && !id.startsWith('pat-')
+      ? await prisma.patient.findUnique({ where: { id } })
+      : null;
+    const existingByCpf = await prisma.patient.findUnique({
       where: { cpf: cleanCpf }
     });
-
-    if (existing) {
-      return reply.status(409).send({
-        statusCode: 409,
-        error: 'Conflict',
-        message: 'Paciente com este CPF já cadastrado.'
-      });
-    }
+    const existing = existingById || existingByCpf;
 
     let validProfId: string | null = null;
     if (professionalId) {
@@ -305,9 +314,51 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     }
 
     const allProfs = await prisma.professional.findMany({ select: { id: true } });
-    const careTeamCreates = allProfs.map((prof) => ({
-      professionalId: prof.id,
-      role: prof.id === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
+    const targetProfIds =
+      Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0
+        ? allProfs.filter((p) => careTeamProfessionalIds.includes(p.id)).map((p) => p.id)
+        : allProfs.map((p) => p.id);
+
+    if (existing) {
+      if (Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0) {
+        await prisma.careTeamMember.deleteMany({ where: { patientId: existing.id } });
+        for (const profId of targetProfIds) {
+          await prisma.careTeamMember.create({
+            data: {
+              patientId: existing.id,
+              professionalId: profId,
+              role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
+              active: true
+            }
+          });
+        }
+      }
+
+      const updatedPatient = await prisma.patient.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          cpf: cleanCpf,
+          email: email || existing.email,
+          phone: phone || existing.phone,
+          address: address || existing.address,
+          latitude: latitude ?? existing.latitude,
+          longitude: longitude ?? existing.longitude
+        },
+        include: {
+          careTeamMembers: true
+        }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        patient: updatedPatient
+      });
+    }
+
+    const careTeamCreates = targetProfIds.map((profId) => ({
+      professionalId: profId,
+      role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
       active: true
     }));
 

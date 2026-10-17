@@ -9,13 +9,15 @@ export const createdTestEmails: string[] = [];
 describe('HTTP API - Autenticação & Route Guards', () => {
   let server: FastifyInstance;
   let testAdminEmail: string;
+  let testDoctorEmail: string;
 
   beforeAll(async () => {
     server = buildServer();
     await server.ready();
 
     testAdminEmail = `admin.test.${Date.now()}@omnisaude.com.br`;
-    createdTestEmails.push(testAdminEmail);
+    testDoctorEmail = `doctor.test.${Date.now()}@omnisaude.com.br`;
+    createdTestEmails.push(testAdminEmail, testDoctorEmail);
 
     await prisma.user.create({
       data: {
@@ -23,6 +25,15 @@ describe('HTTP API - Autenticação & Route Guards', () => {
         email: testAdminEmail,
         passwordHash: await bcrypt.hash('AdminPassword123!', 10),
         role: 'ADMIN'
+      }
+    });
+
+    await prisma.user.create({
+      data: {
+        name: 'Milla Chagas',
+        email: testDoctorEmail,
+        passwordHash: await bcrypt.hash('DoctorPassword123!', 10),
+        role: 'PROFESSIONAL'
       }
     });
   });
@@ -74,7 +85,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'millachagass@gmail.com',
+          email: testDoctorEmail,
           password: 'DoctorPassword123!'
         }
       });
@@ -176,7 +187,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       const resDoc = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
-        payload: { email: 'millachagass@gmail.com', password: 'DoctorPassword123!' }
+        payload: { email: testDoctorEmail, password: 'DoctorPassword123!' }
       });
       doctorToken = resDoc.json().token;
     });
