@@ -143,14 +143,30 @@ export const RegisterSchema = z
   .object({
     name: z
       .string()
-      .min(2, 'Informe o nome do profissional (mínimo 2 caracteres)'),
+      .trim()
+      .min(5, 'Informe o nome do profissional (mínimo 5 caracteres)')
+      .refine(
+        (val) => {
+          const trimmed = val.trim();
+          if (trimmed.length < 5) return false;
+          const parts = trimmed.split(/\s+/);
+          if (parts.length < 2) return false;
+          if (parts.some((p) => p.length < 2)) return false;
+          return /^[a-zA-ZÀ-ÿ\s.'-]+$/.test(trimmed);
+        },
+        { message: 'Informe nome e sobrenome completos (mínimo 5 caracteres)' }
+      ),
     email: z
       .string()
       .email('E-mail em formato inválido')
       .regex(CORPORATE_EMAIL_REGEX, 'E-mail deve conter domínio e extensão válidos (ex: profissional@omnisaude.com.br)'),
     password: z
       .string()
-      .min(1, 'A senha é obrigatória'),
+      .min(8, 'A senha deve conter no mínimo 8 caracteres')
+      .regex(/[A-Z]/, 'A senha deve conter pelo menos uma letra maiúscula')
+      .regex(/[a-z]/, 'A senha deve conter pelo menos uma letra minúscula')
+      .regex(/[0-9]/, 'A senha deve conter pelo menos um número')
+      .regex(/[^A-Za-z0-9]/, 'A senha deve conter pelo menos um símbolo especial'),
     role: z.string().default('PROFESSIONAL'),
     profession: z.string().optional(),
     specialty: z.string().optional(),
