@@ -668,9 +668,30 @@ export default function ScheduleView({
                           <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span>{aptInSlot.therapyType || aptInSlot.type}</span>
                             <span>• Profissional: <strong>{doctor?.name}</strong> {doctor?.profession ? `(${doctor.profession})` : ''}</span>
-                            <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${
+                                patient?.latitude && patient?.longitude
+                                  ? `${patient.latitude},${patient.longitude}`
+                                  : encodeURIComponent(patient?.address || aptInSlot.address || 'Vitória - ES')
+                              }`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: 'var(--primary)',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                background: 'rgba(13, 148, 136, 0.08)',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '4px'
+                              }}
+                              title="Toque para abrir no Google Maps"
+                            >
                               📍 {patient?.address || aptInSlot.address}
-                            </span>
+                              <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>↗ Maps</span>
+                            </a>
                             {aptInSlot.transitTimeMinutes !== undefined && (
                               <span style={{ color: '#2563eb', fontWeight: 600 }}>
                                 • Tempo de Deslocamento: {aptInSlot.transitTimeMinutes} min
