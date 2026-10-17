@@ -505,6 +505,183 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     const result = await SchedulingService.commitMonthlyPlan(sessions);
     return reply.status(201).send(result);
   });
+
+  /**
+   * GET /api/scheduler/fixed-appointments
+   * Retorna os atendimentos fixados/travados da escala persistidos na nuvem
+   */
+  app.get('/fixed-appointments', async (_request, reply) => {
+    try {
+      const config = await prisma.scalePlannerConfig.findUnique({
+        where: { key: 'fixed_appointments' }
+      });
+
+      if (config && config.value) {
+        const parsed = JSON.parse(config.value);
+        return reply.status(200).send({
+          success: true,
+          fixedAppointments: Array.isArray(parsed) ? parsed : []
+        });
+      }
+
+      // Se ainda não houver configuração salva, monta os atendimentos fixados padrão da clínica
+      const kadir = await prisma.patient.findFirst({ where: { name: { contains: 'Kadir' } } });
+      const nilza = await prisma.patient.findFirst({ where: { name: { contains: 'Nilza' } } });
+      const teresa = await prisma.patient.findFirst({ where: { name: { contains: 'Teresa' } } });
+
+      const daviProf = await prisma.professional.findFirst({
+        where: { user: { name: { contains: 'Davi' } } },
+        include: { user: true }
+      });
+      const gabrielProf = await prisma.professional.findFirst({
+        where: { user: { name: { contains: 'Gabriel' } } },
+        include: { user: true }
+      });
+
+      const defaults: any[] = [];
+      if (kadir && daviProf) {
+        defaults.push({
+          id: 'fix-kadir-seg',
+          patientId: kadir.id,
+          patientName: kadir.name,
+          professionalId: daviProf.id,
+          professionalName: daviProf.user.name,
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          recurrenceType: 'weekly',
+          dayOfWeek: 1, // Segunda
+          time: '09:00',
+          durationMinutes: 180,
+          notes: 'Atendimento fixo pré-estabelecido'
+        });
+      }
+      if (nilza && daviProf) {
+        defaults.push({
+          id: 'fix-nilza-sex',
+          patientId: nilza.id,
+          patientName: nilza.name,
+          professionalId: daviProf.id,
+          professionalName: daviProf.user.name,
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          recurrenceType: 'weekly',
+          dayOfWeek: 5, // Sexta
+          time: '09:00',
+          durationMinutes: 180,
+          notes: 'Atendimento fixo pré-estabelecido'
+        });
+      }
+      if (teresa && gabrielProf) {
+        defaults.push({
+          id: 'fix-teresa-sab',
+          patientId: teresa.id,
+          patientName: teresa.name,
+          professionalId: gabrielProf.id,
+          professionalName: gabrielProf.user.name,
+          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          recurrenceType: 'weekly',
+          dayOfWeek: 6, // Sábado
+          time: '09:00',
+          durationMinutes: 180,
+          notes: 'Atendimento fixo pré-estabelecido'
+        });
+      }
+
+      if (defaults.length > 0) {
+        await prisma.scalePlannerConfig.upsert({
+          where: { key: 'fixed_appointments' },
+          create: { key: 'fixed_appointments', value: JSON.stringify(defaults) },
+          update: { value: JSON.stringify(defaults) }
+        }).catch(() => null);
+      }
+
+      return reply.status(200).send({
+        success: true,
+        fixedAppointments: defaults
+      });
+    } catch {
+      return reply.status(200).send({
+        success: true,
+        fixedAppointments: []
+      });
+    }
+  });
+
+  /**
+   * POST /api/scheduler/fixed-appointments
+   * Salva a lista de atendimentos fixados/travados da escala no PostgreSQL
+   */
+  app.post<{
+    Body: {
+      fixedAppointments?: any[];
+      fixedAppointment?: any;
+    };
+  }>('/fixed-appointments', async (request, reply) => {
+    try {
+      const { fixedAppointments, fixedAppointment } = request.body || {};
+      let list: any[] = [];
+
+      if (Array.isArray(fixedAppointments)) {
+        list = fixedAppointments;
+      } else if (fixedAppointment) {
+        const existing = await prisma.scalePlannerConfig.findUnique({
+          where: { key: 'fixed_appointments' }
+        });
+        const current = existing && existing.value ? JSON.parse(existing.value) : [];
+        const filtered = Array.isArray(current) ? current.filter((f) => f.id !== fixedAppointment.id) : [];
+        list = [...filtered, fixedAppointment];
+      }
+
+      await prisma.scalePlannerConfig.upsert({
+        where: { key: 'fixed_appointments' },
+        create: { key: 'fixed_appointments', value: JSON.stringify(list) },
+        update: { value: JSON.stringify(list) }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        fixedAppointments: list
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao salvar atendimentos fixados.'
+      });
+    }
+  });
+
+  /**
+   * DELETE /api/scheduler/fixed-appointments/:id
+   * Remove um atendimento fixado pelo ID no PostgreSQL
+   */
+  app.delete<{
+    Params: { id: string };
+  }>('/fixed-appointments/:id', async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const existing = await prisma.scalePlannerConfig.findUnique({
+        where: { key: 'fixed_appointments' }
+      });
+      const current = existing && existing.value ? JSON.parse(existing.value) : [];
+      const updated = Array.isArray(current) ? current.filter((f) => f.id !== id) : [];
+
+      await prisma.scalePlannerConfig.upsert({
+        where: { key: 'fixed_appointments' },
+        create: { key: 'fixed_appointments', value: JSON.stringify(updated) },
+        update: { value: JSON.stringify(updated) }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        fixedAppointments: updated
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao remover atendimento fixado.'
+      });
+    }
+  });
 };
 
 
