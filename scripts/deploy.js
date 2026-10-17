@@ -58,16 +58,19 @@ try {
   console.warn('⚠️ Não foi possível verificar/criar .vercel/project.json:', err.message);
 }
 
+const SCOPE = 'davilorihermes-6902';
+const scopeArg = ` --scope ${SCOPE}`;
+
 // 2. Montar opções de token
 const token = process.env.VERCEL_TOKEN;
 const tokenArg = token ? ` --token ${token}` : '';
 
-// 3. Executar o deploy de produção no Vercel
-console.log('📦 Executando build e deploy de produção no Vercel...');
+// 3. Executar o deploy de produção no Vercel no MESMO projeto do Davi
+console.log(`📦 Executando build e deploy de produção no Vercel (Escopo: ${SCOPE})...`);
 let deployOutput = '';
 
 try {
-  const deployCmd = `npx vercel --prod --yes${tokenArg}`;
+  const deployCmd = `npx vercel --prod --yes${scopeArg}${tokenArg}`;
   deployOutput = execSync(deployCmd, {
     cwd: rootDir,
     encoding: 'utf8',
@@ -79,13 +82,18 @@ try {
   if (err.stderr) console.error(err.stderr.toString());
   if (err.stdout) console.log(err.stdout.toString());
 
-  console.log('\n💡 DICA PARA O SÉRGIO (DADDY) OU DAVI:');
-  console.log('--------------------------------------------------');
-  console.log('1. Para autenticar via CLI, execute: npx vercel login');
-  console.log('2. Ou configure seu VERCEL_TOKEN no arquivo .env.local:');
-  console.log('   VERCEL_TOKEN=seu_token_aqui');
-  console.log('3. Você também pode disparar o deploy pelo GitHub Actions em:');
-  console.log('   https://github.com/davilorihermes-max/projetosaude/actions\n');
+  console.log('\n💡 COMO O SÉRGIO (DADDY) FAZ DEPLOY NO MESMO PROJETO DO DAVI:');
+  console.log('----------------------------------------------------------------------');
+  console.log('O projeto oficial está sob o escopo do Davi (davilorihermes-6902):');
+  console.log('  - https://omnihomecare.vercel.app');
+  console.log('  - https://projetosaude-gamma.vercel.app');
+  console.log('\nPara o Sérgio subir exatamente neste mesmo projeto:');
+  console.log('1. O Davi gera um Personal Access Token em: https://vercel.com/account/tokens');
+  console.log('2. O Sérgio adiciona no .env.local dele:');
+  console.log('   VERCEL_TOKEN=seu_token_gerado_no_vercel');
+  console.log('3. E/ou adicione VERCEL_TOKEN no GitHub:');
+  console.log('   Repo ➔ Settings ➔ Secrets and variables ➔ Actions');
+  console.log('   Assim, todo merge do Sérgio para a main atualiza o projeto automaticamente!\n');
   process.exit(1);
 }
 
@@ -119,7 +127,7 @@ if (deploymentUrl) {
   console.log(`🏷️  Vinculando domínio oficial (${PRODUCTION_ALIAS})...`);
 
   try {
-    const aliasCmd = `npx vercel alias set ${deploymentUrl} ${PRODUCTION_ALIAS}${tokenArg}`;
+    const aliasCmd = `npx vercel alias set ${deploymentUrl} ${PRODUCTION_ALIAS}${scopeArg}${tokenArg}`;
     const aliasOutput = execSync(aliasCmd, {
       cwd: rootDir,
       encoding: 'utf8',
