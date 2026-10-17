@@ -6,7 +6,11 @@ import Dashboard from './components/Dashboard';
 import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
-import MonthlyScalePlannerView from './components/MonthlyScalePlannerView';
+import MonthlyScalePlannerView, {
+  getPlannedAppointments,
+  getInitialScaleSavedData,
+  SCALE_STORAGE_KEY
+} from './components/MonthlyScalePlannerView';
 import MonthlyFinancialSettlementView from './components/MonthlyFinancialSettlementView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
@@ -123,6 +127,7 @@ export default function App() {
   });
 
   const [appointments, setAppointments] = useState(() => {
+    let baseApts = INITIAL_APPOINTMENTS;
     const saved = localStorage.getItem('omnihome_appointments_v3');
     if (saved) {
       try {
@@ -134,11 +139,20 @@ export default function App() {
                 a.patientId
               )
           );
-          if (filtered.length > 0) return filtered;
+          if (filtered.length > 0) baseApts = filtered;
         }
       } catch {}
     }
-    return INITIAL_APPOINTMENTS;
+
+    // Garante que a escala mensal planejada esteja sempre carregada na agenda
+    const hasPlanned = baseApts.some((a) => String(a.id || '').startsWith('apt-plan-'));
+    if (!hasPlanned) {
+      const planned = getPlannedAppointments(INITIAL_PATIENTS, DOCTORS);
+      if (planned.length > 0) {
+        return [...planned, ...baseApts.filter((a) => !String(a.id || '').startsWith('apt-plan-'))];
+      }
+    }
+    return baseApts;
   });
 
   // Active Authenticated User (JWT)
@@ -447,9 +461,13 @@ export default function App() {
 
             setAppointments((prev) => {
               const backendIds = new Set(mapped.map((m) => m.id));
-              const localPlanned = prev.filter(
+              let localPlanned = prev.filter(
                 (p) => String(p.id || '').startsWith('apt-plan-') && !backendIds.has(p.id)
               );
+              if (localPlanned.length === 0) {
+                const recovered = getPlannedAppointments(patients, doctors);
+                localPlanned = recovered.filter((p) => !backendIds.has(p.id));
+              }
               const combined = [...mapped, ...localPlanned];
               localStorage.setItem('omnihome_appointments_v3', JSON.stringify(combined));
               return combined;
@@ -772,6 +790,23 @@ export default function App() {
     ]);
   };
 
+  const handleLoadOrSyncPlannedScale = () => {
+    const planned = getPlannedAppointments(patients, doctors);
+    if (planned && planned.length > 0) {
+      setAppointments((prev) => {
+        const nonPlan = prev.filter((a) => !String(a.id || '').startsWith('apt-plan-'));
+        const merged = [...planned, ...nonPlan];
+        localStorage.setItem('omnihome_appointments_v3', JSON.stringify(merged));
+        return merged;
+      });
+      if (planned[0]?.date) {
+        setScheduleActiveDate(planned[0].date);
+      }
+      return planned.length;
+    }
+    return 0;
+  };
+
   // Waiting in reception count
   const todayStr = new Date().toISOString().slice(0, 10);
   const waitingCount = appointments.filter(
@@ -799,6 +834,7 @@ export default function App() {
             setForceDesktopMode(true);
             localStorage.setItem('omnihome_prefer_desktop', 'true');
           }}
+          onLoadPlannedScale={handleLoadOrSyncPlannedScale}
         />
       ) : (
         <>
@@ -864,6 +900,7 @@ export default function App() {
               selectedDoctorId={selectedDoctorId}
               setSelectedDoctorId={setSelectedDoctorId}
               initialSelectedDate={scheduleActiveDate}
+              onLoadPlannedScale={handleLoadOrSyncPlannedScale}
             />
           )}
 

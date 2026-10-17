@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Compass,
   User,
-  Monitor
+  Monitor,
+  Sparkles
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MobileAppView.css';
@@ -45,7 +46,8 @@ export default function MobileAppView({
   onUpdateAppointmentStatus,
   onOpenNewAppointment,
   onOpenLoginModal,
-  onSwitchToDesktop
+  onSwitchToDesktop,
+  onLoadPlannedScale
 }) {
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -237,6 +239,23 @@ export default function MobileAppView({
             <p>
               Você não tem atendimentos agendados para este dia. Toque no botão acima para agendar uma nova sessão.
             </p>
+            {onLoadPlannedScale && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  margin: '0.85rem auto',
+                  fontSize: '0.8rem',
+                  padding: '0.45rem 0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+                onClick={onLoadPlannedScale}
+              >
+                <Sparkles size={14} /> Carregar Escala Planejada
+              </button>
+            )}
             {allDatesWithApts.length > 0 && !allDatesWithApts.includes(selectedDate) && (
               <div className="mob-suggested-dates">
                 <span>Dias com atendimentos:</span>
