@@ -77,7 +77,8 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((d) => !isMockDoctor(d));
+          const filtered = parsed.filter((d) => !isMockDoctor(d));
+          if (filtered.length > 0) return filtered;
         }
       } catch {}
     }
@@ -90,7 +91,8 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((p) => !isMockPatient(p));
+          const filtered = parsed.filter((p) => !isMockPatient(p));
+          if (filtered.length > 0) return filtered;
         }
       } catch {}
     }
@@ -103,12 +105,13 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter(
+          const filtered = parsed.filter(
             (a) =>
               !['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(
                 a.patientId
               )
           );
+          if (filtered.length > 0) return filtered;
         }
       } catch {}
     }
