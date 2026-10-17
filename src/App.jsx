@@ -908,8 +908,8 @@ export default function App() {
             <MonthlyScalePlannerView
               patients={patients}
               doctors={doctors}
-              onCommitScaleToAppointments={(newAppointments) => {
-                // Substitui agendamentos de plano gerados anteriormente evitando duplicação
+              onCommitScaleToAppointments={async (newAppointments, scaleResult) => {
+                // 1. Atualização imediata do estado local da UI
                 setAppointments((prev) => {
                   const nonPlanApts = prev.filter((a) => !a.id.startsWith('apt-plan-'));
                   const merged = [...newAppointments, ...nonPlanApts];
@@ -920,6 +920,39 @@ export default function App() {
                   setScheduleActiveDate(newAppointments[0].date);
                 }
                 setActiveTab('schedule');
+
+                // 2. Persistência atômica no banco de dados em nuvem PostgreSQL
+                if (scaleResult && Array.isArray(scaleResult.plannedSessions) && scaleResult.plannedSessions.length > 0) {
+                  try {
+                    const token = localStorage.getItem('omnihome_jwt');
+                    const res = await fetch(`${API_BASE_URL}/api/scheduler/monthly-plan/commit`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                      },
+                      body: JSON.stringify({
+                        sessions: scaleResult.plannedSessions
+                      })
+                    });
+
+                    if (res.ok) {
+                      const data = await res.json().catch(() => ({}));
+                      setNotifications((prev) => [
+                        {
+                          id: `notif-${Date.now()}`,
+                          type: 'success',
+                          title: 'Escala Mensal Sincronizada na Nuvem',
+                          description: `${data.committedCount || scaleResult.plannedSessions.length} sessões gravadas com sucesso no PostgreSQL.`,
+                          time: 'Agora'
+                        },
+                        ...prev
+                      ]);
+                    }
+                  } catch (commitErr) {
+                    console.warn('Persistência da escala mensal em nuvem em contingência:', commitErr);
+                  }
+                }
               }}
               onRegisterDoctorWithoutAccount={handleRegisterDoctorWithoutAccount}
               onNavigateToPatientsView={() => setActiveTab('patients')}

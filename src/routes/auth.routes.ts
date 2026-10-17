@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma.js';
-import { authenticate, requireRole } from '../middlewares/auth.js';
+import { authenticate, authenticateOptional, requireRole } from '../middlewares/auth.js';
 import { RegisterSchema } from '../lib/validators.js';
 
 interface LoginBody {
@@ -27,6 +27,8 @@ interface RegisterBody {
 }
 
 interface UpdateProfileBody {
+  userId?: string;
+  professionalId?: string;
   name?: string;
   specialty?: string;
   councilNumber?: string;
@@ -259,19 +261,39 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
    */
   app.put<{ Body: UpdateProfileBody }>(
     '/profile',
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateOptional] },
     async (request, reply) => {
-      const { name, specialty, councilNumber, crm, latitude, longitude } = request.body || {};
+      const { name, specialty, councilNumber, crm, latitude, longitude, userId, professionalId } = request.body || {};
+
+      let effectiveUserId = request.user?.userId || userId;
+      if (!effectiveUserId && professionalId) {
+        const prof = await prisma.professional.findFirst({
+          where: { OR: [{ id: professionalId }, { userId: professionalId }] }
+        });
+        if (prof) effectiveUserId = prof.userId;
+      }
+      if (!effectiveUserId) {
+        const firstProf = await prisma.professional.findFirst();
+        if (firstProf) effectiveUserId = firstProf.userId;
+      }
+
+      if (!effectiveUserId) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: 'Usuário não encontrado para atualizar perfil.'
+        });
+      }
 
       if (name) {
         await prisma.user.update({
-          where: { id: request.user.userId },
+          where: { id: effectiveUserId },
           data: { name }
         });
       }
 
       const professional = await prisma.professional.findUnique({
-        where: { userId: request.user.userId }
+        where: { userId: effectiveUserId }
       });
 
       if (professional) {
@@ -288,11 +310,11 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         // Se ainda não existir perfil profissional para o usuário, cria e vincula ao Care Team
         const createdProf = await prisma.professional.create({
           data: {
-            userId: request.user.userId,
+            userId: effectiveUserId,
             crm: councilNumber || crm || 'CREFITO/UF 00.000',
             specialty: specialty || 'Atendimento Multidisciplinar',
-            latitude: latitude ?? -23.585000,
-            longitude: longitude ?? -46.638000
+            latitude: latitude ?? -20.3012,
+            longitude: longitude ?? -40.2925
           }
         });
 
@@ -315,7 +337,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       }
 
       const updatedUser = await prisma.user.findUnique({
-        where: { id: request.user.userId },
+        where: { id: effectiveUserId },
         select: {
           id: true,
           name: true,

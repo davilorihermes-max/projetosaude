@@ -1,22 +1,28 @@
 // src/services/apiConfig.js
-// Configuração centralizada da URL do backend
+// Configuração centralizada da URL do backend.
+// O frontend usa SEMPRE o backend em nuvem (Vercel Serverless + Neon Postgres),
+// inclusive quando a UI roda localmente via `npm run dev`. Não há fallback para servidor local.
+
+// Backend oficial em nuvem (mesma URL usada pelo app mobile em mobile/src/services/storage.ts)
+export const CLOUD_API_URL = 'https://omnihomecare.vercel.app';
+
 export const API_BASE_URL = (() => {
-  // 1. Se houver variável explícita configurada (ex: backend dedicado no Render/Railway)
+  // 1. Override explícito para outro deploy em nuvem (ex: preview da Vercel)
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.replace(/\/$/, '');
   }
 
-  // 2. Se estiver rodando no navegador em produção (ex: Vercel / domínio em nuvem)
+  // 2. Rodando em um domínio da nuvem (produção, staging ou preview): usa a mesma origem,
+  //    onde as Serverless Functions /api estão hospedadas
   if (
     typeof window !== 'undefined' &&
     window.location &&
     window.location.hostname !== 'localhost' &&
     window.location.hostname !== '127.0.0.1'
   ) {
-    // Usa a mesma origem do Vercel onde as Serverless Functions /api estão hospedadas
     return window.location.origin;
   }
 
-  // 3. Fallback para desenvolvimento local
-  return 'http://localhost:3001';
+  // 3. UI rodando localmente: aponta para o backend em nuvem
+  return CLOUD_API_URL;
 })();
