@@ -679,29 +679,6 @@ export default function MonthlyScalePlannerView({
 
       setScaleResult(result);
       setIsGenerating(false);
-
-      // Sincroniza automaticamente a escala gerada com a agenda
-      if (result && result.plannedSessions && result.plannedSessions.length > 0 && onCommitScaleToAppointments) {
-        const appointmentsToSave = result.plannedSessions.map((s) => ({
-          id: `apt-plan-${s.id}`,
-          patientId: s.patientId,
-          doctorId: s.professionalId,
-          date: s.date,
-          time: s.time,
-          status: 'scheduled',
-          type: 'home',
-          notes: `Plano Terapêutico: ${s.therapyType}${s.transitKmFromPrevious ? ` (${Number(s.transitKmFromPrevious).toFixed(1)} km da parada anterior)` : ''}`,
-          address: s.address,
-          accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
-          transitTime: `${s.transitTimeMinutes} min de trânsito estimado`,
-          transitTimeMinutes: s.transitTimeMinutes,
-          transitKmFromPrevious: s.transitKmFromPrevious,
-          durationMinutes: s.durationMinutes || 45,
-          therapyType: s.therapyType,
-          isPlannedScale: true
-        }));
-        onCommitScaleToAppointments(appointmentsToSave, result);
-      }
     }, 300);
   };
 
