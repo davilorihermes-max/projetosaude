@@ -1,90 +1,71 @@
 /* src/components/MonthlyFinancialSettlementView.css */
 
-.pro-financial-container {
+.financial-container {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   width: 100%;
-  animation: fadeIn 0.25s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Header do Profissional */
-.pro-profile-header-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem 1.5rem;
+.financial-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 1.25rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.pro-info-group {
-  display: flex;
-  align-items: center;
   gap: 1rem;
 }
 
-.pro-details h2 {
-  font-size: 1.35rem;
+.financial-title-box h2 {
+  font-size: 1.45rem;
   font-weight: 800;
   color: var(--text-headline);
-  margin: 0 0 0.2rem 0;
+  margin-bottom: 0.25rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
-.pro-details p {
-  margin: 0;
-  font-size: 0.86rem;
+.financial-title-box p {
+  font-size: 0.88rem;
   color: var(--text-muted);
 }
 
-.pro-controls-group {
+.financial-controls {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.select-competence {
-  background: var(--bg-surface-hover);
+.select-control {
+  background: var(--bg-surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   padding: 0.55rem 0.85rem;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-headline);
-  cursor: pointer;
   outline: none;
-  transition: all 0.2s;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.select-competence:focus {
+.select-control:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
-/* Subtabs de Navegação Individual */
-.pro-subtabs {
+/* Nav Subtabs */
+.financial-subtabs {
   display: flex;
   gap: 0.5rem;
   border-bottom: 1px solid var(--border-light);
   padding-bottom: 0.25rem;
 }
 
-.pro-subtab-btn {
+.subtab-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -97,84 +78,99 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 }
 
-.pro-subtab-btn:hover {
+.subtab-btn:hover {
   color: var(--primary);
   background: var(--primary-subtle);
 }
 
-.pro-subtab-btn.active {
+.subtab-btn.active {
   color: var(--primary);
   background: var(--primary-subtle);
   border-bottom: 2px solid var(--primary);
 }
 
-/* KPIs Executivos do Profissional */
-.pro-kpi-grid {
+/* KPI Grid */
+.kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
-.pro-kpi-card {
+.kpi-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  padding: 1.15rem 1.35rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.pro-kpi-card.highlight {
-  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--primary-subtle) 100%);
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.kpi-card.highlight {
   border-color: var(--primary-border);
+  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--primary-subtle) 100%);
 }
 
-.pro-kpi-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+.kpi-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.pro-kpi-value {
+.kpi-icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kpi-value {
   font-size: 1.65rem;
   font-weight: 800;
   color: var(--text-headline);
   line-height: 1.2;
 }
 
-.pro-kpi-value.green {
-  color: var(--success);
-}
-
-.pro-kpi-sub {
-  font-size: 0.8rem;
+.kpi-subtitle {
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
-/* Card de Paciente */
-.patient-settlement-block {
+/* Patient Financial Section */
+.patient-financial-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 1.25rem;
+  transition: border-color 0.2s;
 }
 
-.patient-settlement-block:hover {
+.patient-financial-card:hover {
   border-color: var(--primary-border);
 }
 
-.patient-header-bar {
+.patient-card-header {
   padding: 1rem 1.25rem;
   background: var(--bg-surface-hover);
   border-bottom: 1px solid var(--border-light);
@@ -182,158 +178,84 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
-.patient-info-box {
+.patient-info-block {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
-.patient-title-text h3 {
+.patient-info-block h3 {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text-headline);
-  margin: 0 0 0.15rem 0;
+  margin: 0;
 }
 
-.patient-address-desc {
+.patient-info-block p {
   font-size: 0.8rem;
   color: var(--text-muted);
+  margin: 0.15rem 0 0 0;
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.patient-summary-box {
+.patient-actions-block {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.patient-stat {
-  text-align: right;
-}
-
-.patient-stat span {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.patient-stat strong {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text-headline);
-}
-
-.patient-stat strong.price {
-  color: var(--primary);
-}
-
-/* Tabela de Atendimentos do Paciente */
-.sessions-table-wrapper {
-  overflow-x: auto;
-}
-
-.sessions-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-  text-align: left;
-}
-
-.sessions-table th {
-  padding: 0.75rem 1.25rem;
-  font-weight: 700;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.sessions-table td {
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--border-light);
-  color: var(--text-body);
-  vertical-align: middle;
-}
-
-.sessions-table tr:last-child td {
-  border-bottom: none;
-}
-
-.sessions-table tr:hover td {
-  background: var(--bg-surface-hover);
-}
-
-.badge-duration {
+.btn-export {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.55rem;
-  background: var(--bg-surface-hover);
-  border: 1px solid var(--border-light);
-  border-radius: 9999px;
-  font-weight: 700;
-  font-size: 0.78rem;
-  color: var(--text-headline);
-}
-
-.hourly-rate-text {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.session-total-text {
-  font-size: 0.98rem;
-  font-weight: 800;
-  color: var(--text-headline);
-}
-
-.actions-cell {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   gap: 0.4rem;
-}
-
-.btn-icon-action {
-  width: 30px;
-  height: 30px;
+  padding: 0.45rem 0.8rem;
   border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
   border: 1px solid var(--border-light);
   background: var(--bg-surface);
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s;
+  color: var(--text-headline);
 }
 
-.btn-icon-action:hover {
+.btn-export:hover {
   border-color: var(--primary);
   color: var(--primary);
   background: var(--primary-subtle);
 }
 
-.btn-icon-action.danger:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: var(--danger-subtle);
+.btn-export.pdf {
+  border-color: #fca5a5;
+  color: #b91c1c;
+  background: #fef2f2;
 }
 
-/* Footer do Bloco do Paciente */
-.patient-footer-bar {
-  padding: 0.75rem 1.25rem;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border-light);
+.btn-export.pdf:hover {
+  background: #fee2e2;
+}
+
+.btn-export.excel {
+  border-color: #86efac;
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.btn-export.excel:hover {
+  background: #dcfce7;
+}
+
+/* Patient Subtotal Bar */
+.patient-subtotal-bar {
+  padding: 0.85rem 1.25rem;
+  background: var(--primary-subtle);
+  border-top: 1px solid var(--primary-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -341,131 +263,256 @@
   gap: 0.75rem;
 }
 
-.btn-add-session {
+.patient-subtotal-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.86rem;
+  color: var(--text-body);
+}
+
+.patient-subtotal-total {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+/* Table Cards */
+.table-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table-card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--bg-surface-hover);
+}
+
+.table-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-headline);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.financial-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.financial-table th {
+  background: var(--bg-surface-hover);
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.financial-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-body);
+  vertical-align: middle;
+}
+
+.financial-table tr:last-child td {
+  border-bottom: none;
+}
+
+.financial-table tr:hover td {
+  background: var(--bg-surface-hover);
+}
+
+/* Day Type Badges */
+.daytype-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.85rem;
-  background: var(--bg-surface-hover);
-  border: 1px dashed var(--border-light);
-  border-radius: var(--radius-md);
-  font-size: 0.82rem;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.daytype-badge.weekday {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.daytype-badge.weekend {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.daytype-badge.holiday {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* Rule Tag in Details */
+.rule-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
   font-weight: 600;
-  color: var(--primary);
+}
+
+.rule-tag.exact {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.rule-tag.default {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.rule-tag.base {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+/* Action Buttons inside rows */
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-action-sm {
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-headline);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   transition: all 0.2s;
 }
 
-.btn-add-session:hover {
-  background: var(--primary-subtle);
+.btn-action-sm:hover {
+  background: var(--bg-surface-hover);
   border-color: var(--primary);
-}
-
-.patient-footer-total {
-  font-size: 0.88rem;
-  color: var(--text-muted);
-}
-
-.patient-footer-total strong {
-  font-size: 1rem;
   color: var(--primary);
-  font-weight: 800;
-  margin-left: 0.35rem;
 }
 
-/* Modais de Edição / Inclusão */
-.financial-modal-backdrop {
+.btn-action-sm.danger {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.btn-action-sm.danger:hover {
+  background: var(--danger-subtle);
+}
+
+/* Modal styling */
+.modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
-  z-index: 9999;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
 }
 
-.financial-modal-card {
+.modal-content-lg {
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
+  max-width: 650px;
   width: 100%;
-  max-width: 540px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.modal-head {
-  padding: 1.15rem 1.4rem;
+.modal-header {
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-light);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.modal-head h3 {
+.modal-header h3 {
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-headline);
-  margin: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.modal-body-form {
-  padding: 1.4rem;
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
 }
 
-.duration-quick-pills {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  margin-top: 0.35rem;
-}
-
-.pill-dur {
-  padding: 0.25rem 0.6rem;
-  border-radius: 9999px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-surface);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.pill-dur.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-
-.calc-preview-box {
-  background: var(--primary-subtle);
-  border: 1px solid var(--primary-border);
-  border-radius: var(--radius-md);
-  padding: 0.85rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-foot {
-  padding: 0.95rem 1.4rem;
+.modal-footer {
+  padding: 1rem 1.5rem;
   border-top: 1px solid var(--border-light);
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
   background: var(--bg-surface-hover);
+}
+
+/* Empty State */
+.empty-state-box {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.empty-state-box p {
+  max-width: 420px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
 }
