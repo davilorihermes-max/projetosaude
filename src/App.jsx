@@ -101,6 +101,7 @@ export default function App() {
   const [modalInitialDuration, setModalInitialDuration] = useState(45);
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [editingPatient, setEditingPatient] = useState(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Home Care Operational Notifications
@@ -390,9 +391,34 @@ export default function App() {
     setAppointments((prev) => [newApt, ...prev]);
   };
 
-  const handleSavePatient = async (newPatient) => {
-    setPatients((prev) => [newPatient, ...prev]);
-    setActivePatientId(newPatient.id);
+  const handleRegisterDoctorWithoutAccount = (newDoctor) => {
+    setDoctors((prev) => {
+      const filtered = prev.filter((d) => d.id !== newDoctor.id);
+      const updated = [newDoctor, ...filtered];
+      localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+      return updated;
+    });
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        type: 'info',
+        title: 'Fisioterapeuta Cadastrado na Escala',
+        description: `${newDoctor.name} (${newDoctor.specialty}) foi adicionado(a) sem conta para atendimento domiciliar.`,
+        time: 'Agora'
+      },
+      ...prev
+    ]);
+  };
+
+  const handleSavePatient = async (savedPatient) => {
+    setPatients((prev) => {
+      const exists = prev.some((p) => p.id === savedPatient.id);
+      if (exists) {
+        return prev.map((p) => (p.id === savedPatient.id ? savedPatient : p));
+      }
+      return [savedPatient, ...prev];
+    });
+    setActivePatientId(savedPatient.id);
 
     // Tenta persistir no backend se disponível
     try {
@@ -404,13 +430,13 @@ export default function App() {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          name: newPatient.name,
-          cpf: newPatient.cpf,
-          email: newPatient.email,
-          phone: newPatient.phone,
-          address: newPatient.address,
-          latitude: newPatient.latitude,
-          longitude: newPatient.longitude,
+          name: savedPatient.name,
+          cpf: savedPatient.cpf,
+          email: savedPatient.email,
+          phone: savedPatient.phone,
+          address: savedPatient.address,
+          latitude: savedPatient.latitude,
+          longitude: savedPatient.longitude,
           professionalId: selectedDoctorId !== 'all' ? selectedDoctorId : undefined
         })
       });
@@ -418,7 +444,7 @@ export default function App() {
         const data = await res.json();
         if (data.patient?.id) {
           setPatients((prev) =>
-            prev.map((p) => (p.id === newPatient.id ? { ...p, id: data.patient.id } : p))
+            prev.map((p) => (p.id === savedPatient.id ? { ...p, id: data.patient.id } : p))
           );
         }
       }
@@ -531,6 +557,8 @@ export default function App() {
                 setAppointments((prev) => [...newAppointments, ...prev]);
                 setActiveTab('schedule');
               }}
+              onRegisterDoctorWithoutAccount={handleRegisterDoctorWithoutAccount}
+              onNavigateToPatientsView={() => setActiveTab('patients')}
             />
           )}
 
@@ -539,8 +567,16 @@ export default function App() {
               patients={patients}
               appointments={appointments}
               activeDoctor={activeDoctor}
+              doctors={doctors}
               onOpenPatientRecord={handleOpenPatientRecord}
-              onOpenNewPatient={() => setIsPatientModalOpen(true)}
+              onOpenNewPatient={() => {
+                setEditingPatient(null);
+                setIsPatientModalOpen(true);
+              }}
+              onEditPatient={(pat) => {
+                setEditingPatient(pat);
+                setIsPatientModalOpen(true);
+              }}
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
             />
@@ -572,8 +608,13 @@ export default function App() {
 
       <NewPatientModal
         isOpen={isPatientModalOpen}
-        onClose={() => setIsPatientModalOpen(false)}
+        onClose={() => {
+          setIsPatientModalOpen(false);
+          setEditingPatient(null);
+        }}
         onSavePatient={handleSavePatient}
+        doctors={doctors}
+        initialPatientData={editingPatient}
       />
 
       <NotificationsModal

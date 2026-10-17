@@ -1,5 +1,5 @@
 // src/components/MonthlyScalePlannerView.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CalendarDays,
   Sparkles,
@@ -51,7 +51,9 @@ const WEEKDAY_SHORT = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
 export default function MonthlyScalePlannerView({
   patients = [],
   doctors = [],
-  onCommitScaleToAppointments
+  onCommitScaleToAppointments,
+  onRegisterDoctorWithoutAccount,
+  onNavigateToPatientsView
 }) {
   const [selectedMonth, setSelectedMonth] = useState('2026-10');
   const [activeTab, setActiveTab] = useState('demands'); // Inicia diretamente na aba de configuração de demandas e horários
@@ -60,9 +62,13 @@ export default function MonthlyScalePlannerView({
   const [selectedPatientFilter, setSelectedPatientFilter] = useState('all');
   const [committedSuccess, setCommittedSuccess] = useState(false);
 
-  // Modais de Criação
-  const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
-  const [isNewTherapistModalOpen, setIsNewTherapistModalOpen] = useState(false);
+  // Modal para buscar e adicionar pacientes já cadastrados na base do sistema
+  const [isAddPatientFromBaseModalOpen, setIsAddPatientFromBaseModalOpen] = useState(false);
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
+
+  // Modal de Fisioterapeutas: Buscar com Conta vs. Cadastrar Sem Conta
+  const [isTherapistManagementModalOpen, setIsTherapistManagementModalOpen] = useState(false);
+  const [therapistModalTab, setTherapistModalTab] = useState('with-account'); // 'with-account' | 'without-account'
 
   // Modal para editar dados básicos do paciente (nome e bairro)
   const [editPatientModalState, setEditPatientModalState] = useState({
@@ -70,17 +76,6 @@ export default function MonthlyScalePlannerView({
     patientId: null,
     patientName: '',
     neighborhood: 'Cerqueira César (Alameda Santos)'
-  });
-
-  // Modal para adicionar nova demanda a um paciente existente
-  const [addDemandModalState, setAddDemandModalState] = useState({
-    isOpen: false,
-    patientId: null,
-    patientName: '',
-    therapyType: 'Fonoaudiologia Domiciliar',
-    sessionsPerWeek: 2,
-    durationMinutes: 45,
-    preferredShift: 'any'
   });
 
   // Modal para adicionar bloco de indisponibilidade (profissional ou paciente)
@@ -115,32 +110,22 @@ export default function MonthlyScalePlannerView({
     notes: 'Horário fixado prioritário'
   });
 
-  // Form State: Novo Paciente
-  const [newPatientForm, setNewPatientForm] = useState({
-    patientName: '',
-    neighborhood: 'Cerqueira César (Alameda Santos)',
-    initialTherapy: 'Fisioterapia Cardiorrespiratória & Motora',
-    sessionsPerWeek: 2,
-    durationMinutes: 45,
-    preferredShift: 'morning'
-  });
-
-  // Form State: Novo Profissional (com janelas de horário)
+  // Form State: Novo Profissional Sem Conta (com janelas de horário)
   const [newTherapistForm, setNewTherapistForm] = useState({
     professionalName: '',
     specialty: 'Fisioterapia Cardiorrespiratória & Motora',
     neighborhood: 'Bela Vista (Av. Paulista)',
     weekdayWindows: {
-      1: { enabled: true, startTime: '08:00', endTime: '13:00' },
+      1: { enabled: true, startTime: '08:00', endTime: '18:00' },
       2: { enabled: true, startTime: '08:00', endTime: '18:00' },
-      3: { enabled: true, startTime: '08:00', endTime: '13:00' },
+      3: { enabled: true, startTime: '08:00', endTime: '18:00' },
       4: { enabled: true, startTime: '08:00', endTime: '18:00' },
-      5: { enabled: false, startTime: '08:00', endTime: '12:00' }
+      5: { enabled: true, startTime: '08:00', endTime: '18:00' }
     },
     assignedPatientIds: []
   });
 
-  // 1. Estado Dinâmico: Pacientes com ATÉ 3 DEMANDAS TERAPÊUTICAS cada e BLOQUEIOS DE HORÁRIO
+  // 1. Estado Dinâmico: Pacientes com DEMANDAS TERAPÊUTICAS do cadastro e BLOQUEIOS DE HORÁRIO
   const [patientsWithDemands, setPatientsWithDemands] = useState([]);
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
@@ -148,6 +133,77 @@ export default function MonthlyScalePlannerView({
 
   // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState([]);
+
+  // Sincroniza pacientes cadastrados com demandas caso o planejador esteja vazio
+  useEffect(() => {
+    if (patientsWithDemands.length === 0 && patients && patients.length > 0) {
+      const initialPatients = patients.map((pat) => {
+        const coords = (pat.latitude && pat.longitude)
+          ? { latitude: pat.latitude, longitude: pat.longitude }
+          : (SP_PRESET_LOCATIONS[pat.address] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'] || { latitude: -23.585, longitude: -46.638 });
+
+        const patDemands = pat.demands && pat.demands.length > 0
+          ? pat.demands
+          : [
+              {
+                id: `dem-${pat.id}-1`,
+                therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+                sessionsPerWeek: 2,
+                durationMinutes: 45,
+                preferredShift: 'morning'
+              }
+            ];
+
+        return {
+          patientId: pat.id,
+          patientName: pat.name,
+          neighborhood: pat.address || 'São Paulo - SP',
+          address: pat.address || 'São Paulo - SP',
+          location: coords,
+          demands: patDemands,
+          unavailabilityBlocks: pat.unavailabilityBlocks || []
+        };
+      });
+
+      const initialCareTeams = patients.map((pat) => ({
+        patientId: pat.id,
+        professionalIds: pat.careTeamProfessionalIds ||
+          pat.careTeamMembers?.map((m) => m.professionalId || m) ||
+          doctors.map((d) => d.id)
+      }));
+
+      setPatientsWithDemands(initialPatients);
+      setCareTeams(initialCareTeams);
+    }
+  }, [patients]);
+
+  // Sincroniza profissionais para compor a disponibilidade na escala inicial
+  useEffect(() => {
+    if (professionalAvailabilities.length === 0 && doctors && doctors.length > 0) {
+      const initialProfs = doctors.map((doc) => {
+        const coords = (doc.baseCoordinates?.latitude && doc.baseCoordinates?.longitude)
+          ? doc.baseCoordinates
+          : (SP_PRESET_LOCATIONS[doc.baseAddress] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'] || { latitude: -23.585, longitude: -46.638 });
+
+        return {
+          professionalId: doc.id,
+          professionalName: doc.name,
+          specialty: doc.specialty || doc.profession || 'Fisioterapia Domiciliar',
+          baseLocation: coords,
+          hasAccount: doc.hasAccount !== false,
+          weekdayWindows: doc.weekdayWindows || {
+            1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+          }
+        };
+      });
+
+      setProfessionalAvailabilities(initialProfs);
+    }
+  }, [doctors]);
 
   // Transforma os pacientes e suas demandas na lista plana consumida pelo motor
   const flatDemands = useMemo(() => {
@@ -595,94 +651,118 @@ export default function MonthlyScalePlannerView({
     runGeneration(patientsWithDemands, professionalAvailabilities, updated);
   };
 
-  // Remover Paciente Inteiro
-  const handleDeletePatient = (patientId) => {
-    if (window.confirm('Deseja remover este paciente e todas as suas demandas terapêuticas?')) {
-      const nextPatients = patientsWithDemands.filter((p) => p.patientId !== patientId);
-      const nextCareTeams = careTeams.filter((ct) => ct.patientId !== patientId);
-      setPatientsWithDemands(nextPatients);
-      setCareTeams(nextCareTeams);
-      runGeneration(nextPatients, professionalAvailabilities, nextCareTeams);
-    }
+  // Remover Paciente Apenas da Escala Mensal (sem excluir o cadastro)
+  const handleRemovePatientFromScale = (patientId) => {
+    const nextPatients = patientsWithDemands.filter((p) => p.patientId !== patientId);
+    const nextCareTeams = careTeams.filter((ct) => ct.patientId !== patientId);
+    setPatientsWithDemands(nextPatients);
+    setCareTeams(nextCareTeams);
+    runGeneration(nextPatients, professionalAvailabilities, nextCareTeams);
   };
 
-  // Remover Profissional
-  const handleDeleteProfessional = (profId) => {
-    if (window.confirm('Deseja remover este profissional?')) {
-      const nextProfs = professionalAvailabilities.filter((p) => p.professionalId !== profId);
-      const nextCareTeams = careTeams.map((ct) => ({
-        ...ct,
-        professionalIds: ct.professionalIds.filter((id) => id !== profId)
-      }));
-      setProfessionalAvailabilities(nextProfs);
-      setCareTeams(nextCareTeams);
-      runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
-    }
-  };
+  // Adicionar Paciente Já Cadastrado na Base à Escala Mensal
+  const handleAddPatientFromBase = (patient) => {
+    if (patientsWithDemands.some((p) => p.patientId === patient.id)) return;
 
-  // Cadastrar Novo Paciente (com 1ª demanda)
-  const handleCreateNewPatient = (e) => {
-    e.preventDefault();
-    if (!newPatientForm.patientName.trim()) return;
+    // As demandas terapêuticas vêm diretamente do cadastro do paciente!
+    const patientDemands = patient.demands && patient.demands.length > 0
+      ? patient.demands
+      : [
+          {
+            id: `dem-${patient.id}-1`,
+            therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+            sessionsPerWeek: 2,
+            durationMinutes: 45,
+            preferredShift: 'morning'
+          }
+        ];
 
-    const newId = `pat-${Date.now()}`;
-    const coords = SP_PRESET_LOCATIONS[newPatientForm.neighborhood] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'];
+    const coords = (patient.latitude && patient.longitude)
+      ? { latitude: patient.latitude, longitude: patient.longitude }
+      : (SP_PRESET_LOCATIONS[patient.address] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'] || { latitude: -23.585, longitude: -46.638 });
 
-    const newPatient = {
-      patientId: newId,
-      patientName: newPatientForm.patientName.trim(),
-      neighborhood: newPatientForm.neighborhood,
-      address: newPatientForm.neighborhood,
+    const newPatientItem = {
+      patientId: patient.id,
+      patientName: patient.name,
+      neighborhood: patient.address || 'São Paulo - SP',
+      address: patient.address || 'São Paulo - SP',
       location: coords,
-      demands: [
-        {
-          id: `dem-${newId}-1`,
-          therapyType: newPatientForm.initialTherapy,
-          sessionsPerWeek: Number(newPatientForm.sessionsPerWeek),
-          durationMinutes: Number(newPatientForm.durationMinutes),
-          preferredShift: newPatientForm.preferredShift
-        }
-      ]
+      demands: patientDemands,
+      unavailabilityBlocks: patient.unavailabilityBlocks || []
     };
 
-    // Auto-vincula profissionais que tenham especialidade compatível no Care Team
-    const autoDocIds = professionalAvailabilities
-      .filter((p) => p.specialty.toLowerCase().includes(newPatientForm.initialTherapy.toLowerCase().split(' ')[0]))
-      .map((p) => p.professionalId);
+    // Care team do paciente
+    const patientCareTeamIds = patient.careTeamProfessionalIds ||
+      patient.careTeamMembers?.map((m) => m.professionalId || m) ||
+      professionalAvailabilities.map((p) => p.professionalId);
 
-    const nextPatients = [...patientsWithDemands, newPatient];
-    const nextCareTeams = [...careTeams, { patientId: newId, professionalIds: autoDocIds }];
+    const nextPatients = [...patientsWithDemands, newPatientItem];
+    const nextCareTeams = [
+      ...careTeams.filter((ct) => ct.patientId !== patient.id),
+      { patientId: patient.id, professionalIds: patientCareTeamIds }
+    ];
 
     setPatientsWithDemands(nextPatients);
     setCareTeams(nextCareTeams);
-    setIsNewPatientModalOpen(false);
-
-    setNewPatientForm({
-      patientName: '',
-      neighborhood: 'Cerqueira César (Alameda Santos)',
-      initialTherapy: 'Fisioterapia Cardiorrespiratória & Motora',
-      sessionsPerWeek: 2,
-      durationMinutes: 45,
-      preferredShift: 'morning'
-    });
+    setIsAddPatientFromBaseModalOpen(false);
 
     runGeneration(nextPatients, professionalAvailabilities, nextCareTeams);
   };
 
-  // Cadastrar Novo Fisioterapeuta com janelas de horário
-  const handleCreateNewTherapist = (e) => {
+  // Adicionar Fisioterapeuta que já possui conta no site para compor a escala
+  const handleAddDoctorWithAccountToScale = (doc) => {
+    if (professionalAvailabilities.some((p) => p.professionalId === doc.id)) return;
+
+    const baseCoords = (doc.baseCoordinates?.latitude && doc.baseCoordinates?.longitude)
+      ? doc.baseCoordinates
+      : (SP_PRESET_LOCATIONS[doc.baseAddress] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'] || { latitude: -23.585, longitude: -46.638 });
+
+    const newProf = {
+      professionalId: doc.id,
+      professionalName: doc.name,
+      specialty: doc.specialty || doc.profession || 'Fisioterapia Domiciliar',
+      baseLocation: baseCoords,
+      hasAccount: true,
+      weekdayWindows: doc.weekdayWindows || {
+        1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+      }
+    };
+
+    const nextProfs = [...professionalAvailabilities, newProf];
+    setProfessionalAvailabilities(nextProfs);
+    setIsTherapistManagementModalOpen(false);
+
+    runGeneration(patientsWithDemands, nextProfs, careTeams);
+  };
+
+  // Criar Novo Fisioterapeuta SEM CONTA para compor a escala
+  const handleCreateTherapistWithoutAccount = (e) => {
     e.preventDefault();
     if (!newTherapistForm.professionalName.trim()) return;
 
-    const newDocId = `doc-${Date.now()}`;
-    const baseCoords = SP_PRESET_LOCATIONS[newTherapistForm.neighborhood] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'];
+    const newDocId = `doc-sem-conta-${Date.now()}`;
+    const baseCoords = SP_PRESET_LOCATIONS[newTherapistForm.neighborhood] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'] || { latitude: -23.585, longitude: -46.638 };
 
     const newProf = {
+      id: newDocId,
       professionalId: newDocId,
+      name: newTherapistForm.professionalName.trim(),
       professionalName: newTherapistForm.professionalName.trim(),
       specialty: newTherapistForm.specialty,
+      profession: newTherapistForm.specialty.includes('Fono')
+        ? 'Fonoaudiologia'
+        : newTherapistForm.specialty.includes('Enfermagem')
+        ? 'Enfermagem'
+        : 'Fisioterapia',
+      baseAddress: newTherapistForm.neighborhood,
+      baseCoordinates: baseCoords,
       baseLocation: baseCoords,
-      weekdayWindows: newTherapistForm.weekdayWindows
+      weekdayWindows: newTherapistForm.weekdayWindows,
+      hasAccount: false
     };
 
     // Atualiza care teams selecionados para incluir o novo profissional
@@ -699,7 +779,26 @@ export default function MonthlyScalePlannerView({
     const nextProfs = [...professionalAvailabilities, newProf];
     setProfessionalAvailabilities(nextProfs);
     setCareTeams(nextCareTeams);
-    setIsNewTherapistModalOpen(false);
+    setIsTherapistManagementModalOpen(false);
+
+    // Persiste globalmente na lista geral de doctors para aparecer no Care Team do cadastro do paciente
+    if (onRegisterDoctorWithoutAccount) {
+      onRegisterDoctorWithoutAccount(newProf);
+    }
+
+    setNewTherapistForm({
+      professionalName: '',
+      specialty: 'Fisioterapia Cardiorrespiratória & Motora',
+      neighborhood: 'Bela Vista (Av. Paulista)',
+      weekdayWindows: {
+        1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+        5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+      },
+      assignedPatientIds: []
+    });
 
     runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
   };
@@ -1270,16 +1369,19 @@ export default function MonthlyScalePlannerView({
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <button
                 className="btn-primary"
-                onClick={() => setIsNewPatientModalOpen(true)}
+                onClick={() => setIsAddPatientFromBaseModalOpen(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
               >
-                <Plus size={16} />
-                Novo Paciente
+                <Users size={16} />
+                Adicionar Paciente da Base à Escala
               </button>
 
               <button
                 className="btn-primary"
-                onClick={() => setIsNewTherapistModalOpen(true)}
+                onClick={() => {
+                  setTherapistModalTab('with-account');
+                  setIsTherapistManagementModalOpen(true);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1289,7 +1391,7 @@ export default function MonthlyScalePlannerView({
                 }}
               >
                 <UserPlus size={16} />
-                Novo Fisioterapeuta / Terapeuta
+                Fisioterapeutas & Terapeutas na Escala
               </button>
             </div>
           </div>
@@ -1324,17 +1426,20 @@ export default function MonthlyScalePlannerView({
                   gap: '0.75rem'
                 }}>
                   <Stethoscope size={36} color="var(--success)" />
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum profissional configurado para a escala</div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum fisioterapeuta configurado para a escala</div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
-                    Cadastre os profissionais da equipe e determine seus dias e horários semanais para atendimento domiciliar.
+                    Busque profissionais que já possuem conta no site ou crie novos fisioterapeutas sem conta para compor a grade mensal.
                   </div>
                   <button
                     type="button"
                     className="btn btn-primary"
-                    style={{ marginTop: '0.5rem', fontSize: '0.82rem' }}
-                    onClick={() => setIsNewTherapistModalOpen(true)}
+                    style={{ marginTop: '0.5rem', fontSize: '0.82rem', background: 'var(--success)' }}
+                    onClick={() => {
+                      setTherapistModalTab('with-account');
+                      setIsTherapistManagementModalOpen(true);
+                    }}
                   >
-                    <UserPlus size={15} /> Cadastrar Terapeuta na Escala
+                    <UserPlus size={15} /> Adicionar Fisioterapeuta na Escala
                   </button>
                 </div>
               ) : (
@@ -1611,17 +1716,17 @@ export default function MonthlyScalePlannerView({
                   gap: '0.75rem'
                 }}>
                   <Users size={36} color="var(--primary)" />
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum paciente com demanda terapêutica configurada</div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>Nenhum paciente adicionado à escala deste mês</div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
-                    Cadastre pacientes e configure até 3 demandas terapêuticas semanais para planejar a escala mensal com roteirização inteligente.
+                    Adicione pacientes já cadastrados na clínica para compor a grade mensal com suas demandas terapêuticas e rotas domiciliares.
                   </div>
                   <button
                     type="button"
                     className="btn btn-primary"
                     style={{ marginTop: '0.5rem', fontSize: '0.82rem' }}
-                    onClick={() => setIsNewPatientModalOpen(true)}
+                    onClick={() => setIsAddPatientFromBaseModalOpen(true)}
                   >
-                    <Plus size={15} /> Cadastrar Paciente na Escala
+                    <Users size={15} /> Adicionar Paciente da Base à Escala
                   </button>
                 </div>
               ) : (
@@ -1646,21 +1751,8 @@ export default function MonthlyScalePlannerView({
                             {patient.patientName}
                           </span>
                           <span className="demand-counter-badge">
-                            {patient.demands.length}/3 Terapias
+                            {patient.demands.length} {patient.demands.length === 1 ? 'Terapia' : 'Terapias'}
                           </span>
-                          <button
-                            type="button"
-                            className="btn-edit-patient-inline"
-                            title="Editar Nome e Bairro do Paciente"
-                            onClick={() => setEditPatientModalState({
-                              isOpen: true,
-                              patientId: patient.patientId,
-                              patientName: patient.patientName,
-                              neighborhood: patient.neighborhood || 'Cerqueira César (Alameda Santos)'
-                            })}
-                          >
-                            ✏️ Editar Paciente
-                          </button>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           📍 {patient.address}
@@ -1669,112 +1761,91 @@ export default function MonthlyScalePlannerView({
 
                       <button
                         className="btn-danger-icon"
-                        title="Remover Paciente"
-                        onClick={() => handleDeletePatient(patient.patientId)}
+                        title="Remover da Escala Deste Mês"
+                        onClick={() => handleRemovePatientFromScale(patient.patientId)}
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
 
-                    {/* Lista das até 3 demandas deste paciente */}
+                    {/* Lista das demandas cadastradas deste paciente (Exibição apenas) */}
                     <div className="patient-demands-container">
+                      <div style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        color: 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        marginBottom: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span>📋 Demandas Terapêuticas do Cadastro ({patient.demands.length}):</span>
+                        {onNavigateToPatientsView && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToPatientsView}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary)',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            Editar no Cadastro ↗
+                          </button>
+                        )}
+                      </div>
+
                       {patient.demands.map((demand, idx) => (
-                        <div key={demand.id || idx} className="single-demand-card">
+                        <div key={demand.id || idx} className="single-demand-card" style={{ background: 'var(--bg-surface-hover)' }}>
                           <div className="single-demand-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
                               <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.75rem' }}>
                                 #{idx + 1}
                               </span>
-                              <select
-                                className="therapy-select-compact"
-                                value={demand.therapyType}
-                                onChange={(e) => handleUpdateTherapyType(patient.patientId, demand.id, e.target.value)}
-                              >
-                                {THERAPY_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            </div>
-                            {patient.demands.length > 1 && (
-                              <button
-                                className="btn-danger-icon"
-                                title="Remover esta terapia"
-                                onClick={() => handleRemoveSingleDemand(patient.patientId, demand.id)}
-                              >
-                                <X size={14} />
-                              </button>
-                            )}
-                          </div>
-
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: '0.8rem'
-                          }}>
-                            <span style={{ color: 'var(--text-body)' }}>Frequência semanal:</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <button
-                                className="stepper-btn"
-                                disabled={demand.sessionsPerWeek <= 1}
-                                onClick={() => handleUpdateWeeklySessions(patient.patientId, demand.id, -1)}
-                              >
-                                -
-                              </button>
-                              <span style={{ fontWeight: 700, minWidth: '22px', textAlign: 'center' }}>
-                                {demand.sessionsPerWeek}x
+                              <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-headline)' }}>
+                                {demand.therapyType}
                               </span>
-                              <button
-                                className="stepper-btn"
-                                disabled={demand.sessionsPerWeek >= 6}
-                                onClick={() => handleUpdateWeeklySessions(patient.patientId, demand.id, 1)}
-                              >
-                                +
-                              </button>
                             </div>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: 'var(--primary-subtle)',
+                              color: 'var(--primary)'
+                            }}>
+                              {demand.sessionsPerWeek}x / semana
+                            </span>
                           </div>
 
                           <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            fontSize: '0.78rem'
+                            fontSize: '0.75rem',
+                            color: 'var(--text-body)',
+                            marginTop: '0.35rem'
                           }}>
-                            <span style={{ color: 'var(--text-body)' }}>Turno preferencial:</span>
-                            <div className="chips-row">
-                              {['morning', 'afternoon', 'any'].map((sh) => (
-                                <button
-                                  key={sh}
-                                  className={`chip-btn ${demand.preferredShift === sh ? 'active' : ''}`}
-                                  onClick={() => handleUpdateShift(patient.patientId, demand.id, sh)}
-                                  style={{ padding: '2px 7px', fontSize: '0.72rem' }}
-                                >
-                                  {sh === 'morning' ? 'Manhã' : sh === 'afternoon' ? 'Tarde' : 'Qualquer'}
-                                </button>
-                              ))}
-                            </div>
+                            <span>Turno: <strong>{demand.preferredShift === 'morning' ? 'Manhã' : demand.preferredShift === 'afternoon' ? 'Tarde' : 'Qualquer horário'}</strong></span>
+                            <span>Duração: <strong>{demand.durationMinutes || 45} min</strong></span>
                           </div>
                         </div>
                       ))}
 
-                      {/* Botão para adicionar mais uma terapia se tiver menos de 3 */}
-                      {patient.demands.length < 3 && (
-                        <button
-                          className="btn-add-demand-inline"
-                          onClick={() => setAddDemandModalState({
-                            isOpen: true,
-                            patientId: patient.patientId,
-                            patientName: patient.patientName,
-                            therapyType: 'Fonoaudiologia Domiciliar',
-                            sessionsPerWeek: 2,
-                            durationMinutes: 45,
-                            preferredShift: 'any'
-                          })}
-                        >
-                          <Plus size={14} />
-                          Adicionar Nova Demanda Terapêutica ({patient.demands.length}/3)
-                        </button>
-                      )}
+                      <div style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--text-muted)',
+                        fontStyle: 'italic',
+                        marginTop: '0.15rem'
+                      }}>
+                        💡 Demandas configuradas no cadastro do paciente.
+                      </div>
                     </div>
 
                     {/* Vínculo de Care Team Interativo */}
@@ -1861,58 +1932,329 @@ export default function MonthlyScalePlannerView({
         </div>
       )}
 
-      {/* MODAL 1: Cadastrar Novo Paciente */}
-      {isNewPatientModalOpen && (
-        <div className="planner-modal-backdrop" onClick={() => setIsNewPatientModalOpen(false)}>
-          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
+      {/* MODAL 1: Adicionar Paciente Cadastrado na Base à Escala Mensal */}
+      {isAddPatientFromBaseModalOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setIsAddPatientFromBaseModalOpen(false)}>
+          <div className="planner-modal-content" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <UserPlus size={20} color="#2563eb" />
-                Cadastrar Novo Paciente
+                <Users size={20} color="#2563eb" />
+                Adicionar Paciente da Base à Escala Mensal
               </h3>
-              <button className="modal-close-btn" onClick={() => setIsNewPatientModalOpen(false)}>
+              <button className="modal-close-btn" onClick={() => setIsAddPatientFromBaseModalOpen(false)}>
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewPatient}>
+            <div className="modal-body">
+              <div style={{
+                background: 'var(--primary-subtle)',
+                border: '1px solid var(--primary-border)',
+                borderRadius: '8px',
+                padding: '0.65rem 0.85rem',
+                fontSize: '0.8rem',
+                color: 'var(--text-headline)',
+                marginBottom: '1rem'
+              }}>
+                💡 O planejador utiliza os pacientes já cadastrados na tela de <strong>Pacientes</strong> e importa automaticamente as demandas terapêuticas definidas no perfil de cada um.
+              </div>
+
+              <div className="form-group">
+                <label>Buscar Paciente Cadastrado:</label>
+                <input
+                  type="text"
+                  className="planner-input"
+                  placeholder="Filtrar por nome, CPF ou endereço..."
+                  value={patientSearchTerm}
+                  onChange={(e) => setPatientSearchTerm(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{
+                maxHeight: '340px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                marginTop: '0.5rem'
+              }}>
+                {patients.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.88rem' }}>
+                      Nenhum paciente cadastrado no sistema ainda.
+                    </p>
+                    {onNavigateToPatientsView && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setIsAddPatientFromBaseModalOpen(false);
+                          onNavigateToPatientsView();
+                        }}
+                      >
+                        Ir para Cadastro de Pacientes ➡️
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  patients
+                    .filter((p) => {
+                      const term = patientSearchTerm.toLowerCase();
+                      return (
+                        p.name.toLowerCase().includes(term) ||
+                        (p.cpf && p.cpf.includes(term)) ||
+                        (p.address && p.address.toLowerCase().includes(term))
+                      );
+                    })
+                    .map((pat) => {
+                      const isAlreadyInScale = patientsWithDemands.some((p) => p.patientId === pat.id);
+                      const patDemands = pat.demands && pat.demands.length > 0 ? pat.demands : [];
+
+                      return (
+                        <div
+                          key={pat.id}
+                          style={{
+                            border: `1px solid ${isAlreadyInScale ? 'var(--border-light)' : 'var(--primary-border)'}`,
+                            borderRadius: '8px',
+                            padding: '0.75rem 1rem',
+                            background: isAlreadyInScale ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '1rem'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-headline)' }}>
+                              {pat.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                              📍 {pat.address || 'Endereço em rota domiciliar'}
+                            </div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--primary)', marginTop: '0.2rem', fontWeight: 600 }}>
+                              {patDemands.length > 0 ? (
+                                `🩺 ${patDemands.map((d) => `${d.therapyType} (${d.sessionsPerWeek}x/sem)`).join(' • ')}`
+                              ) : (
+                                '⚠️ Sem demandas cadastradas (será aplicada demanda padrão)'
+                              )}
+                            </div>
+                          </div>
+
+                          {isAlreadyInScale ? (
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              background: 'var(--success-subtle)',
+                              color: 'var(--success)'
+                            }}>
+                              ✓ Na Escala
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
+                              onClick={() => handleAddPatientFromBase(pat)}
+                            >
+                              + Incluir na Escala
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setIsAddPatientFromBaseModalOpen(false)}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Fisioterapeutas & Terapeutas na Escala (Com Conta ou Sem Conta) */}
+      {isTherapistManagementModalOpen && (
+        <div className="planner-modal-backdrop" onClick={() => setIsTherapistManagementModalOpen(false)}>
+          <div className="planner-modal-content" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <UserPlus size={20} color="#059669" />
+                Fisioterapeutas & Terapeutas na Escala
+              </h3>
+              <button className="modal-close-btn" onClick={() => setIsTherapistManagementModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Abas do Modal */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', padding: '0 1.25rem' }}>
+              <button
+                type="button"
+                style={{
+                  padding: '0.75rem 1rem',
+                  border: 'none',
+                  background: 'none',
+                  fontWeight: therapistModalTab === 'with-account' ? 700 : 500,
+                  color: therapistModalTab === 'with-account' ? 'var(--primary)' : 'var(--text-muted)',
+                  borderBottom: therapistModalTab === 'with-account' ? '2px solid var(--primary)' : 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem'
+                }}
+                onClick={() => setTherapistModalTab('with-account')}
+              >
+                Buscar Profissionais com Conta no Site ({doctors.filter((d) => d.hasAccount !== false).length})
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: '0.75rem 1rem',
+                  border: 'none',
+                  background: 'none',
+                  fontWeight: therapistModalTab === 'without-account' ? 700 : 500,
+                  color: therapistModalTab === 'without-account' ? 'var(--success)' : 'var(--text-muted)',
+                  borderBottom: therapistModalTab === 'without-account' ? '2px solid var(--success)' : 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem'
+                }}
+                onClick={() => setTherapistModalTab('without-account')}
+              >
+                + Cadastrar Fisioterapeuta Sem Conta
+              </button>
+            </div>
+
+            {/* ABA 1: Profissionais com Conta */}
+            {therapistModalTab === 'with-account' && (
               <div className="modal-body">
-                <div className="form-group">
-                  <label>Nome Completo do Paciente *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Carlos Eduardo de Oliveira"
-                    className="planner-input"
-                    value={newPatientForm.patientName}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, patientName: e.target.value })}
-                  />
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Selecione fisioterapeutas e profissionais que já criaram conta ou estão cadastrados na clínica para compor a grade da escala:
+                </p>
+
+                <div style={{
+                  maxHeight: '340px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem'
+                }}>
+                  {doctors.filter((d) => d.hasAccount !== false).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Nenhum profissional com conta registrado no site ainda. Crie um fisioterapeuta sem conta na aba ao lado ou registre na tela de login.
+                    </div>
+                  ) : (
+                    doctors
+                      .filter((d) => d.hasAccount !== false)
+                      .map((doc) => {
+                        const isAlreadyInScale = professionalAvailabilities.some((p) => p.professionalId === doc.id);
+
+                        return (
+                          <div
+                            key={doc.id}
+                            style={{
+                              border: `1px solid ${isAlreadyInScale ? 'var(--border-light)' : 'var(--primary-border)'}`,
+                              borderRadius: '8px',
+                              padding: '0.75rem 1rem',
+                              background: isAlreadyInScale ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '1rem'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-headline)' }}>
+                                {doc.name}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.15rem' }}>
+                                🩺 {doc.specialty || doc.profession || 'Fisioterapia'}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                📍 Base: {doc.baseAddress || 'São Paulo - SP'}
+                              </div>
+                            </div>
+
+                            {isAlreadyInScale ? (
+                              <span style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '4px 10px',
+                                borderRadius: '12px',
+                                background: 'var(--success-subtle)',
+                                color: 'var(--success)'
+                              }}>
+                                ✓ Na Escala
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
+                                onClick={() => handleAddDoctorWithAccountToScale(doc)}
+                              >
+                                + Incluir na Escala
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
+                  )}
                 </div>
 
-                <div className="form-group">
-                  <label>Região / Endereço Domiciliar em SP *</label>
-                  <select
-                    className="planner-select"
-                    value={newPatientForm.neighborhood}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, neighborhood: e.target.value })}
+                <div className="modal-footer" style={{ marginTop: '1rem' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setIsTherapistManagementModalOpen(false)}
                   >
-                    {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
-                      <option key={neigh} value={neigh}>{neigh}</option>
-                    ))}
-                  </select>
+                    Fechar
+                  </button>
                 </div>
+              </div>
+            )}
 
-                <div style={{ background: 'var(--bg-surface-hover)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
-                    1ª Demanda Terapêutica Inicial (poderá adicionar até 3):
+            {/* ABA 2: Cadastrar Fisioterapeuta Sem Conta */}
+            {therapistModalTab === 'without-account' && (
+              <form onSubmit={handleCreateTherapistWithoutAccount}>
+                <div className="modal-body">
+                  <div style={{
+                    background: 'rgba(5, 150, 105, 0.08)',
+                    border: '1px solid rgba(5, 150, 105, 0.25)',
+                    borderRadius: '8px',
+                    padding: '0.65rem 0.85rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-headline)',
+                    marginBottom: '1rem'
+                  }}>
+                    ✨ <strong>Fisioterapeuta Sem Conta:</strong> Cadastre um profissional para atuar na grade de escala sem necessidade de criar usuário ou login no site. Ele também ficará disponível para seleção no Care Team do cadastro de pacientes.
                   </div>
 
-                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                    <label>Especialidade Terapêutica *</label>
+                  <div className="form-group">
+                    <label>Nome Completo do Fisioterapeuta / Terapeuta *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Dr. Lucas Mendes"
+                      className="planner-input"
+                      value={newTherapistForm.professionalName}
+                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, professionalName: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Especialidade de Atuação *</label>
                     <select
                       className="planner-select"
-                      value={newPatientForm.initialTherapy}
-                      onChange={(e) => setNewPatientForm({ ...newPatientForm, initialTherapy: e.target.value })}
+                      value={newTherapistForm.specialty}
+                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, specialty: e.target.value })}
                     >
                       {THERAPY_OPTIONS.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
@@ -1920,314 +2262,140 @@ export default function MonthlyScalePlannerView({
                     </select>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div className="form-group">
-                      <label>Sessões / Semana</label>
-                      <select
-                        className="planner-select"
-                        value={newPatientForm.sessionsPerWeek}
-                        onChange={(e) => setNewPatientForm({ ...newPatientForm, sessionsPerWeek: Number(e.target.value) })}
-                      >
-                        <option value={1}>1x / semana</option>
-                        <option value={2}>2x / semana</option>
-                        <option value={3}>3x / semana</option>
-                        <option value={4}>4x / semana</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Turno Preferencial</label>
-                      <select
-                        className="planner-select"
-                        value={newPatientForm.preferredShift}
-                        onChange={(e) => setNewPatientForm({ ...newPatientForm, preferredShift: e.target.value })}
-                      >
-                        <option value="morning">Manhã</option>
-                        <option value="afternoon">Tarde</option>
-                        <option value="any">Qualquer</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setIsNewPatientModalOpen(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Salvar Paciente & Recalcular
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Adicionar Demanda Adicional a Paciente Existente (Até 3) */}
-      {addDemandModalState.isOpen && (
-        <div className="planner-modal-backdrop" onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}>
-          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                <Plus size={20} color="#2563eb" />
-                Nova Demanda Terapêutica — {addDemandModalState.patientName}
-              </h3>
-              <button
-                className="modal-close-btn"
-                onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddDemandToPatient}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Especialidade Terapêutica *</label>
-                  <select
-                    className="planner-select"
-                    value={addDemandModalState.therapyType}
-                    onChange={(e) => setAddDemandModalState({ ...addDemandModalState, therapyType: e.target.value })}
-                  >
-                    {THERAPY_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-group">
-                    <label>Sessões / Semana *</label>
+                    <label>Região da Base de Saída (Ponto de Partida)</label>
                     <select
                       className="planner-select"
-                      value={addDemandModalState.sessionsPerWeek}
-                      onChange={(e) => setAddDemandModalState({ ...addDemandModalState, sessionsPerWeek: Number(e.target.value) })}
+                      value={newTherapistForm.neighborhood}
+                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, neighborhood: e.target.value })}
                     >
-                      <option value={1}>1x por semana</option>
-                      <option value={2}>2x por semana</option>
-                      <option value={3}>3x por semana</option>
-                      <option value={4}>4x por semana</option>
+                      {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
+                        <option key={neigh} value={neigh}>{neigh}</option>
+                      ))}
                     </select>
                   </div>
 
+                  {/* Janela de Horário Diária (Segunda a Sexta) */}
                   <div className="form-group">
-                    <label>Turno Preferencial</label>
-                    <select
-                      className="planner-select"
-                      value={addDemandModalState.preferredShift}
-                      onChange={(e) => setAddDemandModalState({ ...addDemandModalState, preferredShift: e.target.value })}
-                    >
-                      <option value="morning">Manhã</option>
-                      <option value="afternoon">Tarde</option>
-                      <option value="any">Qualquer</option>
-                    </select>
+                    <label>Jornada Diária por Dia da Semana (Horário de Início e Fim):</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {[1, 2, 3, 4, 5].map((dayNum) => {
+                        const win = newTherapistForm.weekdayWindows[dayNum];
+                        return (
+                          <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
+                            <label className="day-check-label">
+                              <input
+                                type="checkbox"
+                                checked={win.enabled}
+                                onChange={() => {
+                                  setNewTherapistForm({
+                                    ...newTherapistForm,
+                                    weekdayWindows: {
+                                      ...newTherapistForm.weekdayWindows,
+                                      [dayNum]: { ...win, enabled: !win.enabled }
+                                    }
+                                  });
+                                }}
+                              />
+                              {WEEKDAY_NAMES[dayNum]}
+                            </label>
+
+                            {win.enabled ? (
+                              <div className="time-range-inputs">
+                                <span>das</span>
+                                <input
+                                  type="time"
+                                  className="time-input-compact"
+                                  value={win.startTime}
+                                  onChange={(e) => {
+                                    setNewTherapistForm({
+                                      ...newTherapistForm,
+                                      weekdayWindows: {
+                                        ...newTherapistForm.weekdayWindows,
+                                        [dayNum]: { ...win, startTime: e.target.value }
+                                      }
+                                    });
+                                  }}
+                                />
+                                <span>às</span>
+                                <input
+                                  type="time"
+                                  className="time-input-compact"
+                                  value={win.endTime}
+                                  onChange={(e) => {
+                                    setNewTherapistForm({
+                                      ...newTherapistForm,
+                                      weekdayWindows: {
+                                        ...newTherapistForm.weekdayWindows,
+                                        [dayNum]: { ...win, endTime: e.target.value }
+                                      }
+                                    });
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                Folga / Outros pacientes externos
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ fontSize: '0.78rem', color: 'var(--primary)', background: 'var(--primary-subtle)', border: '1px solid var(--primary-border)', padding: '0.65rem', borderRadius: '6px' }}>
-                  💡 O motor garantirá que esta terapia não tenha choque de horário com as demais terapias de {addDemandModalState.patientName}.
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setAddDemandModalState({ ...addDemandModalState, isOpen: false })}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary">
-                  Adicionar Demanda & Recalcular
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: Cadastrar Fisioterapeuta com Janelas de Horário Diárias */}
-      {isNewTherapistModalOpen && (
-        <div className="planner-modal-backdrop" onClick={() => setIsNewTherapistModalOpen(false)}>
-          <div className="planner-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                <UserPlus size={20} color="#059669" />
-                Cadastrar Fisioterapeuta / Terapeuta
-              </h3>
-              <button className="modal-close-btn" onClick={() => setIsNewTherapistModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateNewTherapist}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Nome do Terapeuta *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Dra. Larissa Prado"
-                    className="planner-input"
-                    value={newTherapistForm.professionalName}
-                    onChange={(e) => setNewTherapistForm({ ...newTherapistForm, professionalName: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Especialidade de Atuação *</label>
-                  <select
-                    className="planner-select"
-                    value={newTherapistForm.specialty}
-                    onChange={(e) => setNewTherapistForm({ ...newTherapistForm, specialty: e.target.value })}
-                  >
-                    {THERAPY_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Região da Base de Saída (Ponto de Partida do Profissional)</label>
-                  <select
-                    className="planner-select"
-                    value={newTherapistForm.neighborhood}
-                    onChange={(e) => setNewTherapistForm({ ...newTherapistForm, neighborhood: e.target.value })}
-                  >
-                    {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
-                      <option key={neigh} value={neigh}>{neigh}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Janela de Horário Diária (Segunda a Sexta) */}
-                <div className="form-group">
-                  <label>Jornada Diária por Dia da Semana (Horário de Início e Fim):</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {[1, 2, 3, 4, 5].map((dayNum) => {
-                      const win = newTherapistForm.weekdayWindows[dayNum];
-                      return (
-                        <div key={dayNum} className={`time-window-row ${!win.enabled ? 'disabled' : ''}`}>
-                          <label className="day-check-label">
+                  <div className="form-group">
+                    <label>Vincular Imediatamente aos Pacientes no Care Team:</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {patientsWithDemands.map((pat) => {
+                        const isSelected = newTherapistForm.assignedPatientIds.includes(pat.patientId);
+                        return (
+                          <label
+                            key={pat.patientId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }}
+                          >
                             <input
                               type="checkbox"
-                              checked={win.enabled}
-                              onChange={() => {
-                                setNewTherapistForm({
-                                  ...newTherapistForm,
-                                  weekdayWindows: {
-                                    ...newTherapistForm.weekdayWindows,
-                                    [dayNum]: { ...win, enabled: !win.enabled }
-                                  }
-                                });
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const nextIds = e.target.checked
+                                  ? [...newTherapistForm.assignedPatientIds, pat.patientId]
+                                  : newTherapistForm.assignedPatientIds.filter((id) => id !== pat.patientId);
+                                setNewTherapistForm({ ...newTherapistForm, assignedPatientIds: nextIds });
                               }}
                             />
-                            {WEEKDAY_NAMES[dayNum]}
+                            {pat.patientName} ({pat.demands.map((d) => d.therapyType).join(', ')})
                           </label>
-
-                          {win.enabled ? (
-                            <div className="time-range-inputs">
-                              <span>das</span>
-                              <input
-                                type="time"
-                                className="time-input-compact"
-                                value={win.startTime}
-                                onChange={(e) => {
-                                  setNewTherapistForm({
-                                    ...newTherapistForm,
-                                    weekdayWindows: {
-                                      ...newTherapistForm.weekdayWindows,
-                                      [dayNum]: { ...win, startTime: e.target.value }
-                                    }
-                                  });
-                                }}
-                              />
-                              <span>às</span>
-                              <input
-                                type="time"
-                                className="time-input-compact"
-                                value={win.endTime}
-                                onChange={(e) => {
-                                  setNewTherapistForm({
-                                    ...newTherapistForm,
-                                    weekdayWindows: {
-                                      ...newTherapistForm.weekdayWindows,
-                                      [dayNum]: { ...win, endTime: e.target.value }
-                                    }
-                                  });
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                              Folga / Outros pacientes externos
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Vincular Imediatamente aos Pacientes no Care Team:</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {patientsWithDemands.map((pat) => {
-                      const isSelected = newTherapistForm.assignedPatientIds.includes(pat.patientId);
-                      return (
-                        <label
-                          key={pat.patientId}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.85rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              const nextIds = e.target.checked
-                                ? [...newTherapistForm.assignedPatientIds, pat.patientId]
-                                : newTherapistForm.assignedPatientIds.filter((id) => id !== pat.patientId);
-                              setNewTherapistForm({ ...newTherapistForm, assignedPatientIds: nextIds });
-                            }}
-                          />
-                          {pat.patientName} ({pat.demands.map((d) => d.therapyType).join(', ')})
-                        </label>
-                      );
-                    })}
-                  </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setIsTherapistManagementModalOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    style={{ background: '#059669', fontWeight: 700 }}
+                  >
+                    Salvar Fisioterapeuta Sem Conta & Recalcular
+                  </button>
                 </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setIsNewTherapistModalOpen(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ background: '#059669' }}
-                >
-                  Cadastrar Terapeuta & Recalcular
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}

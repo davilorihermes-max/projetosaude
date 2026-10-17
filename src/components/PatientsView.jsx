@@ -9,7 +9,10 @@ import {
   Calendar,
   CalendarPlus,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Stethoscope,
+  Edit,
+  MapPin
 } from 'lucide-react';
 import './PatientsView.css';
 import Avatar from './Avatar';
@@ -18,15 +21,14 @@ export default function PatientsView({
   patients = [],
   appointments = [],
   activeDoctor,
+  doctors = [],
   onOpenNewPatient,
+  onEditPatient,
   onOpenNewAppointment,
   onNavigateToPlanner
 }) {
   const [search, setSearch] = useState('');
-  const [selectedInsurance, setSelectedInsurance] = useState('all');
   const [scope, setScope] = useState(activeDoctor && activeDoctor.id !== 'all' ? 'my' : 'all');
-
-  const insuranceOptions = ['all', 'Unimed Pleno', 'Bradesco Saúde Top', 'SulAmérica Exato', 'Amil Fácil', 'Particular'];
 
   // IDs de pacientes vinculados aos atendimentos do profissional ativo
   const myPatientIds = new Set(
@@ -40,15 +42,13 @@ export default function PatientsView({
     : patients;
 
   const filteredPatients = scopedPatients.filter((patient) => {
-    const matchesSearch =
-      patient.name.toLowerCase().includes(search.toLowerCase()) ||
-      (patient.cpf && patient.cpf.includes(search)) ||
-      (patient.phone && patient.phone.includes(search));
-
-    const matchesInsurance =
-      selectedInsurance === 'all' || patient.insurance === selectedInsurance;
-
-    return matchesSearch && matchesInsurance;
+    const term = search.toLowerCase();
+    return (
+      patient.name.toLowerCase().includes(term) ||
+      (patient.cpf && patient.cpf.includes(term)) ||
+      (patient.phone && patient.phone.includes(term)) ||
+      (patient.address && patient.address.toLowerCase().includes(term))
+    );
   });
 
   const myCount = patients.filter((p) => myPatientIds.has(p.id)).length;
@@ -78,7 +78,7 @@ export default function PatientsView({
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por nome, CPF ou fone..."
+              placeholder="Buscar por nome, endereço ou fone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -105,7 +105,7 @@ export default function PatientsView({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <ShieldCheck size={20} color="var(--primary)" />
           <span style={{ fontSize: '0.85rem', color: 'var(--text-headline)' }}>
-            <strong>Necessidades Terapêuticas & Escala Mensal:</strong> Cada paciente pode ter até 3 demandas terapêuticas cruzadas com os horários reais dos terapeutas.
+            <strong>Demandas Terapêuticas & Care Team:</strong> Cada paciente possui suas terapias cadastradas no perfil e uma equipe autorizada para atendimento domiciliar.
           </span>
         </div>
         {onNavigateToPlanner && (
@@ -114,14 +114,14 @@ export default function PatientsView({
             style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem', fontWeight: 600 }}
             onClick={onNavigateToPlanner}
           >
-            ⚙️ Abrir Planejador de Demandas & Horários ➡️
+            ⚙️ Abrir Planejador Mensal de Escalas ➡️
           </button>
         )}
       </div>
 
-      {/* Scope and Filters Bar */}
-      <div className="patients-filters-bar">
-        {activeDoctor && activeDoctor.id !== 'all' && (
+      {/* Scope Filter Bar */}
+      {activeDoctor && activeDoctor.id !== 'all' && (
+        <div className="patients-filters-bar" style={{ marginBottom: '1rem' }}>
           <div className="scope-tabs">
             <button
               className={`scope-tab ${scope === 'my' ? 'active' : ''}`}
@@ -136,20 +136,8 @@ export default function PatientsView({
               <Users size={14} /> Todos da Clínica ({patients.length})
             </button>
           </div>
-        )}
-
-        <div className="insurance-filters">
-          {insuranceOptions.map((ins) => (
-            <button
-              key={ins}
-              className={`filter-chip ${selectedInsurance === ins ? 'active' : ''}`}
-              onClick={() => setSelectedInsurance(ins)}
-            >
-              {ins === 'all' ? 'Todos os Convênios' : ins}
-            </button>
-          ))}
         </div>
-      </div>
+      )}
 
       {/* Patients Grid */}
       <div className="patients-grid">
@@ -165,8 +153,8 @@ export default function PatientsView({
             </h3>
             <p>
               {scope === 'my'
-                ? 'Sua conta é nova e você ainda não possui pacientes vinculados ao seu Care Team ou com atendimentos agendados. Você pode cadastrar um paciente ou visualizar o cadastro geral da clínica.'
-                : 'Tente alterar os termos de busca ou selecionar outro convênio.'}
+                ? 'Sua conta ainda não possui pacientes vinculados ao seu Care Team. Você pode cadastrar um paciente ou visualizar o cadastro geral da clínica.'
+                : 'Tente alterar os termos de busca.'}
             </p>
             <div className="empty-patients-actions">
               <button className="btn btn-primary" onClick={onOpenNewPatient}>
@@ -181,6 +169,13 @@ export default function PatientsView({
           </div>
         ) : (
           filteredPatients.map((patient) => {
+            // Nomes dos profissionais do Care Team deste paciente
+            const careTeamDocIds = patient.careTeamProfessionalIds ||
+              patient.careTeamMembers?.map((m) => m.professionalId || m) || [];
+            const careTeamDocNames = doctors
+              .filter((d) => careTeamDocIds.includes(d.id))
+              .map((d) => d.name);
+
             return (
               <div key={patient.id} className="patient-card">
                 <div className="patient-card-header">
@@ -195,46 +190,76 @@ export default function PatientsView({
                     <p>
                       {patient.age} anos • {patient.gender}
                     </p>
-                    <span className="badge badge-scheduled" style={{ marginTop: '0.25rem' }}>
-                      {patient.insurance}
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {patient.phone || 'Sem telefone informado'}
                     </span>
                   </div>
                 </div>
 
                 <div className="patient-card-body">
                   <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>📍 Domicílio:</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                      <MapPin size={13} /> Domicílio:
+                    </span>
                     <strong style={{ fontSize: '0.8rem', textAlign: 'right', maxWidth: '65%' }}>
                       {patient.address || 'São Paulo - SP'}
                     </strong>
                   </div>
+
                   {patient.caregiver && (
                     <div className="patient-metric-row">
                       <span style={{ color: 'var(--text-muted)' }}>Cuidador(a):</span>
                       <span style={{ fontSize: '0.78rem' }}>{patient.caregiver}</span>
                     </div>
                   )}
-                  {patient.mobilityStatus && (
-                    <div className="patient-metric-row">
-                      <span style={{ color: 'var(--text-muted)' }}>Mobilidade:</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)' }}>
-                        {patient.mobilityStatus}
+
+                  {/* Demandas Terapêuticas Cadastradas */}
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                      🩺 Demandas Terapêuticas ({patient.demands?.length || 0}):
+                    </span>
+                    {patient.demands && patient.demands.length > 0 ? (
+                      patient.demands.map((d, i) => (
+                        <div
+                          key={d.id || i}
+                          style={{
+                            fontSize: '0.74rem',
+                            background: 'var(--primary-subtle)',
+                            color: 'var(--primary)',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                            {d.therapyType}
+                          </span>
+                          <span>{d.sessionsPerWeek}x/sem</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Nenhuma terapia cadastrada
                       </span>
-                    </div>
-                  )}
-                  <div className="patient-metric-row">
-                    <span style={{ color: 'var(--text-muted)' }}>📞 Contato:</span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{patient.phone}</span>
+                    )}
                   </div>
-                  {patient.accessNotes && (
-                    <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      🔑 {patient.accessNotes}
+
+                  {/* Equipe do Care Team */}
+                  {careTeamDocNames.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.74rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.4rem' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>🛡️ Care Team: </span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-headline)' }}>
+                        {careTeamDocNames.join(', ')}
+                      </span>
                     </div>
                   )}
                 </div>
 
                 <div className="patient-card-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {onNavigateToPlanner && (
+                  {onEditPatient && (
                     <button
                       className="btn btn-secondary"
                       style={{
@@ -251,9 +276,9 @@ export default function PatientsView({
                         fontWeight: 600,
                         cursor: 'pointer'
                       }}
-                      onClick={onNavigateToPlanner}
+                      onClick={() => onEditPatient(patient)}
                     >
-                      ⚙️ Configurar Demandas (Até 3) & Escala
+                      <Edit size={14} /> Editar Cadastro & Demandas
                     </button>
                   )}
                   <button
