@@ -5,6 +5,8 @@ import jwt from '@fastify/jwt';
 import dotenv from 'dotenv';
 import { authRoutes } from './routes/auth.routes.js';
 import { schedulerRoutes } from './routes/scheduler.routes.js';
+import { financialRoutes } from './routes/financial.routes.js';
+
 
 import fs from 'fs';
 import path from 'path';
@@ -44,6 +46,7 @@ export function buildServer(): FastifyInstance {
   // Registro de Rotas
   server.register(authRoutes, { prefix: '/api/auth' });
   server.register(schedulerRoutes, { prefix: '/api/scheduler' });
+  server.register(financialRoutes, { prefix: '/api/financial' });
 
   return server;
 }

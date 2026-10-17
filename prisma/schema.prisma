@@ -21,32 +21,35 @@ model User {
 }
 
 model Professional {
-  id           String           @id @default(cuid())
-  userId       String           @unique
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  crm          String
-  specialty    String
-  latitude     Float?
-  longitude    Float?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  careTeams    CareTeamMember[]
-  appointments Appointment[]
+  id                   String                @id @default(cuid())
+  userId               String                @unique
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crm                  String
+  specialty            String
+  latitude             Float?
+  longitude            Float?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  careTeams            CareTeamMember[]
+  appointments         Appointment[]
+  contextualPrices     ContextualPrice[]
+  financialSettlements FinancialSettlement[]
 }
 
 model Patient {
-  id              String           @id @default(cuid())
-  name            String
-  cpf             String           @unique
-  email           String?
-  phone           String?
-  latitude        Float
-  longitude       Float
-  address         String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  careTeamMembers CareTeamMember[]
-  appointments    Appointment[]
+  id               String            @id @default(cuid())
+  name             String
+  cpf              String            @unique
+  email            String?
+  phone            String?
+  latitude         Float
+  longitude        Float
+  address          String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  careTeamMembers  CareTeamMember[]
+  appointments     Appointment[]
+  contextualPrices ContextualPrice[]
 }
 
 model CareTeamMember {
@@ -64,17 +67,74 @@ model CareTeamMember {
 }
 
 model Appointment {
+  id              String          @id @default(cuid())
+  professionalId  String
+  professional    Professional    @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  scheduledTime   DateTime
+  durationMinutes Int             @default(45)
+  status          String          @default("SCHEDULED") // "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
+  latitude        Float?
+  longitude       Float?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  settlementItem  SettlementItem?
+}
+
+// Matriz de Precificação Contextual: Profissional x Paciente x Endereço
+model ContextualPrice {
   id              String       @id @default(cuid())
   professionalId  String
   professional    Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   patientId       String
   patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  scheduledTime   DateTime
-  durationMinutes Int          @default(45)
-  status          String       @default("SCHEDULED") // "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
-  latitude        Float?
-  longitude       Float?
+  address         String?      // Endereço específico se houver, ou nulo para o endereço principal do paciente
+  pricePerSession Float        @default(150.0)
   notes           String?
+  effectiveFrom   DateTime     @default(now())
+  effectiveTo     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+
+  @@index([professionalId, patientId])
 }
+
+// Fechamento Financeiro Consolidado (Mensal, Decendial, Semanal)
+model FinancialSettlement {
+  id               String           @id @default(cuid())
+  professionalId   String
+  professional     Professional     @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  periodType       String           @default("MONTHLY") // "MONTHLY", "DECENDIAL", "WEEKLY"
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalSessions    Int              @default(0)
+  totalGrossAmount Float            @default(0.0)
+  status           String           @default("DRAFT") // "DRAFT", "PENDING_REVIEW", "APPROVED", "PAID", "CANCELLED"
+  approvedAt       DateTime?
+  paidAt           DateTime?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  items            SettlementItem[]
+
+  @@index([professionalId, periodStart, periodEnd])
+}
+
+// Snapshots Imutáveis dos Atendimentos Faturados
+model SettlementItem {
+  id                  String              @id @default(cuid())
+  settlementId        String
+  settlement          FinancialSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  appointmentId       String              @unique
+  appointment         Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientNameSnapshot String
+  addressSnapshot     String
+  executedAt          DateTime
+  chargedAmount       Float
+  createdAt           DateTime            @default(now())
+
+  @@index([settlementId])
+}
+
