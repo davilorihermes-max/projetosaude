@@ -294,8 +294,8 @@ export default function NewAppointmentModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          <div className="modal-body" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
             {submitError && (
               <div
                 style={{
@@ -553,7 +553,7 @@ export default function NewAppointmentModal({
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ flexShrink: 0, position: 'sticky', bottom: 0, zIndex: 10 }}>
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
               Cancelar
             </button>
@@ -563,10 +563,16 @@ export default function NewAppointmentModal({
               disabled={saving || viability?.viable === false}
               style={{
                 opacity: viability?.viable === false ? 0.6 : 1,
-                cursor: viability?.viable === false ? 'not-allowed' : 'pointer'
+                cursor: viability?.viable === false ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.65rem 1.25rem'
               }}
             >
-              {saving ? 'Confirmando Agendamento...' : 'Confirmar Sessão na Rota'}
+              <CalendarPlus size={16} />
+              {saving ? 'Salvando Sessão...' : 'Salvar e Agendar Sessão'}
             </button>
           </div>
         </form>
