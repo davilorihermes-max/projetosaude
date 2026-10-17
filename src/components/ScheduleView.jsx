@@ -12,7 +12,8 @@ import {
   Filter,
   UserCheck,
   Car,
-  MapPin
+  MapPin,
+  Sparkles
 } from 'lucide-react';
 import './ScheduleView.css';
 import Avatar from './Avatar';
@@ -42,18 +43,27 @@ export default function ScheduleView({
   onOpenNewAppointment,
   selectedDoctorId,
   setSelectedDoctorId,
-  initialSelectedDate
+  initialSelectedDate,
+  onLoadPlannedScale
 }) {
   const allDatesWithApts = React.useMemo(() => {
     return Array.from(new Set(appointments.map((a) => a.date).filter(Boolean))).sort();
   }, [appointments]);
 
+  const plannedSessionsCount = React.useMemo(() => {
+    return appointments.filter((a) => a.isPlannedScale || String(a.id || '').startsWith('apt-plan-')).length;
+  }, [appointments]);
+
+  const [toastMsg, setToastMsg] = useState('');
+
   const [selectedDate, setSelectedDate] = useState(() => {
-    if (initialSelectedDate) return initialSelectedDate;
+    if (initialSelectedDate && appointments.some((a) => a.date === initialSelectedDate)) {
+      return initialSelectedDate;
+    }
     const today = new Date().toISOString().slice(0, 10);
     if (appointments.some((a) => a.date === today)) return today;
     if (appointments.length > 0 && appointments[0].date) return appointments[0].date;
-    return today;
+    return initialSelectedDate || today;
   });
 
   // Atualiza data se initialSelectedDate mudar externamente
@@ -171,11 +181,58 @@ export default function ScheduleView({
           >
             Hoje
           </button>
+          {onLoadPlannedScale && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{
+                fontSize: '0.8rem',
+                padding: '0.45rem 0.75rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: 'var(--primary)',
+                borderColor: 'var(--primary)',
+                background: 'var(--primary-subtle)'
+              }}
+              onClick={() => {
+                const count = onLoadPlannedScale();
+                setToastMsg(`✓ ${count} sessões da escala planejada sincronizadas na agenda!`);
+                setTimeout(() => setToastMsg(''), 4500);
+              }}
+              title="Carregar ou atualizar sessões geradas pelo motor de escala mensal na agenda"
+            >
+              <Sparkles size={14} /> Carregar Escala Planejada {plannedSessionsCount > 0 ? `(${plannedSessionsCount})` : ''}
+            </button>
+          )}
           <button className="btn btn-primary" onClick={() => onOpenNewAppointment(null, '09:00', selectedDate)}>
             <Plus size={16} /> Nova Sessão Domiciliar
           </button>
         </div>
       </div>
+
+      {/* Mensagem Toast de Sucesso */}
+      {toastMsg && (
+        <div
+          style={{
+            background: '#ecfdf5',
+            color: '#065f46',
+            border: '1px solid #a7f3d0',
+            padding: '0.65rem 1.15rem',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.86rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            animation: 'fadeIn 0.2s ease-in-out'
+          }}
+        >
+          <CheckCircle2 size={16} color="#059669" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -298,7 +355,27 @@ export default function ScheduleView({
               {otherDatesWithApts.length > 0 && ` Há sessões agendadas em: ${otherDatesWithApts.join(', ')}.`}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {onLoadPlannedScale && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.35rem 0.75rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+                onClick={() => {
+                  const count = onLoadPlannedScale();
+                  setToastMsg(`✓ ${count} sessões da escala planejada sincronizadas na agenda!`);
+                  setTimeout(() => setToastMsg(''), 4500);
+                }}
+              >
+                <Sparkles size={14} /> Carregar Escala Planejada
+              </button>
+            )}
             {selectedDoctorId !== 'all' && setSelectedDoctorId && (
               <button
                 className="btn btn-secondary"
@@ -310,7 +387,7 @@ export default function ScheduleView({
             )}
             {otherDatesWithApts.length > 0 && (
               <button
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 style={{ fontSize: '0.8rem', padding: '0.35rem 0.7rem' }}
                 onClick={() => setSelectedDate(otherDatesWithApts[0])}
               >
@@ -630,6 +707,25 @@ export default function ScheduleView({
                               ⏰ {aptInSlot.time} às {endTime} ({aptInSlot.durationMinutes || 45} min)
                             </span>
                             {getStatusBadge(aptInSlot.status)}
+                            {(aptInSlot.isPlannedScale || String(aptInSlot.id || '').startsWith('apt-plan-')) && (
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  background: 'rgba(16, 185, 129, 0.12)',
+                                  color: '#047857',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Atendimento gerado pelo motor de escala planejada mensal"
+                              >
+                                <Sparkles size={11} /> Escala Planejada
+                              </span>
+                            )}
                             {/* Destaque do tempo de deslocamento urbano */}
                             {(aptInSlot.transitTimeMinutes !== undefined && aptInSlot.transitTimeMinutes > 0) ? (
                               <span
