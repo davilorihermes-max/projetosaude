@@ -1,33 +1,58 @@
 // src/components/MonthlyFinancialSettlementView.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Wallet,
   Calendar,
   DollarSign,
   TrendingUp,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  AlertTriangle,
-  FileSpreadsheet,
-  RefreshCw,
   Plus,
-  Eye,
-  CreditCard,
   MapPin,
-  Users,
   X,
-  FileText
+  FileSpreadsheet,
+  Printer,
+  Trash2,
+  Edit2,
+  AlertCircle,
+  Building,
+  Home,
+  CheckCircle2
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import Avatar from './Avatar';
-import { API_BASE_URL } from '../services/apiConfig';
 import './MonthlyFinancialSettlementView.css';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+
+// Feriados Nacionais Brasileiros (Mês 1-indexado)
+const BRAZILIAN_HOLIDAYS = [
+  '01-01', // Confraternização Universal
+  '21-04', // Tiradentes
+  '01-05', // Dia do Trabalho
+  '07-09', // Independência do Brasil
+  '12-10', // Nossa Senhora Aparecida
+  '02-11', // Finados
+  '15-11', // Proclamação da República
+  '20-11', // Dia da Consciência Negra
+  '25-12'  // Natal
+];
+
+/**
+ * Classifica a data do atendimento: 'HOLIDAY' | 'WEEKEND' | 'WEEKDAY'
+ */
+function classifyDate(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return 'WEEKDAY';
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const key = `${day}-${month}`;
+  if (BRAZILIAN_HOLIDAYS.includes(key)) return 'HOLIDAY';
+
+  const dayOfWeek = dateObj.getDay(); // 0 = Domingo, 6 = Sábado
+  if (dayOfWeek === 0 || dayOfWeek === 6) return 'WEEKEND';
+
+  return 'WEEKDAY';
+}
 
 export default function MonthlyFinancialSettlementView({
   doctors = [],
@@ -37,327 +62,516 @@ export default function MonthlyFinancialSettlementView({
 }) {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
-  const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing' | 'history'
+  const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing'
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Dados da API
-  const [summary, setSummary] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [settlements, setSettlements] = useState([]);
-  const [pricingRules, setPricingRules] = useState([]);
-
-  // Modais
-  const [detailModalItem, setDetailModalItem] = useState(null);
-  const [isNewPriceModalOpen, setIsNewPriceModalOpen] = useState(false);
-
-  // Form State para Novo Preço Contextual
-  const [newPriceProId, setNewPriceProId] = useState('');
-  const [newPricePatientId, setNewPricePatientId] = useState('');
-  const [newPriceAddress, setNewPriceAddress] = useState('');
-  const [newPriceAmount, setNewPriceAmount] = useState('180.00');
-  const [newPriceNotes, setNewPriceNotes] = useState('');
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('omnihome_jwt');
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  // Identifica o profissional estritamente logado
+  const activeProfessional = useMemo(() => {
+    if (currentUser) {
+      const match = (doctors || []).find(
+        (d) => d.id === currentUser.id || d.userId === currentUser.id || d.email === currentUser.email
+      );
+      if (match) return match;
     }
-    return headers;
-  };
+    return doctors[0] || {
+      id: 'doc-1',
+      name: 'Dr. Profissional',
+      crm: 'CREFITO Ativo',
+      specialty: 'Fisioterapia Domiciliar'
+    };
+  }, [currentUser, doctors]);
 
-  const fetchFinancialData = async () => {
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const headers = getAuthHeaders();
-
-      // 1. Busca Prévia do Mês
-      const resPreview = await fetch(
-        `${API_BASE_URL}/api/financial/preview?year=${selectedYear}&month=${selectedMonth}`,
-        { headers }
-      );
-      if (resPreview.ok) {
-        const data = await resPreview.json();
-        setPreview(data.preview);
-      }
-
-      // 2. Busca Resumo de KPIs
-      const resSummary = await fetch(
-        `${API_BASE_URL}/api/financial/summary?year=${selectedYear}&month=${selectedMonth}`,
-        { headers }
-      );
-      if (resSummary.ok) {
-        const data = await resSummary.json();
-        setSummary(data.summary);
-      }
-
-      // 3. Busca Fechamentos Existentes
-      const resSettlements = await fetch(
-        `${API_BASE_URL}/api/financial/settlements`,
-        { headers }
-      );
-      if (resSettlements.ok) {
-        const data = await resSettlements.json();
-        setSettlements(data.settlements || []);
-      }
-
-      // 4. Busca Matriz de Preços
-      const resPricing = await fetch(
-        `${API_BASE_URL}/api/financial/pricing`,
-        { headers }
-      );
-      if (resPricing.ok) {
-        const data = await resPricing.json();
-        setPricingRules(data.prices || []);
-      }
-    } catch (err) {
-      console.warn('Sincronização com backend financeiro em modo offline/local:', err);
-    } finally {
-      setLoading(false);
+  // Regras de precificação configuradas pelo profissional
+  const [pricingRules, setPricingRules] = useState(() => {
+    const saved = localStorage.getItem(`omnihome_pricing_${activeProfessional?.id}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
     }
-  };
+    // Regras padrão iniciais para demonstração
+    return [
+      {
+        id: 'rule-demo-1',
+        patientId: 'pat-1',
+        patientName: 'Mariana Souza Lima',
+        locationType: 'HOME',
+        locationName: 'Domicílio Principal',
+        dayType: 'WEEKDAY',
+        hourlyRate: 150.0,
+        fixedPrice: 150.0,
+        notes: 'Sessão padrão dias úteis'
+      },
+      {
+        id: 'rule-demo-2',
+        patientId: 'pat-1',
+        patientName: 'Mariana Souza Lima',
+        locationType: 'HOME',
+        locationName: 'Domicílio Principal',
+        dayType: 'WEEKEND',
+        hourlyRate: 200.0,
+        fixedPrice: 200.0,
+        notes: 'Plantão de fim de semana'
+      },
+      {
+        id: 'rule-demo-3',
+        patientId: 'pat-4',
+        patientName: 'Gabriel Santos Oliveira',
+        locationType: 'HOME',
+        locationName: 'Domicílio Principal',
+        dayType: 'WEEKDAY',
+        hourlyRate: 180.0,
+        fixedPrice: 180.0,
+        notes: 'Fisioterapia cardiorrespiratória'
+      }
+    ];
+  });
 
-  // Carrega dados ao montar e quando ano/mês mudar
+  // Salva regras no localStorage sempre que alteradas
   useEffect(() => {
-    fetchFinancialData();
-  }, [selectedYear, selectedMonth]);
+    if (activeProfessional?.id) {
+      localStorage.setItem(`omnihome_pricing_${activeProfessional.id}`, JSON.stringify(pricingRules));
+    }
+  }, [pricingRules, activeProfessional]);
 
-  // Se a API ainda não sincronizou, computa prévia com base nos dados locais de doctors e appointments
-  const effectivePreview = preview || (() => {
-    if (!doctors || doctors.length === 0) return null;
+  // Lista local e editável de atendimentos do mês para este profissional
+  const [settlementSessions, setSettlementSessions] = useState([]);
 
-    const proSummaries = doctors.map((doc) => {
-      const proApts = (appointments || []).filter((apt) => {
-        if (!apt) return false;
-        const aptDocId = apt.doctorId || apt.professionalId;
-        if (aptDocId !== doc.id) return false;
-        if (apt.status === 'cancelled') return false;
+  // Resolve o preço para um determinado paciente, local e data
+  const resolvePrice = useCallback((patientId, _address, dateObj, durationMinutes = 60) => {
+    const dayCategory = classifyDate(dateObj);
 
-        const dateStr = apt.date || apt.scheduledTime;
-        if (!dateStr) return false;
-        const aptDate = new Date(dateStr);
-        if (isNaN(aptDate.getTime())) return false;
+    // 1. Procura regra com paciente + dia correspondente (ou ANY_DAY) + local correspondente
+    const matchingRule = pricingRules.find((r) => {
+      if (r.patientId !== patientId) return false;
+      const dayMatches = r.dayType === 'ANY_DAY' || r.dayType === dayCategory;
+      return dayMatches;
+    });
 
-        return aptDate.getMonth() + 1 === selectedMonth && aptDate.getFullYear() === selectedYear;
-      });
+    if (matchingRule) {
+      const rate = matchingRule.hourlyRate || (matchingRule.fixedPrice ? (matchingRule.fixedPrice / (durationMinutes / 60)) : 150.0);
+      const total = (rate * durationMinutes) / 60;
+      return {
+        hourlyRate: rate,
+        totalAmount: Math.round(total * 100) / 100,
+        ruleApplied: `${matchingRule.dayType === 'WEEKEND' ? 'Fim de Semana' : matchingRule.dayType === 'HOLIDAY' ? 'Feriado' : 'Dia Útil'} (${matchingRule.locationName || 'Domicílio'})`
+      };
+    }
 
-      const items = proApts.map((apt) => {
-        const pat = (patients || []).find((p) => p.id === apt.patientId) || {};
-        return {
-          appointmentId: apt.id,
-          patientId: apt.patientId || 'pat-1',
-          patientName: pat.name || apt.patientName || 'Paciente',
-          patientAddress: pat.address || apt.address || 'Vitória - ES',
-          scheduledTime: apt.date ? `${apt.date}T${apt.time || '09:00'}:00` : (apt.scheduledTime || new Date().toISOString()),
-          chargedAmount: 180.0,
-          ruleApplied: 'PATIENT_DEFAULT',
-          status: apt.status || 'COMPLETED'
-        };
-      });
+    // Preço base fallback
+    const fallbackRate = dayCategory === 'WEEKEND' ? 180.0 : dayCategory === 'HOLIDAY' ? 220.0 : 150.0;
+    const fallbackTotal = (fallbackRate * durationMinutes) / 60;
+    return {
+      hourlyRate: fallbackRate,
+      totalAmount: Math.round(fallbackTotal * 100) / 100,
+      ruleApplied: 'Tarifa Base Padrão'
+    };
+  }, [pricingRules]);
 
-      const totalGross = items.reduce((acc, it) => acc + it.chargedAmount, 0);
+  // Inicializa as sessões do mês com base nos agendamentos da agenda
+  useEffect(() => {
+    if (!activeProfessional?.id) return;
+
+    // Filtra agendamentos do profissional no mês/ano
+    const proApts = (appointments || []).filter((apt) => {
+      if (!apt) return false;
+      const aptDocId = apt.doctorId || apt.professionalId;
+      if (aptDocId !== activeProfessional.id) return false;
+      if (apt.status === 'cancelled') return false;
+
+      const dateStr = apt.date || apt.scheduledTime;
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+
+      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
+    });
+
+    const parsedSessions = proApts.map((apt) => {
+      const pat = (patients || []).find((p) => p.id === apt.patientId) || {};
+      const dateStr = apt.date || (apt.scheduledTime ? apt.scheduledTime.split('T')[0] : '2026-10-01');
+      const timeStr = apt.time || (apt.scheduledTime ? apt.scheduledTime.split('T')[1]?.slice(0, 5) : '09:00');
+      const dateObj = new Date(`${dateStr}T${timeStr}:00`);
+      const duration = Number(apt.durationMinutes || apt.duration || 60);
+
+      const pricing = resolvePrice(apt.patientId, pat.address || apt.address, dateObj, duration);
 
       return {
-        professionalId: doc.id,
-        professionalName: doc.name,
-        councilRegistration: doc.councilNumber || doc.crm || 'CREFITO Ativo',
-        specialty: doc.specialty || doc.profession || 'Fisioterapia Domiciliar',
-        totalSessions: items.length,
-        totalGrossAmount: totalGross,
-        items,
-        unpricedAlerts: []
+        id: apt.id || `sess-${Date.now()}-${Math.random()}`,
+        patientId: apt.patientId || 'pat-1',
+        patientName: pat.name || apt.patientName || 'Paciente',
+        patientAddress: pat.address || apt.address || 'Vitória - ES',
+        locationType: 'HOME',
+        dateStr,
+        timeStr,
+        durationMinutes: duration,
+        hourlyRate: pricing.hourlyRate,
+        totalAmount: pricing.totalAmount,
+        ruleApplied: pricing.ruleApplied,
+        status: apt.status || 'COMPLETED'
       };
     });
 
-    const totalSessions = proSummaries.reduce((acc, p) => acc + p.totalSessions, 0);
-    const totalGross = proSummaries.reduce((acc, p) => acc + p.totalGrossAmount, 0);
+    // Ordena por data e hora crescente
+    parsedSessions.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
 
-    return {
-      periodType: 'MONTHLY',
-      year: selectedYear,
-      month: selectedMonth,
-      totalSessions,
-      totalGrossAmount: totalGross,
-      professionals: proSummaries
-    };
-  })();
+    setSettlementSessions(parsedSessions);
+  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice]);
 
-  // Gerar Fechamento
-  const handleGenerateSettlement = async (professionalId) => {
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/financial/settlements/generate`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          professionalId,
-          year: selectedYear,
-          month: selectedMonth,
-          allowUnpricedOverride: true
-        })
-      });
+  // Agrupamento por Paciente
+  const groupedByPatient = useMemo(() => {
+    const groups = {};
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Falha ao consolidar fechamento.');
+    settlementSessions.forEach((sess) => {
+      if (!groups[sess.patientId]) {
+        const pat = (patients || []).find((p) => p.id === sess.patientId) || {};
+        groups[sess.patientId] = {
+          patientId: sess.patientId,
+          patientName: sess.patientName,
+          patientAddress: sess.patientAddress || pat.address || 'Vitória - ES',
+          phone: pat.phone || pat.responsiblePhone || '(27) 99999-0000',
+          responsibleName: pat.responsibleName || pat.financialResponsible || pat.name,
+          sessions: [],
+          totalDurationMinutes: 0,
+          totalAmount: 0
+        };
       }
 
-      setSuccessMsg(`Fechamento financeiro de ${data.settlement?.professional?.user?.name || 'Profissional'} gerado em DRAFT!`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-      fetchFinancialData();
-    } catch (err) {
-      // Fallback local se a API exigir autenticação
-      setSuccessMsg('Fechamento consolidado localmente em status DRAFT!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
+      groups[sess.patientId].sessions.push(sess);
+      groups[sess.patientId].totalDurationMinutes += Number(sess.durationMinutes || 0);
+      groups[sess.patientId].totalAmount += Number(sess.totalAmount || 0);
+    });
 
-  // Aprovar Fechamento
-  const handleApproveSettlement = async (settlementId) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/financial/settlements/${settlementId}/approve`, {
-        method: 'PATCH',
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro ao aprovar fechamento.');
+    return Object.values(groups);
+  }, [settlementSessions, patients]);
 
-      setSuccessMsg('Fechamento aprovado formalmente com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-      fetchFinancialData();
-    } catch (err) {
-      setSuccessMsg('Fechamento aprovado formalmente com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Totais Gerais do Mês do Profissional
+  const monthTotals = useMemo(() => {
+    const totalSessions = settlementSessions.length;
+    const totalMinutes = settlementSessions.reduce((acc, s) => acc + Number(s.durationMinutes || 0), 0);
+    const totalAmount = settlementSessions.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+    const totalPatients = groupedByPatient.length;
 
-  // Liquidar Fechamento (Marcar como Pago)
-  const handleMarkAsPaid = async (settlementId) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/financial/settlements/${settlementId}/pay`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ notes: 'Repasse via PIX liquidado' })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro ao liquidar fechamento.');
+    return {
+      totalSessions,
+      totalHours: (totalMinutes / 60).toFixed(1),
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      totalPatients
+    };
+  }, [settlementSessions, groupedByPatient]);
 
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+  // Modais de Edição e Inclusão de Atendimentos
+  const [editingSession, setEditingSession] = useState(null);
+  const [isAddSessionModalOpen, setIsAddSessionModalOpen] = useState(false);
+  const [newSessionPatientId, setNewSessionPatientId] = useState('');
+  const [newSessionDate, setNewSessionDate] = useState('2026-10-05');
+  const [newSessionTime, setNewSessionTime] = useState('09:00');
+  const [newSessionDuration, setNewSessionDuration] = useState(60);
+  const [newSessionHourlyRate, setNewSessionHourlyRate] = useState(150.0);
+  const [newSessionTotal, setNewSessionTotal] = useState(150.0);
+  const [newSessionAddress, setNewSessionAddress] = useState('');
 
-      setSuccessMsg('Repasse liquidado como PAGO com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-      fetchFinancialData();
-    } catch (err) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-      setSuccessMsg('Repasse liquidado como PAGO com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Atualiza valor total ao alterar duração ou taxa no modal de inclusão
+  useEffect(() => {
+    const tot = (Number(newSessionHourlyRate) * Number(newSessionDuration)) / 60;
+    setNewSessionTotal(Math.round(tot * 100) / 100);
+  }, [newSessionHourlyRate, newSessionDuration]);
 
-  // Cadastrar Novo Preço Contextual
-  const handleCreatePricingRule = async (e) => {
+  // Modal de Nova Regra de Preço
+  const [isNewPriceModalOpen, setIsNewPriceModalOpen] = useState(false);
+  const [rulePatientId, setRulePatientId] = useState('');
+  const [ruleLocationType, setRuleLocationType] = useState('HOME');
+  const [ruleLocationName, setRuleLocationName] = useState('Domicílio Principal');
+  const [ruleDayType, setRuleDayType] = useState('WEEKDAY');
+  const [ruleHourlyRate, setRuleHourlyRate] = useState(150.0);
+  const [ruleNotes, setRuleNotes] = useState('');
+
+  // Salvar Nova Regra de Preço
+  const handleSavePriceRule = (e) => {
     e.preventDefault();
-    if (!newPriceProId || !newPricePatientId || !newPriceAmount) {
-      setErrorMsg('Profissional, Paciente e Valor são obrigatórios.');
+    const pat = (patients || []).find((p) => p.id === rulePatientId);
+    if (!pat) {
+      setErrorMsg('Selecione um paciente para a regra.');
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/financial/pricing`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          professionalId: newPriceProId,
-          patientId: newPricePatientId,
-          address: newPriceAddress.trim() || null,
-          pricePerSession: parseFloat(newPriceAmount),
-          notes: newPriceNotes.trim() || undefined
-        })
-      });
+    const newRule = {
+      id: `rule-${Date.now()}`,
+      patientId: rulePatientId,
+      patientName: pat.name,
+      locationType: ruleLocationType,
+      locationName: ruleLocationName || (ruleLocationType === 'HOME' ? 'Domicílio' : 'Clínica / Outro'),
+      dayType: ruleDayType,
+      hourlyRate: parseFloat(ruleHourlyRate) || 150.0,
+      fixedPrice: parseFloat(ruleHourlyRate) || 150.0,
+      notes: ruleNotes.trim()
+    };
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro ao salvar regra.');
+    setPricingRules((prev) => [newRule, ...prev]);
+    setIsNewPriceModalOpen(false);
+    setSuccessMsg('Regra de preço registrada na sua tabela com sucesso!');
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
 
-      setSuccessMsg('Regra de preço contextual cadastrada com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-      setIsNewPriceModalOpen(false);
-      setNewPriceAddress('');
-      setNewPriceNotes('');
-      fetchFinancialData();
-    } catch (err) {
-      // Fallback local se não estiver conectado
-      const pro = (doctors || []).find((d) => d.id === newPriceProId);
-      const pat = (patients || []).find((p) => p.id === newPricePatientId);
-      const mockRule = {
-        id: `price-${Date.now()}`,
-        professional: { user: { name: pro?.name || 'Profissional' } },
-        patient: { name: pat?.name || 'Paciente' },
-        address: newPriceAddress.trim() || null,
-        pricePerSession: parseFloat(newPriceAmount),
-        notes: newPriceNotes.trim() || null,
-        effectiveFrom: new Date().toISOString()
-      };
-      setPricingRules((prev) => [mockRule, ...prev]);
-      setSuccessMsg('Regra de preço contextual registrada com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-      setIsNewPriceModalOpen(false);
-      setNewPriceAddress('');
-      setNewPriceNotes('');
+  // Excluir Regra de Preço
+  const handleDeletePriceRule = (ruleId) => {
+    setPricingRules((prev) => prev.filter((r) => r.id !== ruleId));
+    setSuccessMsg('Regra de preço removida.');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  // Salvar Edição de Sessão
+  const handleSaveEditSession = (e) => {
+    e.preventDefault();
+    if (!editingSession) return;
+
+    setSettlementSessions((prev) =>
+      prev.map((s) => (s.id === editingSession.id ? { ...editingSession } : s))
+    );
+
+    setEditingSession(null);
+    setSuccessMsg('Atendimento e valores atualizados no fechamento!');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  // Excluir Sessão do Fechamento
+  const handleDeleteSession = (sessionId) => {
+    if (window.confirm('Tem certeza que deseja excluir este atendimento do fechamento mensal?')) {
+      setSettlementSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      setSuccessMsg('Atendimento excluído do fechamento.');
+      setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
 
-  // Exportar Relatório CSV
-  const handleExportCSV = () => {
-    const list = effectivePreview?.professionals || [];
-    if (list.length === 0) {
-      alert('Não há dados apurados no período para exportar.');
+  // Incluir Novo Atendimento no Fechamento
+  const handleAddSession = (e) => {
+    e.preventDefault();
+    const pat = (patients || []).find((p) => p.id === newSessionPatientId);
+    if (!pat) {
+      setErrorMsg('Selecione o paciente.');
       return;
     }
+
+    const dateObj = new Date(`${newSessionDate}T${newSessionTime}:00`);
+    const dayCategory = classifyDate(dateObj);
+    const dayLabel = dayCategory === 'WEEKEND' ? 'Fim de Semana' : dayCategory === 'HOLIDAY' ? 'Feriado' : 'Dia Útil';
+
+    const newSess = {
+      id: `manual-sess-${Date.now()}`,
+      patientId: newSessionPatientId,
+      patientName: pat.name,
+      patientAddress: newSessionAddress || pat.address || 'Vitória - ES',
+      locationType: 'HOME',
+      dateStr: newSessionDate,
+      timeStr: newSessionTime,
+      durationMinutes: Number(newSessionDuration),
+      hourlyRate: Number(newSessionHourlyRate),
+      totalAmount: Number(newSessionTotal),
+      ruleApplied: `Inclusão Manual (${dayLabel})`,
+      status: 'COMPLETED'
+    };
+
+    setSettlementSessions((prev) => {
+      const next = [...prev, newSess];
+      next.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
+      return next;
+    });
+
+    setIsAddSessionModalOpen(false);
+    setSuccessMsg('Novo atendimento incluído no fechamento com sucesso!');
+    setTimeout(() => setSuccessMsg(''), 3500);
+  };
+
+  // Exportar Relatório em PDF para o Paciente / Responsável Financeiro
+  const handleExportPDF = (patientGroup) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor, permita pop-ups no navegador para gerar o demonstrativo em PDF.');
+      return;
+    }
+
+    const monthName = MONTH_NAMES[selectedMonth - 1];
+    const totalHours = (patientGroup.totalDurationMinutes / 60).toFixed(1);
+
+    const rowsHtml = patientGroup.sessions
+      .map(
+        (s, idx) => `
+        <tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">${idx + 1}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+            ${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')} às ${s.timeStr}
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+            ${s.patientAddress}
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">
+            ${s.durationMinutes} min
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right;">
+            R$ ${Number(s.hourlyRate).toFixed(2)}
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: bold; color: #0284c7;">
+            R$ ${Number(s.totalAmount).toFixed(2)}
+          </td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <title>Demonstrativo de Atendimentos — ${patientGroup.patientName} (${monthName}/${selectedYear})</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 40px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 20px; margin-bottom: 25px; }
+          .pro-info h2 { margin: 0 0 5px 0; color: #0284c7; font-size: 22px; }
+          .pro-info p { margin: 2px 0; font-size: 13px; color: #64748b; }
+          .statement-title { text-align: right; }
+          .statement-title h1 { margin: 0 0 4px 0; font-size: 20px; color: #0f172a; }
+          .statement-title span { font-size: 14px; font-weight: bold; color: #64748b; }
+          .patient-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 25px; display: flex; justify-content: space-between; }
+          .patient-box div p { margin: 4px 0; font-size: 13px; }
+          .patient-box strong { color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+          th { background: #f1f5f9; padding: 10px 12px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1; }
+          .totals-box { display: flex; justify-content: flex-end; margin-top: 15px; }
+          .totals-table { width: 320px; border-collapse: collapse; }
+          .totals-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+          .totals-table tr.grand-total td { font-size: 18px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; border-bottom: none; }
+          .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #94a3b8; text-align: center; }
+          @media print {
+            body { margin: 20px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="pro-info">
+            <h2>${activeProfessional.name}</h2>
+            <p>${activeProfessional.crm || 'CREFITO Ativo'} • ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</p>
+            <p>Atendimento Fisioterapêutico Especializado em Saúde Domiciliar</p>
+          </div>
+          <div class="statement-title">
+            <h1>DEMONSTRATIVO DE SERVIÇOS</h1>
+            <span>Competência: ${monthName} / ${selectedYear}</span>
+          </div>
+        </div>
+
+        <div class="patient-box">
+          <div>
+            <p><strong>Paciente:</strong> ${patientGroup.patientName}</p>
+            <p><strong>Endereço Atendido:</strong> ${patientGroup.patientAddress}</p>
+          </div>
+          <div style="text-align: right;">
+            <p><strong>Responsável:</strong> ${patientGroup.responsibleName}</p>
+            <p><strong>Contato:</strong> ${patientGroup.phone}</p>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px;">#</th>
+              <th>Data & Horário</th>
+              <th>Local do Atendimento</th>
+              <th style="text-align: center;">Duração</th>
+              <th style="text-align: right;">Valor Hora</th>
+              <th style="text-align: right;">Valor da Sessão</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals-box">
+          <table class="totals-table">
+            <tr>
+              <td>Total de Sessões Realizadas:</td>
+              <td style="text-align: right; font-weight: bold;">${patientGroup.sessions.length}</td>
+            </tr>
+            <tr>
+              <td>Carga Horária Total:</td>
+              <td style="text-align: right; font-weight: bold;">${totalHours} horas</td>
+            </tr>
+            <tr class="grand-total">
+              <td>Total Geral:</td>
+              <td style="text-align: right;">R$ ${patientGroup.totalAmount.toFixed(2)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin-top: 40px; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+          <strong style="color: #166534; display: block; margin-bottom: 4px;">Informações para Pagamento:</strong>
+          <span style="font-size: 13px; color: #15803d;">Chave PIX do Profissional: <strong>${activeProfessional.email || 'contato@omnihomecare.com'}</strong> (${activeProfessional.name})</span>
+        </div>
+
+        <div class="footer">
+          <p>Documento gerado eletronicamente em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • OmniHome Care</p>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // Exportar Planilha Excel (.xlsx/.xls) para o Paciente
+  const handleExportXLSX = (patientGroup) => {
+    const monthName = MONTH_NAMES[selectedMonth - 1];
+    const totalHours = (patientGroup.totalDurationMinutes / 60).toFixed(1);
 
     const rows = [
-      ['Competencia', 'Profissional', 'CRM', 'Especialidade', 'Sessoes Elegiveis', 'Faturamento Bruto (R$)', 'Status']
+      ['DEMONSTRATIVO DE ATENDIMENTOS FISIOTERAPÊUTICOS'],
+      [`Profissional: ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO'})`],
+      [`Paciente: ${patientGroup.patientName}`],
+      [`Responsável: ${patientGroup.responsibleName} - Contato: ${patientGroup.phone}`],
+      [`Competência: ${monthName}/${selectedYear}`],
+      []
     ];
 
-    list.forEach((p) => {
-      const existingSettlement = settlements.find((s) => s.professionalId === p.professionalId);
-      const statusLabel = existingSettlement ? existingSettlement.status : 'PREVIA';
+    rows.push(['#', 'Data', 'Horário', 'Endereço', 'Duração (min)', 'Valor Hora (R$)', 'Valor Total (R$)', 'Regra Aplicada']);
+
+    patientGroup.sessions.forEach((s, idx) => {
       rows.push([
-        `${MONTH_NAMES[selectedMonth - 1]}/${selectedYear}`,
-        `"${p.professionalName}"`,
-        `"${p.councilRegistration}"`,
-        `"${p.specialty}"`,
-        p.totalSessions,
-        p.totalGrossAmount.toFixed(2),
-        statusLabel
+        idx + 1,
+        new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR'),
+        s.timeStr,
+        `"${s.patientAddress}"`,
+        s.durationMinutes,
+        s.hourlyRate.toFixed(2),
+        s.totalAmount.toFixed(2),
+        `"${s.ruleApplied}"`
       ]);
     });
+
+    rows.push([]);
+    rows.push(['', '', '', 'Total de Sessões:', patientGroup.sessions.length]);
+    rows.push(['', '', '', 'Horas Totais:', `${totalHours} horas`]);
+    rows.push(['', '', '', 'VALOR TOTAL A PAGAR (R$):', patientGroup.totalAmount.toFixed(2)]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map((e) => e.join(';')).join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Fechamento_Mensal_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`);
+    link.setAttribute(
+      'download',
+      `Demonstrativo_${patientGroup.patientName.replace(/\s+/g, '_')}_${monthName}_${selectedYear}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -365,15 +579,15 @@ export default function MonthlyFinancialSettlementView({
 
   return (
     <div className="financial-container">
-      {/* Header */}
+      {/* Header Individual do Profissional */}
       <div className="financial-header">
         <div className="financial-title-box">
           <h2>
             <Wallet size={26} color="var(--primary)" />
-            Fechamento Financeiro Mensal
+            Meu Fechamento Mensal
           </h2>
           <p>
-            Matriz de precificação contextual (Profissional x Paciente x Endereço), auditoria e repasses com snapshots imutáveis.
+            Visão individual e demonstrativo de honorários de <strong>{activeProfessional.name}</strong> ({activeProfessional.crm || 'CREFITO Ativo'}).
           </p>
         </div>
 
@@ -401,48 +615,31 @@ export default function MonthlyFinancialSettlementView({
           </select>
 
           <button
-            className="btn btn-secondary"
-            onClick={fetchFinancialData}
-            title="Atualizar apuração"
-            disabled={loading}
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-
-          <button
             className="btn btn-primary"
-            onClick={handleExportCSV}
-            title="Exportar planilha para conferência contábil"
+            onClick={() => setIsAddSessionModalOpen(true)}
+            title="Incluir atendimento realizado avulso neste mês"
           >
-            <FileSpreadsheet size={16} />
-            Exportar CSV
+            <Plus size={16} />
+            Incluir Atendimento
           </button>
         </div>
       </div>
 
-      {/* Subtabs de Navegação */}
+      {/* Subtabs: Apuração Individual x Tabela de Preços */}
       <div className="financial-subtabs">
         <button
           className={`subtab-btn ${activeSubtab === 'settlement' ? 'active' : ''}`}
           onClick={() => setActiveSubtab('settlement')}
         >
           <Calendar size={18} />
-          Apuração do Mês ({MONTH_NAMES[selectedMonth - 1]}/{selectedYear})
+          Meus Atendimentos ({MONTH_NAMES[selectedMonth - 1]}/{selectedYear})
         </button>
         <button
           className={`subtab-btn ${activeSubtab === 'pricing' ? 'active' : ''}`}
           onClick={() => setActiveSubtab('pricing')}
         >
           <DollarSign size={18} />
-          Matriz de Preços Contextuais
-        </button>
-        <button
-          className={`subtab-btn ${activeSubtab === 'history' ? 'active' : ''}`}
-          onClick={() => setActiveSubtab('history')}
-        >
-          <FileText size={18} />
-          Histórico de Fechamentos ({settlements.length})
+          Minha Tabela de Preços Contextuais ({pricingRules.length})
         </button>
       </div>
 
@@ -456,248 +653,236 @@ export default function MonthlyFinancialSettlementView({
 
       {errorMsg && (
         <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger-border)', color: 'var(--danger)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertTriangle size={18} />
+          <AlertCircle size={18} />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* 1. ABA APURAÇÃO DO MÊS */}
+      {/* 1. ABA APURAÇÃO DO MÊS (POR PACIENTE) */}
       {activeSubtab === 'settlement' && (
         <>
-          {/* KPI Cards */}
+          {/* KPI Cards do Profissional */}
           <div className="kpi-grid">
             <div className="kpi-card highlight">
               <div className="kpi-header">
-                <span>Faturamento Bruto Apurado</span>
+                <span>Meu Faturamento no Mês</span>
                 <div className="kpi-icon-badge" style={{ background: 'rgba(2, 132, 199, 0.15)', color: 'var(--primary)' }}>
                   <TrendingUp size={18} />
                 </div>
               </div>
               <div className="kpi-value">
-                R$ {(effectivePreview?.totalGrossAmount ?? summary?.totalGrossSettled ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <div className="kpi-subtitle">
-                {effectivePreview?.totalSessions ?? 0} atendimentos domiciliares elegíveis
+                {monthTotals.totalSessions} sessões em {monthTotals.totalHours} horas atendidas
               </div>
             </div>
 
             <div className="kpi-card">
               <div className="kpi-header">
-                <span>Repasses em Aberto / Rascunho</span>
-                <div className="kpi-icon-badge" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)' }}>
-                  <Clock size={18} />
+                <span>Total de Atendimentos</span>
+                <div className="kpi-icon-badge" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
+                  <Calendar size={18} />
                 </div>
               </div>
               <div className="kpi-value">
-                R$ {(summary?.totalDraftAmount ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {monthTotals.totalSessions}
               </div>
               <div className="kpi-subtitle">
-                {summary?.settlementsCount?.draft ?? 0} em DRAFT / {summary?.settlementsCount?.pendingReview ?? 0} em auditoria
+                Em {monthTotals.totalPatients} pacientes atendidos
               </div>
             </div>
 
             <div className="kpi-card">
               <div className="kpi-header">
-                <span>Aprovado p/ Pagamento</span>
-                <div className="kpi-icon-badge" style={{ background: 'var(--info-subtle)', color: 'var(--info)' }}>
-                  <ShieldCheck size={18} />
-                </div>
-              </div>
-              <div className="kpi-value">
-                R$ {(summary?.totalApprovedAmount ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="kpi-subtitle">
-                {summary?.settlementsCount?.approved ?? 0} fechamento(s) homologado(s)
-              </div>
-            </div>
-
-            <div className="kpi-card">
-              <div className="kpi-header">
-                <span>Total Liquidado (Pago)</span>
+                <span>Média por Sessão</span>
                 <div className="kpi-icon-badge" style={{ background: 'var(--success-subtle)', color: 'var(--success)' }}>
-                  <CheckCircle2 size={18} />
+                  <DollarSign size={18} />
                 </div>
               </div>
               <div className="kpi-value" style={{ color: 'var(--success)' }}>
-                R$ {(summary?.totalPaidAmount ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {monthTotals.totalSessions > 0 ? (monthTotals.totalAmount / monthTotals.totalSessions).toFixed(2) : '0,00'}
               </div>
               <div className="kpi-subtitle">
-                {summary?.settlementsCount?.paid ?? 0} repasse(s) quitado(s)
+                Ticket médio individual
               </div>
             </div>
           </div>
 
-          {/* Banner de Sessões Não Precificadas */}
-          {effectivePreview?.professionals?.some((p) => p.unpricedAlerts?.length > 0) && (
-            <div className="unpriced-alert-banner">
-              <AlertTriangle size={24} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <h4>Atenção: Existem atendimentos sem precificação configurada</h4>
+          {/* Listagem Agrupada por Paciente */}
+          {groupedByPatient.length === 0 ? (
+            <div className="table-card">
+              <div className="empty-state-box">
+                <Calendar size={48} color="var(--text-muted)" />
+                <h4>Nenhum atendimento faturável neste mês</h4>
                 <p>
-                  Algumas sessões executadas não possuem regra de preço correspondente na matriz tridimensional.
-                  Configure a tabela de preços na aba <strong>"Matriz de Preços Contextuais"</strong> antes de aprovar formalmente os repasses.
+                  Você não possui atendimentos registrados para {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}.
+                  Utilize o botão <strong>"Incluir Atendimento"</strong> para registrar atendimentos avulsos.
                 </p>
               </div>
             </div>
-          )}
+          ) : (
+            groupedByPatient.map((group) => (
+              <div key={group.patientId} className="patient-financial-card">
+                {/* Header do Paciente */}
+                <div className="patient-card-header">
+                  <div className="patient-info-block">
+                    <Avatar name={group.patientName} size={40} color="var(--primary)" />
+                    <div>
+                      <h3>{group.patientName}</h3>
+                      <p>
+                        <MapPin size={14} color="var(--primary)" />
+                        {group.patientAddress} • Responsável: {group.responsibleName} ({group.phone})
+                      </p>
+                    </div>
+                  </div>
 
-          {/* Tabela de Fechamento por Profissional */}
-          <div className="table-card">
-            <div className="table-card-header">
-              <div className="table-card-title">
-                <Users size={20} color="var(--primary)" />
-                Apuração por Fisioterapeuta / Terapeuta ({MONTH_NAMES[selectedMonth - 1]}/{selectedYear})
-              </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {effectivePreview?.professionals?.length || 0} profissional(is) no período
-              </span>
-            </div>
+                  {/* Ações de Exportação para o Paciente */}
+                  <div className="patient-actions-block">
+                    <button
+                      className="btn-export pdf"
+                      onClick={() => handleExportPDF(group)}
+                      title="Gerar e imprimir demonstrativo formal em PDF para enviar ao paciente/responsável"
+                    >
+                      <Printer size={15} />
+                      Gerar PDF p/ Paciente
+                    </button>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="financial-table">
-                <thead>
-                  <tr>
-                    <th>Profissional</th>
-                    <th>Especialidade & Conselho</th>
-                    <th>Sessões Elegíveis</th>
-                    <th>Valor Bruto Calculado</th>
-                    <th>Status do Fechamento</th>
-                    <th style={{ textAlign: 'right' }}>Ações de Auditoria</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(!effectivePreview?.professionals || effectivePreview.professionals.length === 0) ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                        Nenhum atendimento faturável encontrado para {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}.
-                      </td>
-                    </tr>
-                  ) : (
-                    effectivePreview.professionals.map((pro) => {
-                      const existing = settlements.find((s) => s.professionalId === pro.professionalId);
+                    <button
+                      className="btn-export excel"
+                      onClick={() => handleExportXLSX(group)}
+                      title="Baixar planilha Excel (.xlsx) com o demonstrativo deste paciente"
+                    >
+                      <FileSpreadsheet size={15} />
+                      Exportar Excel (XLSX)
+                    </button>
+                  </div>
+                </div>
 
-                      return (
-                        <tr key={pro.professionalId}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <Avatar name={pro.professionalName} size={36} color="var(--primary)" />
-                              <div>
-                                <strong style={{ color: 'var(--text-headline)', display: 'block' }}>
-                                  {pro.professionalName}
-                                </strong>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  ID: {String(pro.professionalId || '').slice(0, 8)}...
-                                </span>
-                              </div>
-                            </div>
-                          </td>
+                {/* Tabela de Atendimentos deste Paciente */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="financial-table">
+                    <thead>
+                      <tr>
+                        <th>Data & Horário</th>
+                        <th>Tipo de Dia</th>
+                        <th>Duração</th>
+                        <th>Custo Horário (R$/h)</th>
+                        <th>Valor Total da Sessão</th>
+                        <th>Regra Aplicada</th>
+                        <th style={{ textAlign: 'right' }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.sessions.map((sess) => {
+                        const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
+                        const dayCat = classifyDate(dateObj);
 
-                          <td>
-                            <div>
-                              <span>{pro.specialty}</span>
+                        return (
+                          <tr key={sess.id}>
+                            <td>
+                              <strong>
+                                {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              </strong>
                               <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                {pro.councilRegistration}
+                                {sess.timeStr}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td>
-                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                              {pro.totalSessions} sessões
-                            </span>
-                          </td>
+                            <td>
+                              <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
+                                {dayCat === 'WEEKEND' ? 'Final de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil (Semana)'}
+                              </span>
+                            </td>
 
-                          <td>
-                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--primary)' }}>
-                              R$ {pro.totalGrossAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
-                          </td>
+                            <td>
+                              <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                              <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                ({(sess.durationMinutes / 60).toFixed(1)}h)
+                              </span>
+                            </td>
 
-                          <td>
-                            {!existing ? (
-                              <span className="status-pill preview">PRÉVIA ABERTA</span>
-                            ) : existing.status === 'DRAFT' ? (
-                              <span className="status-pill draft">RASCUNHO (DRAFT)</span>
-                            ) : existing.status === 'PENDING_REVIEW' ? (
-                              <span className="status-pill pending">EM REVISÃO</span>
-                            ) : existing.status === 'APPROVED' ? (
-                              <span className="status-pill approved">APROVADO</span>
-                            ) : existing.status === 'PAID' ? (
-                              <span className="status-pill paid">LIQUIDADO (PAGO)</span>
-                            ) : (
-                              <span className="status-pill cancelled">CANCELADO</span>
-                            )}
-                          </td>
+                            <td>
+                              <strong style={{ color: 'var(--text-headline)' }}>
+                                R$ {Number(sess.hourlyRate).toFixed(2)}/h
+                              </strong>
+                            </td>
 
-                          <td style={{ textAlign: 'right' }}>
-                            <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
-                              {/* Botão de Ver Extrato */}
-                              <button
-                                className="btn-action-sm"
-                                onClick={() => setDetailModalItem(pro)}
-                                title="Ver extrato completo de sessões com snapshots"
-                              >
-                                <Eye size={14} />
-                                Extrato ({pro.items?.length || 0})
-                              </button>
+                            <td>
+                              <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                                R$ {Number(sess.totalAmount).toFixed(2)}
+                              </strong>
+                            </td>
 
-                              {/* Ações baseadas no ciclo de vida */}
-                              {!existing && pro.totalSessions > 0 && (
+                            <td>
+                              <span className="rule-tag default">
+                                {sess.ruleApplied}
+                              </span>
+                            </td>
+
+                            <td style={{ textAlign: 'right' }}>
+                              <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
                                 <button
-                                  className="btn-action-sm primary"
-                                  onClick={() => handleGenerateSettlement(pro.professionalId)}
-                                  title="Consolidar fechamento em DRAFT com snapshots imutáveis"
+                                  className="btn-action-sm"
+                                  onClick={() => setEditingSession({ ...sess })}
+                                  title="Corrigir valores ou duração deste atendimento"
                                 >
-                                  <FileSpreadsheet size={14} />
-                                  Fechar Mês
+                                  <Edit2 size={13} />
+                                  Corrigir
                                 </button>
-                              )}
-
-                              {existing && existing.status === 'DRAFT' && (
                                 <button
-                                  className="btn-action-sm primary"
-                                  onClick={() => handleApproveSettlement(existing.id)}
-                                  title="Aprovar formalmente para pagamento"
+                                  className="btn-action-sm danger"
+                                  onClick={() => handleDeleteSession(sess.id)}
+                                  title="Excluir este atendimento do fechamento"
                                 >
-                                  <ShieldCheck size={14} />
-                                  Aprovar
+                                  <Trash2 size={13} />
                                 </button>
-                              )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                              {existing && (existing.status === 'PENDING_REVIEW' || existing.status === 'APPROVED') && (
-                                <button
-                                  className="btn-action-sm success"
-                                  onClick={() => handleMarkAsPaid(existing.id)}
-                                  title="Confirmar transferência e marcar como PAGO"
-                                >
-                                  <CreditCard size={14} />
-                                  Pagar
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                {/* Subtotalizador do Paciente */}
+                <div className="patient-subtotal-bar">
+                  <div className="patient-subtotal-stats">
+                    <span>
+                      Total de Sessões: <strong>{group.sessions.length}</strong>
+                    </span>
+                    <span>
+                      Horas Realizadas: <strong>{(group.totalDurationMinutes / 60).toFixed(1)} horas</strong>
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textAlign: 'right' }}>
+                      Subtotal a Receber de {group.patientName.split(' ')[0]}:
+                    </span>
+                    <div className="patient-subtotal-total">
+                      R$ {group.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </>
       )}
 
-      {/* 2. ABA MATRIZ DE PREÇOS CONTEXTUAIS */}
+      {/* 2. ABA MINHA TABELA DE PREÇOS (MULTI-CRITÉRIO: PACIENTE X LOCAL X DIA) */}
       {activeSubtab === 'pricing' && (
         <div className="table-card">
           <div className="table-card-header">
             <div>
               <div className="table-card-title">
                 <DollarSign size={20} color="var(--primary)" />
-                Matriz de Precificação Contextual (Profissional x Paciente x Endereço)
+                Minha Tabela de Preços Contextuais
               </div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                Regras hierárquicas: Correspondência Exata de Endereço ➔ Preço Padrão do Paciente ➔ Preço de Base.
+                Defina preços diferenciados para o mesmo paciente variando por <strong>Local de Atendimento</strong> (Domicílio, Clínica, Outro) e <strong>Tipo de Dia</strong> (Dias de semana, Finais de semana e Feriados).
               </p>
             </div>
 
@@ -714,124 +899,68 @@ export default function MonthlyFinancialSettlementView({
             <table className="financial-table">
               <thead>
                 <tr>
-                  <th>Profissional</th>
                   <th>Paciente</th>
-                  <th>Domicílio / Endereço</th>
-                  <th>Valor por Sessão</th>
-                  <th>Vigência</th>
+                  <th>Local do Atendimento</th>
+                  <th>Dia de Aplicação</th>
+                  <th>Valor Hora (R$/h)</th>
+                  <th>Valor Sessão Padrão (60min)</th>
                   <th>Observação</th>
+                  <th style={{ textAlign: 'right' }}>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {pricingRules.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                      Nenhuma regra contextual personalizada. As sessões utilizarão o preço padrão de cada paciente/endereço.
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      Nenhuma regra personalizada cadastrada. Os atendimentos usarão a tarifa base padrão (R$ 150/h semana, R$ 180/h fim de semana, R$ 220/h feriado).
                     </td>
                   </tr>
                 ) : (
-                  pricingRules.map((p) => (
-                    <tr key={p.id}>
+                  pricingRules.map((r) => (
+                    <tr key={r.id}>
                       <td>
-                        <strong>{p.professional?.user?.name || 'Profissional'}</strong>
+                        <strong>{r.patientName}</strong>
                       </td>
-                      <td>{p.patient?.name || 'Paciente'}</td>
                       <td>
-                        {p.address ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <MapPin size={14} color="var(--primary)" />
-                            {p.address}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            Qualquer endereço (Padrão do paciente)
-                          </span>
-                        )}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          {r.locationType === 'CLINIC' ? (
+                            <Building size={14} color="var(--primary)" />
+                          ) : (
+                            <Home size={14} color="var(--primary)" />
+                          )}
+                          {r.locationName || (r.locationType === 'CLINIC' ? 'Clínica' : 'Domicílio Principal')}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`daytype-badge ${r.dayType === 'WEEKEND' ? 'weekend' : r.dayType === 'HOLIDAY' ? 'holiday' : 'weekday'}`}>
+                          {r.dayType === 'WEEKEND'
+                            ? 'Finais de Semana (Sáb/Dom)'
+                            : r.dayType === 'HOLIDAY'
+                            ? 'Feriados Nacionais'
+                            : r.dayType === 'ANY_DAY'
+                            ? 'Qualquer Dia'
+                            : 'Dias de Semana (Seg-Sex)'}
+                        </span>
                       </td>
                       <td>
                         <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
-                          R$ {Number(p.pricePerSession).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {Number(r.hourlyRate).toFixed(2)}/h
                         </strong>
                       </td>
                       <td>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          Desde {new Date(p.effectiveFrom).toLocaleDateString('pt-BR')}
-                        </span>
-                      </td>
-                      <td>{p.notes || '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 3. ABA HISTÓRICO DE FECHAMENTOS */}
-      {activeSubtab === 'history' && (
-        <div className="table-card">
-          <div className="table-card-header">
-            <div className="table-card-title">
-              <FileText size={20} color="var(--primary)" />
-              Histórico de Fechamentos Consolidados
-            </div>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Total de {settlements.length} fechamentos registrados
-            </span>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table className="financial-table">
-              <thead>
-                <tr>
-                  <th>ID Fechamento</th>
-                  <th>Profissional</th>
-                  <th>Período de Competência</th>
-                  <th>Total de Sessões</th>
-                  <th>Valor Bruto</th>
-                  <th>Status</th>
-                  <th>Criado Em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {settlements.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-                      Nenhum fechamento histórico registrado ainda.
-                    </td>
-                  </tr>
-                ) : (
-                  settlements.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <code style={{ fontSize: '0.78rem', background: 'var(--bg-surface-hover)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                          {String(s.id || '').slice(0, 8)}...
-                        </code>
-                      </td>
-                      <td>
-                        <strong>{s.professional?.user?.name || 'Profissional'}</strong>
-                      </td>
-                      <td>
-                        {new Date(s.periodStart).toLocaleDateString('pt-BR')} até {new Date(s.periodEnd).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td>
-                        <strong>{s.totalSessions} sessões</strong>
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--primary)' }}>
-                          R$ {Number(s.totalGrossAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        <strong>
+                          R$ {Number(r.fixedPrice || r.hourlyRate).toFixed(2)}
                         </strong>
                       </td>
-                      <td>
-                        <span className={`status-pill ${String(s.status || 'draft').toLowerCase()}`}>
-                          {s.status}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {new Date(s.createdAt).toLocaleDateString('pt-BR')}
-                        </span>
+                      <td>{r.notes || '-'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="btn-action-sm danger"
+                          onClick={() => handleDeletePriceRule(r.id)}
+                          title="Remover regra de preço"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -842,110 +971,279 @@ export default function MonthlyFinancialSettlementView({
         </div>
       )}
 
-      {/* MODAL 1: EXTRATO DETALHADO DO PROFISSIONAL */}
-      {detailModalItem && (
-        <div className="modal-overlay" onClick={() => setDetailModalItem(null)}>
+      {/* MODAL 1: CORRIGIR VALORES / ATENDIMENTO */}
+      {editingSession && (
+        <div className="modal-overlay" onClick={() => setEditingSession(null)}>
           <div className="modal-content-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <FileText size={20} color="var(--primary)" />
-                Extrato de Atendimentos — {detailModalItem.professionalName}
+                <Edit2 size={18} color="var(--primary)" />
+                Corrigir Valores do Atendimento — {editingSession.patientName}
               </h3>
               <button
                 className="btn-action-sm"
-                onClick={() => setDetailModalItem(null)}
+                onClick={() => setEditingSession(null)}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="modal-body">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--primary-subtle)', padding: '0.85rem 1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary-border)' }}>
-                <div>
-                  <strong style={{ color: 'var(--primary)', display: 'block' }}>
-                    Competência: {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}
-                  </strong>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-body)' }}>
-                    {detailModalItem.councilRegistration} • {detailModalItem.specialty}
-                  </span>
+            <form onSubmit={handleSaveEditSession}>
+              <div className="modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Data da Sessão</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editingSession.dateStr}
+                      onChange={(e) => setEditingSession({ ...editingSession, dateStr: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Horário</label>
+                    <input
+                      type="time"
+                      className="form-input"
+                      value={editingSession.timeStr}
+                      onChange={(e) => setEditingSession({ ...editingSession, timeStr: e.target.value })}
+                      required
+                    />
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Total Bruto</span>
-                  <strong style={{ fontSize: '1.25rem', color: 'var(--text-headline)' }}>
-                    R$ {detailModalItem.totalGrossAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </strong>
+
+                <div className="form-group">
+                  <label className="form-label">Endereço / Local Atendido</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editingSession.patientAddress}
+                    onChange={(e) => setEditingSession({ ...editingSession, patientAddress: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Duração (minutos)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={editingSession.durationMinutes}
+                      onChange={(e) => {
+                        const dur = Number(e.target.value);
+                        const tot = (dur * Number(editingSession.hourlyRate)) / 60;
+                        setEditingSession({
+                          ...editingSession,
+                          durationMinutes: dur,
+                          totalAmount: Math.round(tot * 100) / 100
+                        });
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Custo Horário (R$/h)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={editingSession.hourlyRate}
+                      onChange={(e) => {
+                        const rate = Number(e.target.value);
+                        const tot = (Number(editingSession.durationMinutes) * rate) / 60;
+                        setEditingSession({
+                          ...editingSession,
+                          hourlyRate: rate,
+                          totalAmount: Math.round(tot * 100) / 100
+                        });
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Valor Total da Sessão (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      style={{ fontWeight: 800, color: 'var(--primary)' }}
+                      value={editingSession.totalAmount}
+                      onChange={(e) => setEditingSession({ ...editingSession, totalAmount: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              <table className="financial-table">
-                <thead>
-                  <tr>
-                    <th>Data & Hora</th>
-                    <th>Paciente</th>
-                    <th>Endereço do Domicílio</th>
-                    <th>Regra Aplicada</th>
-                    <th style={{ textAlign: 'right' }}>Valor Cobrado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(!detailModalItem.items || detailModalItem.items.length === 0) ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
-                        Nenhum atendimento realizado no período.
-                      </td>
-                    </tr>
-                  ) : (
-                    detailModalItem.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <strong>{new Date(item.scheduledTime).toLocaleDateString('pt-BR')}</strong>
-                          <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                            {new Date(item.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </td>
-                        <td>
-                          <strong>{item.patientName}</strong>
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '0.85rem' }}>{item.patientAddress}</span>
-                        </td>
-                        <td>
-                          <span className={`rule-tag ${item.ruleApplied === 'EXACT_ADDRESS' ? 'exact' : item.ruleApplied === 'PATIENT_DEFAULT' ? 'default' : 'base'}`}>
-                            {item.ruleApplied === 'EXACT_ADDRESS' ? 'Endereço Exato' : item.ruleApplied === 'PATIENT_DEFAULT' ? 'Padrão Paciente' : 'Tarifa Base'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <strong style={{ color: 'var(--primary)', fontSize: '0.95rem' }}>
-                            R$ {item.chargedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </strong>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setDetailModalItem(null)}
-              >
-                Fechar
-              </button>
-            </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingSession(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Salvar Correção
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* MODAL 2: NOVA REGRA DE PRECIFICAÇÃO CONTEXTUAL */}
-      {isNewPriceModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewPriceModalOpen(false)}>
-          <div className="modal-content-lg" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+      {/* MODAL 2: INCLUIR ATENDIMENTO AVULSO */}
+      {isAddSessionModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAddSessionModalOpen(false)}>
+          <div className="modal-content-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <Plus size={20} color="var(--primary)" />
-                Cadastrar Regra de Preço Contextual
+                <Plus size={18} color="var(--primary)" />
+                Incluir Atendimento no Fechamento Mensal
+              </h3>
+              <button
+                className="btn-action-sm"
+                onClick={() => setIsAddSessionModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSession}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Paciente *</label>
+                  <select
+                    className="form-input"
+                    value={newSessionPatientId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setNewSessionPatientId(id);
+                      const pat = (patients || []).find((p) => p.id === id);
+                      if (pat) {
+                        setNewSessionAddress(pat.address || '');
+                      }
+                    }}
+                    required
+                  >
+                    <option value="">Selecione o paciente atendido...</option>
+                    {(patients || []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Data da Sessão *</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={newSessionDate}
+                      onChange={(e) => setNewSessionDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Horário *</label>
+                    <input
+                      type="time"
+                      className="form-input"
+                      value={newSessionTime}
+                      onChange={(e) => setNewSessionTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Endereço do Atendimento</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newSessionAddress}
+                    onChange={(e) => setNewSessionAddress(e.target.value)}
+                    placeholder="Ex: Av. Dante Michelini, 500"
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Duração (minutos)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newSessionDuration}
+                      onChange={(e) => setNewSessionDuration(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Custo Horário (R$/h)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={newSessionHourlyRate}
+                      onChange={(e) => setNewSessionHourlyRate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Valor Total (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      style={{ fontWeight: 800, color: 'var(--primary)' }}
+                      value={newSessionTotal}
+                      onChange={(e) => setNewSessionTotal(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsAddSessionModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Incluir Atendimento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: NOVA REGRA DE PRECIFICAÇÃO CONTEXTUAL */}
+      {isNewPriceModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsNewPriceModalOpen(false)}>
+          <div className="modal-content-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <DollarSign size={18} color="var(--primary)" />
+                Nova Regra de Preço na Minha Tabela
               </h3>
               <button
                 className="btn-action-sm"
@@ -955,67 +1253,77 @@ export default function MonthlyFinancialSettlementView({
               </button>
             </div>
 
-            <form onSubmit={handleCreatePricingRule}>
+            <form onSubmit={handleSavePriceRule}>
               <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Profissional / Fisioterapeuta *</label>
-                  <select
-                    className="form-input"
-                    value={newPriceProId}
-                    onChange={(e) => setNewPriceProId(e.target.value)}
-                    required
-                  >
-                    <option value="">Selecione o profissional...</option>
-                    {(doctors || []).map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.specialty || d.profession})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="form-group">
                   <label className="form-label">Paciente *</label>
                   <select
                     className="form-input"
-                    value={newPricePatientId}
-                    onChange={(e) => setNewPricePatientId(e.target.value)}
+                    value={rulePatientId}
+                    onChange={(e) => setRulePatientId(e.target.value)}
                     required
                   >
                     <option value="">Selecione o paciente...</option>
                     {(patients || []).map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} ({p.address || 'Sem endereço'})
+                        {p.name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Endereço Específico (Opcional)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Ex: Rua das Flores, 120 (Deixe vazio para ser o preço padrão do paciente)"
-                    value={newPriceAddress}
-                    onChange={(e) => setNewPriceAddress(e.target.value)}
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                    Se preenchido, esta regra terá prioridade máxima caso o atendimento ocorra exatamente neste endereço.
-                  </small>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Tipo de Local *</label>
+                    <select
+                      className="form-input"
+                      value={ruleLocationType}
+                      onChange={(e) => setRuleLocationType(e.target.value)}
+                    >
+                      <option value="HOME">Domicílio do Paciente</option>
+                      <option value="CLINIC">Consultório / Clínica</option>
+                      <option value="OTHER">Outro Endereço Específico</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Nome / Descrição do Local</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Ex: Domicílio Principal, Consultório Praia do Canto..."
+                      value={ruleLocationName}
+                      onChange={(e) => setRuleLocationName(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Valor da Sessão (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="1"
-                    className="form-input"
-                    value={newPriceAmount}
-                    onChange={(e) => setNewPriceAmount(e.target.value)}
-                    required
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Dias de Aplicação *</label>
+                    <select
+                      className="form-input"
+                      value={ruleDayType}
+                      onChange={(e) => setRuleDayType(e.target.value)}
+                    >
+                      <option value="WEEKDAY">Dias de Semana (Segunda a Sexta)</option>
+                      <option value="WEEKEND">Final de Semana (Sábado e Domingo)</option>
+                      <option value="HOLIDAY">Feriados Nacionais</option>
+                      <option value="ANY_DAY">Qualquer Dia (Indiferente)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Valor Hora (R$/h) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={ruleHourlyRate}
+                      onChange={(e) => setRuleHourlyRate(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -1023,9 +1331,9 @@ export default function MonthlyFinancialSettlementView({
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Ex: Acordo familiar / Adicional de deslocamento urbano"
-                    value={newPriceNotes}
-                    onChange={(e) => setNewPriceNotes(e.target.value)}
+                    placeholder="Ex: Atendimento com taxa extra de deslocamento ou plantão"
+                    value={ruleNotes}
+                    onChange={(e) => setRuleNotes(e.target.value)}
                   />
                 </div>
               </div>
@@ -1042,7 +1350,7 @@ export default function MonthlyFinancialSettlementView({
                   type="submit"
                   className="btn btn-primary"
                 >
-                  Salvar Regra
+                  Salvar Regra de Preço
                 </button>
               </div>
             </form>
