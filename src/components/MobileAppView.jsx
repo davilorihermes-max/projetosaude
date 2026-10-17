@@ -56,12 +56,8 @@ export default function MobileAppView({
     return Array.from(new Set(appointments.map((a) => a.date).filter(Boolean))).sort();
   }, [appointments]);
 
-  // Data ativa selecionada
-  const [selectedDate, setSelectedDate] = useState(() => {
-    if (appointments.some((a) => a.date === todayStr)) return todayStr;
-    if (allDatesWithApts.length > 0) return allDatesWithApts[0];
-    return todayStr;
-  });
+  // Data ativa selecionada: sempre por padrão o dia atual (hoje)
+  const [selectedDate, setSelectedDate] = useState(todayStr);
 
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T12:00:00');
@@ -114,10 +110,8 @@ export default function MobileAppView({
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'waiting':
-        return <span className="mob-badge mob-badge-waiting">🚗 A Caminho</span>;
       case 'in_progress':
-        return <span className="mob-badge mob-badge-progress">📍 No Domicílio</span>;
+        return <span className="mob-badge mob-badge-progress">📍 Em Atendimento</span>;
       case 'completed':
         return <span className="mob-badge mob-badge-completed">✓ Concluído</span>;
       default:
@@ -344,32 +338,15 @@ export default function MobileAppView({
                     </span>
                   </a>
 
-                  {/* Notas de Acesso */}
-                  {patient?.accessNotes && (
-                    <div className="mob-access-notes">
-                      <strong>Acesso:</strong> {patient.accessNotes}
-                    </div>
-                  )}
-
-                  {/* Ações de Status e Check-in */}
+                  {/* Ações de Check-in e Checkout */}
                   <div className="mob-actions-row">
-                    {apt.status === 'scheduled' && (
-                      <button
-                        type="button"
-                        className="mob-btn-action mob-btn-travel"
-                        onClick={() => onUpdateAppointmentStatus(apt.id, 'waiting')}
-                      >
-                        <Car size={15} /> Iniciar Deslocamento
-                      </button>
-                    )}
-
-                    {apt.status === 'waiting' && (
+                    {apt.status !== 'in_progress' && apt.status !== 'completed' && (
                       <button
                         type="button"
                         className="mob-btn-action mob-btn-checkin"
                         onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
                       >
-                        <Play size={15} /> Fazer Check-in no Domicílio
+                        <Play size={15} /> Check-in
                       </button>
                     )}
 
@@ -379,14 +356,14 @@ export default function MobileAppView({
                         className="mob-btn-action mob-btn-finish"
                         onClick={() => handleCompleteWithCelebration(apt.id)}
                       >
-                        <CheckCircle2 size={16} /> Finalizar Sessão
+                        <CheckCircle2 size={16} /> Check-out
                       </button>
                     )}
 
                     {apt.status === 'completed' && (
                       <div className="mob-done-indicator">
                         <CheckCircle2 size={16} color="#059669" />
-                        <span>Sessão finalizada</span>
+                        <span>Atendimento concluído</span>
                       </div>
                     )}
                   </div>
