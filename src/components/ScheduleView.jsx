@@ -799,17 +799,7 @@ export default function ScheduleView({
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {aptInSlot.status === 'scheduled' && (
-                          <button
-                            className="btn btn-secondary"
-                            style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem' }}
-                            onClick={() => onUpdateAppointmentStatus(aptInSlot.id, 'waiting')}
-                          >
-                            Iniciar Deslocamento
-                          </button>
-                        )}
-
-                        {aptInSlot.status === 'waiting' && (
+                        {aptInSlot.status !== 'in_progress' && aptInSlot.status !== 'completed' && (
                           <button
                             className="btn btn-primary"
                             style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem' }}
@@ -818,18 +808,27 @@ export default function ScheduleView({
                               onOpenPatientRecord(patient?.id);
                             }}
                           >
-                            <Play size={13} /> Check-in Domiciliar
+                            <CheckCircle2 size={14} /> Fazer Check-in
                           </button>
                         )}
 
-                        {aptInSlot.status === 'in_progress' && (
-                          <button
-                            className="btn btn-success"
-                            style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem' }}
-                            onClick={() => handleCompleteWithCelebration(aptInSlot.id)}
+                        {(aptInSlot.status === 'in_progress' || aptInSlot.status === 'completed') && (
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: '#059669',
+                              background: '#ecfdf5',
+                              border: '1px solid #a7f3d0',
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
                           >
-                            <CheckCircle2 size={13} /> Concluir Sessão
-                          </button>
+                            <CheckCircle2 size={13} color="#059669" /> Check-in Realizado
+                          </span>
                         )}
 
                         <button
@@ -840,7 +839,7 @@ export default function ScheduleView({
                           <UserCheck size={14} /> Detalhes
                         </button>
 
-                        {aptInSlot.status !== 'cancelled' && aptInSlot.status !== 'completed' && (
+                        {aptInSlot.status !== 'cancelled' && (
                           <button
                             className="btn btn-danger"
                             style={{ fontSize: '0.78rem', padding: '0.4rem 0.6rem' }}

@@ -516,3 +516,101 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* Seletor Individual de Paciente */
+.patient-selector-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.patient-selector-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.patient-selector-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.patient-selector-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-headline);
+  display: block;
+}
+
+.patient-selector-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.patient-selector-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.patient-dropdown-select {
+  min-width: 290px;
+  font-weight: 600;
+}
+
+.patient-quick-pills {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-light);
+  padding-top: 0.85rem;
+}
+
+.patient-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface-hover);
+  color: var(--text-headline);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.patient-pill-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.patient-pill-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.patient-pill-btn .pill-count {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.patient-pill-btn.active .pill-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+

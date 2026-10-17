@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Building,
   Home,
-  CheckCircle2
+  CheckCircle2,
+  UserCheck
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MonthlyFinancialSettlementView.css';
@@ -63,6 +64,7 @@ export default function MonthlyFinancialSettlementView({
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
   const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing'
+  const [selectedPatientId, setSelectedPatientId] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -175,12 +177,21 @@ export default function MonthlyFinancialSettlementView({
   useEffect(() => {
     if (!activeProfessional?.id) return;
 
-    // Filtra agendamentos do profissional no mês/ano
+    // Filtra agendamentos do profissional no mês/ano QUE TIVERAM CHECK-IN
     const proApts = (appointments || []).filter((apt) => {
       if (!apt) return false;
       const aptDocId = apt.doctorId || apt.professionalId;
       if (aptDocId !== activeProfessional.id) return false;
       if (apt.status === 'cancelled') return false;
+
+      // EXIGÊNCIA: Apenas atendimentos com check-in realizado
+      const isCheckedIn =
+        apt.status === 'in_progress' ||
+        apt.status === 'completed' ||
+        apt.status === 'attended' ||
+        Boolean(apt.checkInTime) ||
+        Boolean(apt.checkedIn);
+      if (!isCheckedIn) return false;
 
       const dateStr = apt.date || apt.scheduledTime;
       if (!dateStr) return false;
@@ -247,6 +258,18 @@ export default function MonthlyFinancialSettlementView({
 
     return Object.values(groups);
   }, [settlementSessions, patients]);
+
+  // Sincroniza o paciente selecionado com os pacientes com atendimentos no mês
+  useEffect(() => {
+    if (groupedByPatient.length > 0) {
+      const exists = groupedByPatient.some((g) => g.patientId === selectedPatientId);
+      if (!exists) {
+        setSelectedPatientId(groupedByPatient[0].patientId);
+      }
+    } else {
+      setSelectedPatientId('');
+    }
+  }, [groupedByPatient, selectedPatientId]);
 
   // Totais Gerais do Mês do Profissional
   const monthTotals = useMemo(() => {
@@ -532,49 +555,109 @@ export default function MonthlyFinancialSettlementView({
 
   // Exportar Planilha Excel (.xlsx/.xls) para o Paciente
   const handleExportXLSX = (patientGroup) => {
+    if (!patientGroup || !patientGroup.sessions || patientGroup.sessions.length === 0) {
+      alert('Não há atendimentos registrados para exportar.');
+      return;
+    }
+
     const monthName = MONTH_NAMES[selectedMonth - 1];
     const totalHours = (patientGroup.totalDurationMinutes / 60).toFixed(1);
 
-    const rows = [
-      ['DEMONSTRATIVO DE ATENDIMENTOS FISIOTERAPÊUTICOS'],
-      [`Profissional: ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO'})`],
-      [`Paciente: ${patientGroup.patientName}`],
-      [`Responsável: ${patientGroup.responsibleName} - Contato: ${patientGroup.phone}`],
-      [`Competência: ${monthName}/${selectedYear}`],
-      []
-    ];
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Demonstrativo</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+          .header-title { font-size: 14pt; font-weight: bold; color: #0284c7; }
+          .meta-row { font-size: 11pt; color: #1e293b; margin: 4px 0; }
+          table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+          th { background-color: #0284c7; color: #ffffff; font-weight: bold; text-align: left; border: 1px solid #94a3b8; padding: 8px 10px; }
+          td { border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5pt; }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .subtotal-row td { background-color: #f1f5f9; font-weight: bold; }
+          .grand-total td { background-color: #e0f2fe; font-weight: bold; font-size: 11.5pt; color: #0369a1; }
+        </style>
+      </head>
+      <body>
+        <div class="header-title">DEMONSTRATIVO DE ATENDIMENTOS FISIOTERAPÊUTICOS</div>
+        <div class="meta-row"><strong>Profissional:</strong> ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO Ativo'}) - ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</div>
+        <div class="meta-row"><strong>Paciente:</strong> ${patientGroup.patientName}</div>
+        <div class="meta-row"><strong>Endereço Atendido:</strong> ${patientGroup.patientAddress}</div>
+        <div class="meta-row"><strong>Responsável Financeiro:</strong> ${patientGroup.responsibleName} (Contato: ${patientGroup.phone})</div>
+        <div class="meta-row"><strong>Competência:</strong> ${monthName} / ${selectedYear}</div>
+        <br/>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45px; text-align: center;">#</th>
+              <th style="width: 100px; text-align: center;">Data</th>
+              <th style="width: 80px; text-align: center;">Horário</th>
+              <th>Endereço do Domicílio</th>
+              <th style="width: 110px; text-align: center;">Duração (min)</th>
+              <th style="width: 130px; text-align: right;">Valor Hora (R$)</th>
+              <th style="width: 140px; text-align: right;">Valor Sessão (R$)</th>
+              <th>Regra Aplicada</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${patientGroup.sessions.map((s, idx) => `
+              <tr>
+                <td class="center">${idx + 1}</td>
+                <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                <td class="center">${s.timeStr}</td>
+                <td>${s.patientAddress}</td>
+                <td class="center">${s.durationMinutes}</td>
+                <td class="right">R$ ${Number(s.hourlyRate).toFixed(2).replace('.', ',')}</td>
+                <td class="right"><strong>R$ ${Number(s.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
+                <td>${s.ruleApplied}</td>
+              </tr>
+            `).join('')}
+            <tr class="subtotal-row">
+              <td colspan="4" class="right">Total de Sessões com Check-in:</td>
+              <td class="center">${patientGroup.sessions.length}</td>
+              <td class="right">Carga Horária Total:</td>
+              <td colspan="2" class="left">${totalHours} horas</td>
+            </tr>
+            <tr class="grand-total">
+              <td colspan="6" class="right" style="font-size: 12pt;">VALOR TOTAL A PAGAR:</td>
+              <td colspan="2" class="right" style="font-size: 12pt;">R$ ${patientGroup.totalAmount.toFixed(2).replace('.', ',')}</td>
+            </tr>
+          </tbody>
+        </table>
+        <br/>
+        <div style="font-size: 9pt; color: #64748b;">
+          Documento gerado eletronicamente em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • OmniHome Care
+        </div>
+      </body>
+      </html>
+    `;
 
-    rows.push(['#', 'Data', 'Horário', 'Endereço', 'Duração (min)', 'Valor Hora (R$)', 'Valor Total (R$)', 'Regra Aplicada']);
-
-    patientGroup.sessions.forEach((s, idx) => {
-      rows.push([
-        idx + 1,
-        new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR'),
-        s.timeStr,
-        `"${s.patientAddress}"`,
-        s.durationMinutes,
-        s.hourlyRate.toFixed(2),
-        s.totalAmount.toFixed(2),
-        `"${s.ruleApplied}"`
-      ]);
-    });
-
-    rows.push([]);
-    rows.push(['', '', '', 'Total de Sessões:', patientGroup.sessions.length]);
-    rows.push(['', '', '', 'Horas Totais:', `${totalHours} horas`]);
-    rows.push(['', '', '', 'VALOR TOTAL A PAGAR (R$):', patientGroup.totalAmount.toFixed(2)]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map((e) => e.join(';')).join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob(['\uFEFF', excelHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `Demonstrativo_${patientGroup.patientName.replace(/\s+/g, '_')}_${monthName}_${selectedYear}.csv`
-    );
+    link.href = url;
+    const sanitizedName = patientGroup.patientName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ_-]/g, '_');
+    link.download = `Demonstrativo_${sanitizedName}_${monthName}_${selectedYear}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -709,165 +792,218 @@ export default function MonthlyFinancialSettlementView({
             </div>
           </div>
 
-          {/* Listagem Agrupada por Paciente */}
+          {/* Seletor Individual de Paciente */}
+          {groupedByPatient.length > 0 && (
+            <div className="patient-selector-card">
+              <div className="patient-selector-content">
+                <div className="patient-selector-label">
+                  <UserCheck size={20} color="var(--primary)" />
+                  <div>
+                    <span className="patient-selector-title">Visualizar Paciente Individual:</span>
+                    <span className="patient-selector-subtitle">
+                      Selecione um paciente para inspecionar seus atendimentos e exportar o demonstrativo mensal
+                    </span>
+                  </div>
+                </div>
+
+                <div className="patient-selector-controls">
+                  <select
+                    id="patient-select-dropdown"
+                    className="select-control patient-dropdown-select"
+                    value={selectedPatientId}
+                    onChange={(e) => setSelectedPatientId(e.target.value)}
+                  >
+                    {groupedByPatient.map((g) => (
+                      <option key={g.patientId} value={g.patientId}>
+                        {g.patientName} — {g.sessions.length} {g.sessions.length === 1 ? 'sessão' : 'sessões'} (R$ {g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {groupedByPatient.length > 1 && (
+                <div className="patient-quick-pills">
+                  {groupedByPatient.map((g) => (
+                    <button
+                      key={g.patientId}
+                      type="button"
+                      className={`patient-pill-btn ${g.patientId === selectedPatientId ? 'active' : ''}`}
+                      onClick={() => setSelectedPatientId(g.patientId)}
+                    >
+                      <span className="pill-name">{g.patientName}</span>
+                      <span className="pill-count">{g.sessions.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Card do Paciente Selecionado */}
           {groupedByPatient.length === 0 ? (
             <div className="table-card">
               <div className="empty-state-box">
                 <Calendar size={48} color="var(--text-muted)" />
-                <h4>Nenhum atendimento faturável neste mês</h4>
+                <h4>Nenhum atendimento com check-in realizado neste mês</h4>
                 <p>
-                  Você não possui atendimentos registrados para {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}.
-                  Utilize o botão <strong>"Incluir Atendimento"</strong> para registrar atendimentos avulsos.
+                  O fechamento mensal considera exclusivamente atendimentos em que o check-in foi efetuado.
+                  Faça o check-in dos atendimentos na <strong>Agenda</strong> ou utilize o botão <strong>"Incluir Atendimento"</strong>.
                 </p>
               </div>
             </div>
           ) : (
-            groupedByPatient.map((group) => (
-              <div key={group.patientId} className="patient-financial-card">
-                {/* Header do Paciente */}
-                <div className="patient-card-header">
-                  <div className="patient-info-block">
-                    <Avatar name={group.patientName} size={40} color="var(--primary)" />
+            (() => {
+              const group = groupedByPatient.find((g) => g.patientId === selectedPatientId) || groupedByPatient[0];
+              if (!group) return null;
+
+              return (
+                <div key={group.patientId} className="patient-financial-card">
+                  {/* Header do Paciente */}
+                  <div className="patient-card-header">
+                    <div className="patient-info-block">
+                      <Avatar name={group.patientName} size={40} color="var(--primary)" />
+                      <div>
+                        <h3>{group.patientName}</h3>
+                        <p>
+                          <MapPin size={14} color="var(--primary)" />
+                          {group.patientAddress} • Responsável: {group.responsibleName} ({group.phone})
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Ações de Exportação para o Paciente */}
+                    <div className="patient-actions-block">
+                      <button
+                        className="btn-export pdf"
+                        onClick={() => handleExportPDF(group)}
+                        title="Gerar e imprimir demonstrativo formal em PDF para enviar ao paciente/responsável"
+                      >
+                        <Printer size={15} />
+                        Gerar PDF p/ Paciente
+                      </button>
+
+                      <button
+                        className="btn-export excel"
+                        onClick={() => handleExportXLSX(group)}
+                        title="Baixar planilha Excel (.xls) com o demonstrativo deste paciente"
+                      >
+                        <FileSpreadsheet size={15} />
+                        Exportar Excel (XLSX)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabela de Atendimentos deste Paciente */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="financial-table">
+                      <thead>
+                        <tr>
+                          <th>Data & Horário</th>
+                          <th>Tipo de Dia</th>
+                          <th>Duração</th>
+                          <th>Custo Horário (R$/h)</th>
+                          <th>Valor Total da Sessão</th>
+                          <th>Regra Aplicada</th>
+                          <th style={{ textAlign: 'right' }}>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.sessions.map((sess) => {
+                          const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
+                          const dayCat = classifyDate(dateObj);
+
+                          return (
+                            <tr key={sess.id}>
+                              <td>
+                                <strong>
+                                  {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                </strong>
+                                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                  {sess.timeStr}
+                                </span>
+                              </td>
+
+                              <td>
+                                <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
+                                  {dayCat === 'WEEKEND' ? 'Final de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil (Semana)'}
+                                </span>
+                              </td>
+
+                              <td>
+                                <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  ({(sess.durationMinutes / 60).toFixed(1)}h)
+                                </span>
+                              </td>
+
+                              <td>
+                                <strong style={{ color: 'var(--text-headline)' }}>
+                                  R$ {Number(sess.hourlyRate).toFixed(2)}/h
+                                </strong>
+                              </td>
+
+                              <td>
+                                <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                                  R$ {Number(sess.totalAmount).toFixed(2)}
+                                </strong>
+                              </td>
+
+                              <td>
+                                <span className="rule-tag default">
+                                  {sess.ruleApplied}
+                                </span>
+                              </td>
+
+                              <td style={{ textAlign: 'right' }}>
+                                <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
+                                  <button
+                                    className="btn-action-sm"
+                                    onClick={() => setEditingSession({ ...sess })}
+                                    title="Corrigir valores ou duração deste atendimento"
+                                  >
+                                    <Edit2 size={13} />
+                                    Corrigir
+                                  </button>
+                                  <button
+                                    className="btn-action-sm danger"
+                                    onClick={() => handleDeleteSession(sess.id)}
+                                    title="Excluir este atendimento do fechamento"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Subtotalizador do Paciente */}
+                  <div className="patient-subtotal-bar">
+                    <div className="patient-subtotal-stats">
+                      <span>
+                        Total de Sessões: <strong>{group.sessions.length}</strong>
+                      </span>
+                      <span>
+                        Horas Realizadas: <strong>{(group.totalDurationMinutes / 60).toFixed(1)} horas</strong>
+                      </span>
+                    </div>
+
                     <div>
-                      <h3>{group.patientName}</h3>
-                      <p>
-                        <MapPin size={14} color="var(--primary)" />
-                        {group.patientAddress} • Responsável: {group.responsibleName} ({group.phone})
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Ações de Exportação para o Paciente */}
-                  <div className="patient-actions-block">
-                    <button
-                      className="btn-export pdf"
-                      onClick={() => handleExportPDF(group)}
-                      title="Gerar e imprimir demonstrativo formal em PDF para enviar ao paciente/responsável"
-                    >
-                      <Printer size={15} />
-                      Gerar PDF p/ Paciente
-                    </button>
-
-                    <button
-                      className="btn-export excel"
-                      onClick={() => handleExportXLSX(group)}
-                      title="Baixar planilha Excel (.xlsx) com o demonstrativo deste paciente"
-                    >
-                      <FileSpreadsheet size={15} />
-                      Exportar Excel (XLSX)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tabela de Atendimentos deste Paciente */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="financial-table">
-                    <thead>
-                      <tr>
-                        <th>Data & Horário</th>
-                        <th>Tipo de Dia</th>
-                        <th>Duração</th>
-                        <th>Custo Horário (R$/h)</th>
-                        <th>Valor Total da Sessão</th>
-                        <th>Regra Aplicada</th>
-                        <th style={{ textAlign: 'right' }}>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.sessions.map((sess) => {
-                        const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
-                        const dayCat = classifyDate(dateObj);
-
-                        return (
-                          <tr key={sess.id}>
-                            <td>
-                              <strong>
-                                {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
-                              </strong>
-                              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                {sess.timeStr}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
-                                {dayCat === 'WEEKEND' ? 'Final de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil (Semana)'}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
-                              <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                ({(sess.durationMinutes / 60).toFixed(1)}h)
-                              </span>
-                            </td>
-
-                            <td>
-                              <strong style={{ color: 'var(--text-headline)' }}>
-                                R$ {Number(sess.hourlyRate).toFixed(2)}/h
-                              </strong>
-                            </td>
-
-                            <td>
-                              <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
-                                R$ {Number(sess.totalAmount).toFixed(2)}
-                              </strong>
-                            </td>
-
-                            <td>
-                              <span className="rule-tag default">
-                                {sess.ruleApplied}
-                              </span>
-                            </td>
-
-                            <td style={{ textAlign: 'right' }}>
-                              <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
-                                <button
-                                  className="btn-action-sm"
-                                  onClick={() => setEditingSession({ ...sess })}
-                                  title="Corrigir valores ou duração deste atendimento"
-                                >
-                                  <Edit2 size={13} />
-                                  Corrigir
-                                </button>
-                                <button
-                                  className="btn-action-sm danger"
-                                  onClick={() => handleDeleteSession(sess.id)}
-                                  title="Excluir este atendimento do fechamento"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Subtotalizador do Paciente */}
-                <div className="patient-subtotal-bar">
-                  <div className="patient-subtotal-stats">
-                    <span>
-                      Total de Sessões: <strong>{group.sessions.length}</strong>
-                    </span>
-                    <span>
-                      Horas Realizadas: <strong>{(group.totalDurationMinutes / 60).toFixed(1)} horas</strong>
-                    </span>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textAlign: 'right' }}>
-                      Subtotal a Receber de {group.patientName.split(' ')[0]}:
-                    </span>
-                    <div className="patient-subtotal-total">
-                      R$ {group.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textAlign: 'right' }}>
+                        Subtotal a Receber de {group.patientName.split(' ')[0]}:
+                      </span>
+                      <div className="patient-subtotal-total">
+                        R$ {group.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })()
           )}
         </>
       )}

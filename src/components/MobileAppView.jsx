@@ -338,32 +338,20 @@ export default function MobileAppView({
                     </span>
                   </a>
 
-                  {/* Ações de Check-in e Checkout */}
+                  {/* Ações de Check-in Simplificado */}
                   <div className="mob-actions-row">
-                    {apt.status !== 'in_progress' && apt.status !== 'completed' && (
+                    {apt.status !== 'in_progress' && apt.status !== 'completed' ? (
                       <button
                         type="button"
                         className="mob-btn-action mob-btn-checkin"
                         onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
                       >
-                        <Play size={15} /> Check-in
+                        <CheckCircle2 size={16} /> Fazer Check-in
                       </button>
-                    )}
-
-                    {apt.status === 'in_progress' && (
-                      <button
-                        type="button"
-                        className="mob-btn-action mob-btn-finish"
-                        onClick={() => handleCompleteWithCelebration(apt.id)}
-                      >
-                        <CheckCircle2 size={16} /> Check-out
-                      </button>
-                    )}
-
-                    {apt.status === 'completed' && (
+                    ) : (
                       <div className="mob-done-indicator">
                         <CheckCircle2 size={16} color="#059669" />
-                        <span>Atendimento concluído</span>
+                        <span>Presença confirmada (Check-in realizado)</span>
                       </div>
                     )}
                   </div>

@@ -444,34 +444,31 @@ export default function Dashboard({
                         </div>
 
                         <div className="queue-actions" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-                          {apt.status === 'scheduled' && (
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
-                              onClick={() => onUpdateAppointmentStatus(apt.id, 'waiting')}
-                            >
-                              <Car size={13} /> A Caminho (Iniciar Rota)
-                            </button>
-                          )}
-
-                          {apt.status === 'waiting' && (
+                          {apt.status !== 'in_progress' && apt.status !== 'completed' ? (
                             <button
                               className="btn btn-primary"
                               style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}
                               onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
                             >
-                              <MapPin size={14} /> Check-in no Domicílio
+                              <CheckCircle2 size={14} /> Fazer Check-in no Domicílio
                             </button>
-                          )}
-
-                          {apt.status === 'in_progress' && (
-                            <button
-                              className="btn btn-success"
-                              style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}
-                              onClick={() => handleCompleteWithCelebration(apt.id)}
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                color: '#059669',
+                                background: '#ecfdf5',
+                                border: '1px solid #a7f3d0',
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
                             >
-                              <CheckCircle2 size={14} /> Finalizar Sessão Domiciliar
-                            </button>
+                              <CheckCircle2 size={13} color="#059669" /> Presença Confirmada
+                            </span>
                           )}
                         </div>
                       </div>
