@@ -39,20 +39,59 @@ export default function App() {
   // Main navigation tab
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Core Data States (with LocalStorage)
+  // Helper filters to prevent mock/test data contamination from old caches
+  const isMockPatient = (p) => {
+    if (!p) return true;
+    const name = (p.name || '').toLowerCase();
+    const id = String(p.id || '');
+    return id.startsWith('pat-') || name.includes('mariana souza') || name.includes('roberto carlos') || name.includes('juliana mendes');
+  };
+
+  const isMockDoctor = (d) => {
+    if (!d) return true;
+    const name = (d.name || '').toLowerCase();
+    const id = String(d.id || '');
+    return id.startsWith('doc-') || name.includes('lucas silveira') || name.includes('rafael fontes') || name.includes('camila nogueira') || name.includes('fernanda prado');
+  };
+
+  // Core Data States (with LocalStorage filtered from stale mock cache)
   const [doctors, setDoctors] = useState(() => {
     const saved = localStorage.getItem('omnihome_doctors_v3');
-    return saved ? JSON.parse(saved) : DOCTORS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((d) => !isMockDoctor(d));
+        }
+      } catch {}
+    }
+    return DOCTORS;
   });
 
   const [patients, setPatients] = useState(() => {
     const saved = localStorage.getItem('omnihome_patients_v3');
-    return saved ? JSON.parse(saved) : INITIAL_PATIENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => !isMockPatient(p));
+        }
+      } catch {}
+    }
+    return INITIAL_PATIENTS;
   });
 
   const [appointments, setAppointments] = useState(() => {
     const saved = localStorage.getItem('omnihome_appointments_v3');
-    return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a) => !['pat-1', 'pat-2', 'pat-3'].includes(a.patientId));
+        }
+      } catch {}
+    }
+    return INITIAL_APPOINTMENTS;
   });
 
   // Active Authenticated User (JWT)
@@ -106,7 +145,7 @@ export default function App() {
   // Home Care Operational Notifications
   const [notifications, setNotifications] = useState([]);
 
-  // Sync to LocalStorage
+  // Sync to LocalStorage (filtered)
   useEffect(() => {
     localStorage.setItem('omnihome_doctors_v3', JSON.stringify(doctors));
   }, [doctors]);
@@ -119,6 +158,17 @@ export default function App() {
     localStorage.setItem('omnihome_appointments_v3', JSON.stringify(appointments));
   }, [appointments]);
 
+  // Keep activePatientId valid when patients change
+  useEffect(() => {
+    if (patients.length > 0) {
+      if (!patients.some((p) => p.id === activePatientId)) {
+        setActivePatientId(patients[0].id);
+      }
+    } else {
+      setActivePatientId(null);
+    }
+  }, [patients, activePatientId]);
+
   // Sincroniza profissionais cadastrados no backend Fastify/Prisma
   useEffect(() => {
     const fetchBackendProfessionals = async () => {
@@ -127,40 +177,58 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.professionals && Array.isArray(data.professionals)) {
-            setDoctors((prev) => {
-              const existingIds = new Set(prev.map((d) => d.id));
-              const newFromBackend = data.professionals
-                .filter((p) => !existingIds.has(p.id))
-                .map((p) => {
-                  const spec = p.specialty || '';
-                  const profName = spec.includes('Enfermagem')
-                    ? 'Enfermagem'
-                    : spec.includes('Fono')
-                    ? 'Fonoaudiologia'
-                    : spec.includes('Nutri')
-                    ? 'Nutrição'
-                    : 'Fisioterapia';
+            const mapped = data.professionals
+              .filter((p) => !isMockDoctor(p.user))
+              .map((p) => {
+                const spec = (p.specialty || '').toLowerCase();
+                const crm = (p.crm || '').toUpperCase();
+                let profName = 'Fisioterapia';
+                if (crm.startsWith('CRM') || spec.includes('cardio') || spec.includes('médic')) {
+                  profName = 'Medicina';
+                } else if (crm.startsWith('COREN') || spec.includes('enferm')) {
+                  profName = 'Enfermagem';
+                } else if (crm.startsWith('CRFA') || spec.includes('fono')) {
+                  profName = 'Fonoaudiologia';
+                } else if (crm.startsWith('CRN') || spec.includes('nutri')) {
+                  profName = 'Nutrição';
+                } else if (crm.startsWith('CREFITO') || spec.includes('fisio')) {
+                  profName = 'Fisioterapia';
+                } else if (p.profession) {
+                  profName = p.profession;
+                }
 
-                  return {
-                    id: p.id,
-                    userId: p.userId,
-                    name: p.user?.name || 'Profissional',
-                    email: p.user?.email || '',
-                    profession: profName,
-                    specialty: p.specialty || 'Atendimento Multidisciplinar',
-                    councilNumber: p.crm || 'Registro Ativo',
-                    crm: p.crm || 'Registro Ativo',
-                    avatar: p.user?.avatar || null,
-                    color: '#0d9488',
-                    baseAddress: 'São Paulo - SP',
-                    baseCoordinates: {
-                      latitude: p.latitude ?? -23.585000,
-                      longitude: p.longitude ?? -46.638000
-                    }
-                  };
-                });
-              return [...prev, ...newFromBackend];
-            });
+                return {
+                  id: p.id,
+                  userId: p.userId,
+                  name: p.user?.name || 'Profissional',
+                  email: p.user?.email || '',
+                  profession: profName,
+                  specialty: p.specialty || 'Atendimento Multidisciplinar',
+                  councilNumber: p.crm || 'Registro Ativo',
+                  crm: p.crm || 'Registro Ativo',
+                  avatar: p.user?.avatar || null,
+                  color: '#0d9488',
+                  baseAddress: 'Curitiba - PR',
+                  baseCoordinates: {
+                    latitude: p.latitude ?? -25.4284,
+                    longitude: p.longitude ?? -49.2733
+                  }
+                };
+              });
+
+            // Deduplica por email e id
+            const uniqueDocs = [];
+            const seen = new Set();
+            for (const doc of mapped) {
+              const key = doc.email ? doc.email.toLowerCase().trim() : doc.id;
+              if (!seen.has(key)) {
+                seen.add(key);
+                uniqueDocs.push(doc);
+              }
+            }
+
+            setDoctors(uniqueDocs);
+            localStorage.setItem('omnihome_doctors_v3', JSON.stringify(uniqueDocs));
           }
         }
       } catch (err) {
@@ -178,32 +246,41 @@ export default function App() {
         const res = await fetch(`${API_BASE_URL}/api/scheduler/patients`);
         if (res.ok) {
           const data = await res.json();
-          if (data.patients && Array.isArray(data.patients) && data.patients.length > 0) {
-            setPatients((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const newFromBackend = data.patients
-                .filter((p) => !existingIds.has(p.id))
-                .map((p) => ({
-                  id: p.id,
-                  name: p.name,
-                  cpf: p.cpf || '000.000.000-00',
-                  birthDate: '1990-01-01',
-                  age: 45,
-                  gender: 'Feminino',
-                  phone: p.phone || '(11) 98765-4321',
-                  email: p.email || '',
-                  insurance: 'Unimed Pleno',
-                  insuranceNumber: 'PLEN-001',
-                  address: p.address || 'Endereço em rota domiciliar',
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  caregiver: 'Cuidador(a) cadastrado',
-                  accessNotes: 'Residência autorizada para atendimento domiciliar',
-                  mobilityStatus: 'Deambula sem auxílio',
-                  careTeamMembers: p.careTeamMembers || []
-                }));
-              return [...prev, ...newFromBackend];
-            });
+          if (data.patients && Array.isArray(data.patients)) {
+            const mapped = data.patients
+              .filter((p) => !isMockPatient(p))
+              .map((p) => ({
+                id: p.id,
+                name: p.name,
+                cpf: p.cpf || '000.000.000-00',
+                birthDate: '1990-01-01',
+                age: 45,
+                gender: 'Feminino',
+                phone: p.phone || '(11) 98765-4321',
+                email: p.email || '',
+                insurance: 'Unimed Pleno',
+                insuranceNumber: 'PLEN-001',
+                address: p.address || 'Endereço em rota domiciliar',
+                latitude: p.latitude,
+                longitude: p.longitude,
+                caregiver: 'Cuidador(a) cadastrado',
+                accessNotes: 'Residência autorizada para atendimento domiciliar',
+                mobilityStatus: 'Deambula sem auxílio',
+                careTeamMembers: p.careTeamMembers || []
+              }));
+
+            const uniquePats = [];
+            const seen = new Set();
+            for (const pat of mapped) {
+              const key = pat.cpf && pat.cpf !== '000.000.000-00' ? pat.cpf : pat.id;
+              if (!seen.has(key)) {
+                seen.add(key);
+                uniquePats.push(pat);
+              }
+            }
+
+            setPatients(uniquePats);
+            localStorage.setItem('omnihome_patients_v3', JSON.stringify(uniquePats));
           }
         }
       } catch (err) {
@@ -228,31 +305,30 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.appointments && Array.isArray(data.appointments)) {
-            const mapped = data.appointments.map((a) => {
-              const dateObj = new Date(a.scheduledTime);
-              const dateStr = dateObj.toISOString().slice(0, 10);
-              const timeStr = dateObj.toISOString().slice(11, 16);
-              const doctorId = a.professionalId;
+            const mapped = data.appointments
+              .filter((a) => !isMockPatient(a.patient))
+              .map((a) => {
+                const dateObj = new Date(a.scheduledTime);
+                const dateStr = dateObj.toISOString().slice(0, 10);
+                const timeStr = dateObj.toISOString().slice(11, 16);
+                const doctorId = a.professionalId;
 
-              return {
-                id: a.id,
-                patientId: a.patientId,
-                doctorId,
-                date: dateStr,
-                time: timeStr,
-                type: a.notes || 'Sessão Domiciliar',
-                durationMinutes: a.durationMinutes || 45,
-                address: a.patient?.address || 'São Paulo - SP',
-                notes: a.notes || '',
-                status: a.status ? a.status.toLowerCase() : 'scheduled'
-              };
-            });
+                return {
+                  id: a.id,
+                  patientId: a.patientId,
+                  doctorId,
+                  date: dateStr,
+                  time: timeStr,
+                  type: a.notes || 'Sessão Domiciliar',
+                  durationMinutes: a.durationMinutes || 45,
+                  address: a.patient?.address || 'São Paulo - SP',
+                  notes: a.notes || '',
+                  status: a.status ? a.status.toLowerCase() : 'scheduled'
+                };
+              });
 
-            setAppointments((prev) => {
-              const backendIds = new Set(mapped.map((m) => m.id));
-              const localOnly = prev.filter((p) => !backendIds.has(p.id));
-              return [...mapped, ...localOnly];
-            });
+            setAppointments(mapped);
+            localStorage.setItem('omnihome_appointments_v3', JSON.stringify(mapped));
           }
         }
       } catch (err) {
@@ -262,6 +338,7 @@ export default function App() {
 
     syncBackendAppointments();
   }, [currentUser]);
+
 
   // Sincroniza automaticamente o profissional selecionado com o usuário autenticado
   useEffect(() => {

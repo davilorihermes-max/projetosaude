@@ -28,8 +28,53 @@ export default function NewAppointmentModal({
   initialDuration = 45
 }) {
   const getTodayStr = () => new Date().toISOString().slice(0, 10);
-  const [patientId, setPatientId] = useState(initialPatientId || patients[0]?.id || '');
-  const [doctorId, setDoctorId] = useState(initialDoctorId || doctors[0]?.id || '');
+
+  // Helper filters to prevent mock/test data contamination
+  const uniquePatients = React.useMemo(() => {
+    const seen = new Set();
+    return patients.filter((p) => {
+      if (!p) return false;
+      const name = (p.name || '').toLowerCase();
+      const id = String(p.id || '');
+      if (
+        id.startsWith('pat-') ||
+        name.includes('mariana souza') ||
+        name.includes('roberto carlos') ||
+        name.includes('juliana mendes')
+      ) {
+        return false;
+      }
+      const key = p.cpf && p.cpf !== '000.000.000-00' ? p.cpf : p.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [patients]);
+
+  const uniqueDoctors = React.useMemo(() => {
+    const seen = new Set();
+    return doctors.filter((d) => {
+      if (!d) return false;
+      const name = (d.name || '').toLowerCase();
+      const id = String(d.id || '');
+      if (
+        id.startsWith('doc-') ||
+        name.includes('lucas silveira') ||
+        name.includes('rafael fontes') ||
+        name.includes('camila nogueira') ||
+        name.includes('fernanda prado')
+      ) {
+        return false;
+      }
+      const key = d.email ? d.email.toLowerCase().trim() : d.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [doctors]);
+
+  const [patientId, setPatientId] = useState(initialPatientId || uniquePatients[0]?.id || '');
+  const [doctorId, setDoctorId] = useState(initialDoctorId || uniqueDoctors[0]?.id || '');
   const [date, setDate] = useState(initialDate || getTodayStr());
   const [time, setTime] = useState(initialTime);
   const [type, setType] = useState('Sessão de Fisioterapia Domiciliar');
@@ -45,14 +90,23 @@ export default function NewAppointmentModal({
   // Sync initial values when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (initialPatientId) setPatientId(initialPatientId);
-      if (initialDoctorId) setDoctorId(initialDoctorId);
+      const validPatId =
+        initialPatientId && uniquePatients.some((p) => p.id === initialPatientId)
+          ? initialPatientId
+          : uniquePatients[0]?.id || '';
+      const validDocId =
+        initialDoctorId && uniqueDoctors.some((d) => d.id === initialDoctorId)
+          ? initialDoctorId
+          : uniqueDoctors[0]?.id || '';
+
+      setPatientId(validPatId);
+      setDoctorId(validDocId);
       if (initialTime) setTime(initialTime);
       setDate(initialDate || getTodayStr());
       if (initialDuration) setDurationMinutes(Number(initialDuration) || 45);
       setSubmitError('');
     }
-  }, [isOpen, initialPatientId, initialDoctorId, initialTime, initialDate, initialDuration]);
+  }, [isOpen, initialPatientId, initialDoctorId, initialTime, initialDate, initialDuration, uniquePatients, uniqueDoctors]);
 
   // Live check with backend scheduler evaluation
   useEffect(() => {
@@ -114,8 +168,9 @@ export default function NewAppointmentModal({
 
   if (!isOpen) return null;
 
-  const selectedPatient = patients.find((p) => p.id === patientId) || patients[0];
-  const selectedDoctor = doctors.find((d) => d.id === doctorId) || doctors[0];
+  const selectedPatient = uniquePatients.find((p) => p.id === patientId) || uniquePatients[0];
+  const selectedDoctor = uniqueDoctors.find((d) => d.id === doctorId) || uniqueDoctors[0];
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -263,11 +318,15 @@ export default function NewAppointmentModal({
                 onChange={(e) => setPatientId(e.target.value)}
                 required
               >
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} - {p.address ? `(${p.address})` : ''}
-                  </option>
-                ))}
+                {uniquePatients.length === 0 ? (
+                  <option value="">Nenhum paciente cadastrado</option>
+                ) : (
+                  uniquePatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.address ? `- (${p.address})` : ''}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -280,11 +339,15 @@ export default function NewAppointmentModal({
                   onChange={(e) => setDoctorId(e.target.value)}
                   required
                 >
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} • {d.profession || 'Especialista'} ({d.councilNumber || d.crm || d.specialty})
-                    </option>
-                  ))}
+                  {uniqueDoctors.length === 0 ? (
+                    <option value="">Nenhum profissional cadastrado</option>
+                  ) : (
+                    uniqueDoctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} • {d.profession || 'Especialista'} ({d.councilNumber || d.crm || d.specialty})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 

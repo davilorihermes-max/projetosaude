@@ -1,13 +1,15 @@
-// test/e2e-auth-and-scheduler.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildServer } from '../src/main.js';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../src/lib/prisma.js';
+import bcrypt from 'bcryptjs';
 
 describe('E2E Integration: Autenticação Estrita & Avaliação do Scheduler', () => {
   let server: FastifyInstance;
   let doctorToken: string;
   let professionalId: string;
+  let testDocUserId: string;
+  let testDocEmail: string;
   let patientMarianaId: string;
   let patientJulianaId: string;
 
@@ -15,25 +17,68 @@ describe('E2E Integration: Autenticação Estrita & Avaliação do Scheduler', (
     server = buildServer();
     await server.ready();
 
-    // Busca IDs reais do seed no Prisma
-    const doctor = await prisma.user.findUnique({
-      where: { email: 'lucas@omnisaude.com.br' },
+    testDocEmail = `doctor.e2e.${Date.now()}@omnisaude.com.br`;
+    const passwordHash = await bcrypt.hash('DoctorPassword123!', 10);
+
+    const doctor = await prisma.user.create({
+      data: {
+        name: 'Dr. Lucas Silveira',
+        email: testDocEmail,
+        passwordHash,
+        role: 'PROFESSIONAL',
+        professional: {
+          create: {
+            crm: 'CRM/SP 142.890',
+            specialty: 'Cardiologia',
+            latitude: -23.561684,
+            longitude: -46.655981
+          }
+        }
+      },
       include: { professional: true }
     });
-    professionalId = doctor!.professional!.id;
+    testDocUserId = doctor.id;
+    professionalId = doctor.professional!.id;
 
-    const mariana = await prisma.patient.findFirst({
-      where: { name: { contains: 'Mariana' } }
+    const mariana = await prisma.patient.create({
+      data: {
+        name: 'Mariana Souza Lima',
+        cpf: `999.${Math.floor(100 + Math.random() * 900)}.111-99`,
+        latitude: -23.563099,
+        longitude: -46.654271,
+        address: 'Alameda Santos, 1000 - Cerqueira César, São Paulo - SP'
+      }
     });
-    patientMarianaId = mariana!.id;
+    patientMarianaId = mariana.id;
 
-    const juliana = await prisma.patient.findFirst({
-      where: { name: { contains: 'Juliana' } }
+    // Vincula Mariana ao CareTeam
+    await prisma.careTeamMember.create({
+      data: {
+        patientId: patientMarianaId,
+        professionalId,
+        role: 'PRIMARY_CARE',
+        active: true
+      }
     });
-    patientJulianaId = juliana!.id;
+
+    const juliana = await prisma.patient.create({
+      data: {
+        name: 'Juliana Mendes Prado',
+        cpf: `888.${Math.floor(100 + Math.random() * 900)}.222-88`,
+        latitude: -23.602200,
+        longitude: -46.662100,
+        address: 'Av. Moema, 350 - Moema, São Paulo - SP'
+      }
+    });
+    patientJulianaId = juliana.id;
   });
 
   afterAll(async () => {
+    await prisma.appointment.deleteMany({ where: { professionalId } });
+    await prisma.careTeamMember.deleteMany({ where: { professionalId } });
+    await prisma.patient.deleteMany({ where: { id: { in: [patientMarianaId, patientJulianaId] } } });
+    await prisma.professional.delete({ where: { id: professionalId } });
+    await prisma.user.delete({ where: { id: testDocUserId } });
     await server.close();
   });
 
@@ -75,7 +120,7 @@ describe('E2E Integration: Autenticação Estrita & Avaliação do Scheduler', (
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'lucas@omnisaude.com.br',
+          email: testDocEmail,
           password: '123456'
         }
       });
@@ -91,7 +136,7 @@ describe('E2E Integration: Autenticação Estrita & Avaliação do Scheduler', (
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'lucas@omnisaude.com.br',
+          email: testDocEmail,
           password: 'DoctorPassword123!'
         }
       });

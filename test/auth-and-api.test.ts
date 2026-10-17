@@ -1,17 +1,47 @@
-// test/auth-and-api.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildServer } from '../src/main.js';
 import { FastifyInstance } from 'fastify';
+import { prisma } from '../src/lib/prisma.js';
+import bcrypt from 'bcryptjs';
+
+export const createdTestEmails: string[] = [];
 
 describe('HTTP API - Autenticação & Route Guards', () => {
   let server: FastifyInstance;
+  let testAdminEmail: string;
 
   beforeAll(async () => {
     server = buildServer();
     await server.ready();
+
+    testAdminEmail = `admin.test.${Date.now()}@omnisaude.com.br`;
+    createdTestEmails.push(testAdminEmail);
+
+    await prisma.user.create({
+      data: {
+        name: 'Administrador Teste',
+        email: testAdminEmail,
+        passwordHash: await bcrypt.hash('AdminPassword123!', 10),
+        role: 'ADMIN'
+      }
+    });
   });
 
   afterAll(async () => {
+    if (createdTestEmails.length > 0) {
+      await prisma.appointment.deleteMany({
+        where: { professional: { user: { email: { in: createdTestEmails } } } }
+      });
+      await prisma.careTeamMember.deleteMany({
+        where: { professional: { user: { email: { in: createdTestEmails } } } }
+      });
+      await prisma.professional.deleteMany({
+        where: { user: { email: { in: createdTestEmails } } }
+      });
+      await prisma.user.deleteMany({
+        where: { email: { in: createdTestEmails } }
+      });
+    }
     await server.close();
   });
 
@@ -21,7 +51,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'admin@omnisaude.com.br',
+          email: testAdminEmail,
           password: 'AdminPassword123!'
         }
       });
@@ -31,7 +61,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(data.token).toBeDefined();
       expect(data.user).toBeDefined();
       expect(data.user.role).toBe('ADMIN');
-      expect(data.user.email).toBe('admin@omnisaude.com.br');
+      expect(data.user.email).toBe(testAdminEmail);
 
       // Decodifica token para validar payload
       const decoded = server.jwt.decode<{ userId: string; role: string }>(data.token);
@@ -39,12 +69,12 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(decoded?.role).toBe('ADMIN');
     });
 
-    it('deve autenticar Dr. Lucas estritamente com e-mail corporativo e senha bcrypt', async () => {
+    it('deve autenticar profissional estritamente com e-mail corporativo e senha bcrypt', async () => {
       const response = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'lucas@omnisaude.com.br',
+          email: 'millachagass@gmail.com',
           password: 'DoctorPassword123!'
         }
       });
@@ -52,7 +82,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(response.statusCode).toBe(200);
       const data = response.json();
       expect(data.token).toBeDefined();
-      expect(data.user.name).toBe('Dr. Lucas Silveira');
+      expect(data.user.name).toBe('Milla Chagas');
       expect(data.user.role).toBe('PROFESSIONAL');
     });
 
@@ -91,7 +121,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'admin@omnisaude.com.br',
+          email: testAdminEmail,
           password: 'WrongPassword'
         }
       });
@@ -121,7 +151,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
         method: 'POST',
         url: '/api/auth/login',
         payload: {
-          email: 'admin@omnisaude.com.br'
+          email: testAdminEmail
         }
       });
 
@@ -138,7 +168,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       const resAdmin = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
-        payload: { email: 'admin@omnisaude.com.br', password: 'AdminPassword123!' }
+        payload: { email: testAdminEmail, password: 'AdminPassword123!' }
       });
       adminToken = resAdmin.json().token;
 
@@ -146,7 +176,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       const resDoc = await server.inject({
         method: 'POST',
         url: '/api/auth/login',
-        payload: { email: 'lucas@omnisaude.com.br', password: 'DoctorPassword123!' }
+        payload: { email: 'millachagass@gmail.com', password: 'DoctorPassword123!' }
       });
       doctorToken = resDoc.json().token;
     });
@@ -192,6 +222,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
 
   describe('Criação & Gestão de Perfil Profissional', () => {
     const testEmail = `camila.perfil.${Date.now()}@omnisaude.com.br`;
+    createdTestEmails.push(testEmail);
     let userToken: string;
 
     it('deve registrar usuário com perfil profissional multidisciplinar completo e vinculação a Care Team', async () => {
@@ -262,6 +293,7 @@ describe('HTTP API - Autenticação & Route Guards', () => {
 
     it('deve cadastrar novo profissional na equipe via POST /api/scheduler/professionals', async () => {
       const directEmail = `fernanda.fono.${Date.now()}@omnisaude.com.br`;
+      createdTestEmails.push(directEmail);
       const response = await server.inject({
         method: 'POST',
         url: '/api/scheduler/professionals',
