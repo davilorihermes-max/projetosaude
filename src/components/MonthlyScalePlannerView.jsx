@@ -36,9 +36,11 @@ import './MonthlyScalePlannerView.css';
 import './ScaleAIChatWidget.css';
 
 import { ALL_PRESET_LOCATIONS, resolveAddressCoordinates } from '../services/geocodingService';
+import { API_BASE_URL } from '../services/apiConfig';
 
 // Chave para persistência da escala mensal no localStorage para não perder ao trocar de tela
 export const SCALE_STORAGE_KEY = 'omnihome_monthly_scale_state_v4';
+export const FIXED_APPOINTMENTS_STORAGE_KEY = 'omnihome_fixed_appointments_v4';
 
 export const getInitialScaleSavedData = () => {
   try {
@@ -131,7 +133,35 @@ export default function MonthlyScalePlannerView({
   });
 
   // Atendimentos Fixados / Travados na Grade
-  const [fixedAppointments, setFixedAppointments] = useState(() => getInitialScaleSavedData()?.fixedAppointments || []);
+  const [fixedAppointments, setFixedAppointments] = useState(() => {
+    try {
+      const dedicated = localStorage.getItem(FIXED_APPOINTMENTS_STORAGE_KEY);
+      if (dedicated) {
+        const parsed = JSON.parse(dedicated);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return getInitialScaleSavedData()?.fixedAppointments || [];
+  });
+
+  // Sincroniza atendimentos fixados/travados com o backend em nuvem PostgreSQL
+  useEffect(() => {
+    const fetchCloudFixedAppointments = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/fixed-appointments`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.fixedAppointments && Array.isArray(data.fixedAppointments) && data.fixedAppointments.length > 0) {
+            setFixedAppointments(data.fixedAppointments);
+            localStorage.setItem(FIXED_APPOINTMENTS_STORAGE_KEY, JSON.stringify(data.fixedAppointments));
+          }
+        }
+      } catch (err) {
+        console.warn('Sincronização de atendimentos fixados com a nuvem ignorada:', err);
+      }
+    };
+    fetchCloudFixedAppointments();
+  }, []);
 
   // Modal para cadastrar atendimento fixo
   const [fixedAppointmentModalState, setFixedAppointmentModalState] = useState({
@@ -884,14 +914,32 @@ export default function MonthlyScalePlannerView({
 
     const nextFixed = [...fixedAppointments, newFix];
     setFixedAppointments(nextFixed);
+    try {
+      localStorage.setItem(FIXED_APPOINTMENTS_STORAGE_KEY, JSON.stringify(nextFixed));
+    } catch {}
     setFixedAppointmentModalState({ ...fixedAppointmentModalState, isOpen: false });
     runGeneration(patientsWithDemands, professionalAvailabilities, careTeams, nextFixed);
+
+    // Persiste na nuvem Neon PostgreSQL
+    fetch(`${API_BASE_URL}/api/scheduler/fixed-appointments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fixedAppointment: newFix })
+    }).catch((err) => console.warn('Erro ao salvar atendimento fixado na nuvem:', err));
   };
 
   const handleRemoveFixedAppointment = (fixId) => {
     const nextFixed = fixedAppointments.filter((f) => f.id !== fixId);
     setFixedAppointments(nextFixed);
+    try {
+      localStorage.setItem(FIXED_APPOINTMENTS_STORAGE_KEY, JSON.stringify(nextFixed));
+    } catch {}
     runGeneration(patientsWithDemands, professionalAvailabilities, careTeams, nextFixed);
+
+    // Persiste remoção na nuvem Neon PostgreSQL
+    fetch(`${API_BASE_URL}/api/scheduler/fixed-appointments/${fixId}`, {
+      method: 'DELETE'
+    }).catch((err) => console.warn('Erro ao remover atendimento fixado na nuvem:', err));
   };
 
   const formatBlockLabel = (block) => {
