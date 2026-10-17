@@ -304,6 +304,13 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       }
     }
 
+    const allProfs = await prisma.professional.findMany({ select: { id: true } });
+    const careTeamCreates = allProfs.map((prof) => ({
+      professionalId: prof.id,
+      role: prof.id === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
+      active: true
+    }));
+
     const newPatient = await prisma.patient.create({
       data: {
         name,
@@ -313,14 +320,10 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         address: address || null,
         latitude: latitude ?? -23.585,
         longitude: longitude ?? -46.638,
-        ...(validProfId
+        ...(careTeamCreates.length > 0
           ? {
               careTeamMembers: {
-                create: {
-                  professionalId: validProfId,
-                  role: 'PRIMARY_CARE',
-                  active: true
-                }
+                create: careTeamCreates
               }
             }
           : {})
@@ -333,6 +336,29 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     return reply.status(201).send({
       success: true,
       patient: newPatient
+    });
+  });
+
+  /**
+   * DELETE /api/scheduler/patients/:id
+   * Remove um paciente cadastrado e seus vínculos no banco Prisma
+   */
+  app.delete<{ Params: { id: string } }>('/patients/:id', async (request, reply) => {
+    const { id } = request.params;
+    if (!id) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'ID do paciente é obrigatório.'
+      });
+    }
+
+    await prisma.patient.deleteMany({
+      where: { id }
+    });
+
+    return reply.status(200).send({
+      success: true
     });
   });
 

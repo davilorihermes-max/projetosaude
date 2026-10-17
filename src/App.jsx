@@ -42,16 +42,32 @@ export default function App() {
   // Helper filters to prevent mock/test data contamination from old caches
   const isMockPatient = (p) => {
     if (!p) return true;
-    const name = (p.name || '').toLowerCase();
+    const name = (p.name || '').toLowerCase().trim();
     const id = String(p.id || '');
-    return id.startsWith('pat-') || name.includes('mariana souza') || name.includes('roberto carlos') || name.includes('juliana mendes');
+    const cpf = String(p.cpf || '');
+    const address = (p.address || '').toLowerCase();
+    return (
+      ['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(id) ||
+      ['123.456.789-00', '12345678901', '284.912.839-44', '910.283.746-11', '418.992.301-85'].includes(cpf) ||
+      name.includes('mariana souza') ||
+      name.includes('roberto carlos') ||
+      name.includes('juliana mendes') ||
+      (name === 'ana clara' && address.includes('xv de novembro')) ||
+      (name === 'maria silva' && address.includes('rua das flores'))
+    );
   };
 
   const isMockDoctor = (d) => {
     if (!d) return true;
-    const name = (d.name || '').toLowerCase();
+    const name = (d.name || '').toLowerCase().trim();
     const id = String(d.id || '');
-    return id.startsWith('doc-') || name.includes('lucas silveira') || name.includes('rafael fontes') || name.includes('camila nogueira') || name.includes('fernanda prado');
+    return (
+      ['doc-1', 'doc-2', 'doc-3', 'doc-4'].includes(id) ||
+      name.includes('lucas silveira') ||
+      name.includes('rafael fontes') ||
+      name.includes('camila nogueira') ||
+      name.includes('fernanda prado')
+    );
   };
 
   // Core Data States (with LocalStorage filtered from stale mock cache)
@@ -87,7 +103,12 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((a) => !['pat-1', 'pat-2', 'pat-3'].includes(a.patientId));
+          return parsed.filter(
+            (a) =>
+              !['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(
+                a.patientId
+              )
+          );
         }
       } catch {}
     }
@@ -504,6 +525,28 @@ export default function App() {
     }
   };
 
+  const handleDeletePatient = async (patientId) => {
+    if (!patientId) return;
+    setPatients((prev) => {
+      const updated = prev.filter((p) => p.id !== patientId);
+      localStorage.setItem('omnihome_patients_v3', JSON.stringify(updated));
+      return updated;
+    });
+    setAppointments((prev) => {
+      const updated = prev.filter((a) => a.patientId !== patientId);
+      localStorage.setItem('omnihome_appointments_v3', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await fetch(`${API_BASE_URL}/api/scheduler/patients/${patientId}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn('Exclusão de paciente no backend ignorada:', err);
+    }
+  };
+
   const handleResetData = () => {
     setPatients(INITIAL_PATIENTS);
     setAppointments(INITIAL_APPOINTMENTS);
@@ -620,6 +663,7 @@ export default function App() {
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
+              onDeletePatient={handleDeletePatient}
             />
           )}
 

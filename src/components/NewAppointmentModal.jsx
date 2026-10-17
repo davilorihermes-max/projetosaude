@@ -34,13 +34,18 @@ export default function NewAppointmentModal({
     const seen = new Set();
     return patients.filter((p) => {
       if (!p) return false;
-      const name = (p.name || '').toLowerCase();
+      const name = (p.name || '').toLowerCase().trim();
       const id = String(p.id || '');
+      const cpf = String(p.cpf || '');
+      const address = (p.address || '').toLowerCase();
       if (
-        id.startsWith('pat-') ||
+        ['pat-1', 'pat-2', 'pat-3', 'cmvbhl9ni0000hi1iamswxf2z', 'cmvbioafs00006my8x76qrx83'].includes(id) ||
+        ['123.456.789-00', '12345678901', '284.912.839-44', '910.283.746-11', '418.992.301-85'].includes(cpf) ||
         name.includes('mariana souza') ||
         name.includes('roberto carlos') ||
-        name.includes('juliana mendes')
+        name.includes('juliana mendes') ||
+        (name === 'ana clara' && address.includes('xv de novembro')) ||
+        (name === 'maria silva' && address.includes('rua das flores'))
       ) {
         return false;
       }
@@ -55,10 +60,10 @@ export default function NewAppointmentModal({
     const seen = new Set();
     return doctors.filter((d) => {
       if (!d) return false;
-      const name = (d.name || '').toLowerCase();
+      const name = (d.name || '').toLowerCase().trim();
       const id = String(d.id || '');
       if (
-        id.startsWith('doc-') ||
+        ['doc-1', 'doc-2', 'doc-3', 'doc-4'].includes(id) ||
         name.includes('lucas silveira') ||
         name.includes('rafael fontes') ||
         name.includes('camila nogueira') ||

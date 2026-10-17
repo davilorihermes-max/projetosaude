@@ -100,7 +100,7 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
               <input
                 type="text"
                 className="form-input"
-                placeholder="Ex: Ana Clara Barbosa"
+                placeholder="Nome completo do paciente"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -146,7 +146,7 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="(11) 90000-0000"
+                  placeholder="(00) 00000-0000"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
@@ -194,7 +194,7 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
               <input
                 type="text"
                 className="form-input"
-                placeholder="Ex: Rua, número, bairro e cidade (ex: Curitiba, Rio de Janeiro, Salvador...)"
+                placeholder="Rua, número, bairro e cidade"
                 value={address}
                 onChange={(e) => handleAddressChange(e.target.value)}
                 required
@@ -215,7 +215,7 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Dona Maria (Mãe) - (11) 98888-7777"
+                  placeholder="Nome do responsável e telefone"
                   value={caregiver}
                   onChange={(e) => setCaregiver(e.target.value)}
                 />
