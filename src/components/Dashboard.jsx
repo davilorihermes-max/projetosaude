@@ -1,5 +1,5 @@
 // src/components/Dashboard.jsx
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Calendar,
@@ -17,7 +17,9 @@ import {
   Phone,
   Compass,
   UserPlus,
-  CalendarPlus
+  CalendarPlus,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import './Dashboard.css';
 import Avatar from './Avatar';
@@ -33,14 +35,54 @@ export default function Dashboard({
   activeDoctor
 }) {
   const isAllDoctors = !activeDoctor || activeDoctor.id === 'all';
+  const realTodayStr = new Date().toISOString().slice(0, 10);
 
-  const todayDateStr = new Date().toISOString().slice(0, 10);
-  const todayAppointments = appointments.filter((apt) => {
-    const isToday = apt.date === todayDateStr;
-    if (!isToday) return false;
-    if (isAllDoctors) return true;
-    return apt.doctorId === activeDoctor.id;
+  // Lista de todas as datas que possuem atendimentos agendados
+  const allDatesWithApts = useMemo(() => {
+    return Array.from(new Set(appointments.map((a) => a.date).filter(Boolean))).sort();
+  }, [appointments]);
+
+  // Data selecionada da rota do dia: prioriza data com atendimentos se hoje não tiver
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (appointments.some((a) => a.date === realTodayStr)) return realTodayStr;
+    if (allDatesWithApts.length > 0) return allDatesWithApts[0];
+    return realTodayStr;
   });
+
+  // Se appointments mudar (por exemplo, após salvar a escala mensal), seleciona a data mais relevante
+  useEffect(() => {
+    if (allDatesWithApts.length > 0 && !allDatesWithApts.includes(selectedDate)) {
+      if (allDatesWithApts.includes(realTodayStr)) {
+        setSelectedDate(realTodayStr);
+      } else {
+        setSelectedDate(allDatesWithApts[0]);
+      }
+    }
+  }, [allDatesWithApts]);
+
+  const handlePrevDay = () => {
+    const cur = new Date(selectedDate + 'T12:00:00');
+    cur.setDate(cur.getDate() - 1);
+    setSelectedDate(cur.toISOString().slice(0, 10));
+  };
+
+  const handleNextDay = () => {
+    const cur = new Date(selectedDate + 'T12:00:00');
+    cur.setDate(cur.getDate() + 1);
+    setSelectedDate(cur.toISOString().slice(0, 10));
+  };
+
+  // Atendimentos filtrados pela data e pelo profissional selecionado, ordenados cronologicamente
+  const todayAppointments = useMemo(() => {
+    return appointments
+      .filter((apt) => {
+        const isMatchDate = apt.date === selectedDate;
+        if (!isMatchDate) return false;
+        if (isAllDoctors) return true;
+        return apt.doctorId === activeDoctor.id;
+      })
+      .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  }, [appointments, selectedDate, isAllDoctors, activeDoctor]);
 
   const pendingCount = todayAppointments.filter((a) => a.status === 'scheduled' || a.status === 'waiting').length;
   const inProgressCount = todayAppointments.filter((a) => a.status === 'in_progress').length;
@@ -143,7 +185,7 @@ export default function Dashboard({
         </div>
         <div className="welcome-badge-date">
           <Navigation size={15} />
-          <span>Central Operacional • São Paulo</span>
+          <span>Central Operacional • Grande Vitória (ES)</span>
         </div>
       </div>
 
@@ -207,18 +249,107 @@ export default function Dashboard({
         {/* Left Column: Domestic Route List */}
         <div>
           <div className="card">
-            <div className="section-header">
-              <h2 className="section-title">
-                <Navigation size={18} color="var(--primary)" />
-                Roteiro de Atendimentos Domiciliares de Hoje
-              </h2>
-              <button
-                className="btn btn-outline-primary"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                onClick={onOpenNewAppointment}
-              >
-                Encaixar Nova Sessão
-              </button>
+            <div className="section-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  <Navigation size={18} color="var(--primary)" />
+                  Roteiro de Atendimentos Domiciliares
+                </h2>
+                <button
+                  className="btn btn-outline-primary"
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                  onClick={onOpenNewAppointment}
+                >
+                  Encaixar Nova Sessão
+                </button>
+              </div>
+
+              {/* Barra de Navegação e Seleção de Data da Rota */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                background: 'var(--bg-surface-hover)',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-light)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    onClick={handlePrevDay}
+                    title="Dia anterior"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <input
+                    type="date"
+                    className="form-control"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', width: 'auto', fontWeight: 600 }}
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    onClick={handleNextDay}
+                    title="Próximo dia"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.25rem 0.6rem',
+                      fontSize: '0.75rem',
+                      background: selectedDate === realTodayStr ? 'var(--primary)' : 'var(--bg-card)',
+                      color: selectedDate === realTodayStr ? '#ffffff' : 'inherit'
+                    }}
+                    onClick={() => setSelectedDate(realTodayStr)}
+                  >
+                    Hoje
+                  </button>
+                </div>
+
+                {/* Atalhos Rápidos para Datas com Atendimentos da Escala */}
+                {allDatesWithApts.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', overflowX: 'auto', maxWidth: '100%' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      Dias c/ escala:
+                    </span>
+                    {allDatesWithApts.slice(0, 7).map((dStr) => {
+                      const countInDate = appointments.filter((a) => a.date === dStr).length;
+                      const isCur = selectedDate === dStr;
+                      const [yr, mo, dy] = dStr.split('-');
+                      return (
+                        <button
+                          key={dStr}
+                          type="button"
+                          className="badge"
+                          onClick={() => setSelectedDate(dStr)}
+                          style={{
+                            cursor: 'pointer',
+                            fontSize: '0.7rem',
+                            padding: '0.25rem 0.45rem',
+                            border: `1px solid ${isCur ? 'var(--primary)' : 'var(--border-light)'}`,
+                            background: isCur ? 'var(--primary)' : 'var(--bg-card)',
+                            color: isCur ? '#ffffff' : 'var(--text-headline)',
+                            fontWeight: isCur ? 700 : 500
+                          }}
+                        >
+                          {dy}/{mo} ({countInDate})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="queue-list">

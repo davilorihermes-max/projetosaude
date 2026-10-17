@@ -30,29 +30,11 @@ const COLOR_PRESETS = [
 
 import { resolveAddressCoordinates } from '../services/geocodingService';
 
-const BASE_LOCATION_PRESETS = [
-  // São Paulo
-  { name: 'Paulista (SP)', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563099, lng: -46.654271 },
-  { name: 'Pinheiros (SP)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567300, lng: -46.693400 },
-  { name: 'Campinas (SP)', address: 'Av. José de Souza Campos, 500 - Cambuí, Campinas - SP', lat: -22.898400, lng: -47.051900 },
-  // Rio de Janeiro
-  { name: 'Copacabana (RJ)', address: 'Av. Atlântica, 1500 - Copacabana, Rio de Janeiro - RJ', lat: -22.971100, lng: -43.182500 },
-  { name: 'Barra da Tijuca (RJ)', address: 'Av. das Américas, 3500 - Barra da Tijuca, Rio de Janeiro - RJ', lat: -22.999700, lng: -43.365900 },
-  // Paraná
-  { name: 'Batel (Curitiba - PR)', address: 'Av. do Batel, 1500 - Batel, Curitiba - PR', lat: -25.442800, lng: -49.288900 },
-  { name: 'Centro Cívico (Curitiba - PR)', address: 'Av. Cândido de Abreu, 500 - Centro Cívico, Curitiba - PR', lat: -25.417200, lng: -49.269400 },
-  // Minas Gerais
-  { name: 'Savassi (BH - MG)', address: 'Av. Cristóvão Colombo, 500 - Savassi, Belo Horizonte - MG', lat: -19.938600, lng: -43.933300 },
-  // Distrito Federal
-  { name: 'Asa Sul (Brasília - DF)', address: 'SHCS EQS 208/408 - Asa Sul, Brasília - DF', lat: -15.811400, lng: -47.906100 },
-  // Rio Grande do Sul
-  { name: 'Moinhos de Vento (POA - RS)', address: 'Rua Padre Chagas, 300 - Moinhos de Vento, Porto Alegre - RS', lat: -30.026100, lng: -51.203600 },
-  // Bahia
-  { name: 'Barra / Ondina (Salvador - BA)', address: 'Av. Oceânica, 1200 - Barra, Salvador - BA', lat: -13.008900, lng: -38.528300 },
-  // Pernambuco
-  { name: 'Boa Viagem (Recife - PE)', address: 'Av. Boa Viagem, 2000 - Boa Viagem, Recife - PE', lat: -8.127500, lng: -34.903600 },
-  // Santa Catarina
-  { name: 'Beira-Mar (Florianópolis - SC)', address: 'Av. Beira Mar Norte, 2200 - Centro, Florianópolis - SC', lat: -27.585500, lng: -48.552400 }
+export const CLINICAL_SPECIALTY_OPTIONS = [
+  'Fisioterapia Motora',
+  'Fisioterapia Respiratória',
+  'Terapia Ocupacional',
+  'Fonoaudiologia'
 ];
 
 export default function ProfileModal({
@@ -64,17 +46,31 @@ export default function ProfileModal({
   onLogout
 }) {
   const [name, setName] = useState(currentUser?.name || currentDoctor?.name || '');
-  const [specialty, setSpecialty] = useState(currentDoctor?.specialty || 'Fisioterapia Cardiorrespiratória & Motora');
-  const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || 'CREFITO/SP 88.340');
+  
+  // Especialidades clínicas selecionadas (até 3)
+  const [selectedSpecialties, setSelectedSpecialties] = useState(() => {
+    if (Array.isArray(currentDoctor?.specialties) && currentDoctor.specialties.length > 0) {
+      return currentDoctor.specialties.slice(0, 3);
+    }
+    if (currentDoctor?.specialty) {
+      const parts = currentDoctor.specialty.split(',').map((s) => s.trim()).filter(Boolean);
+      const matched = parts.filter((p) => CLINICAL_SPECIALTY_OPTIONS.includes(p));
+      if (matched.length > 0) return matched.slice(0, 3);
+    }
+    return ['Fisioterapia Motora'];
+  });
+
+  const [councilNumber, setCouncilNumber] = useState(currentDoctor?.councilNumber || currentDoctor?.crm || '');
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
-  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'São Paulo - SP');
+  const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'Praia do Canto, Vitória - ES');
   const [baseCoordinates, setBaseCoordinates] = useState(
     currentDoctor?.baseCoordinates || {
-      latitude: currentDoctor?.latitude ?? -23.585,
-      longitude: currentDoctor?.longitude ?? -46.638
+      latitude: currentDoctor?.latitude ?? -20.3012,
+      longitude: currentDoctor?.longitude ?? -40.2925
     }
   );
   const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [color, setColor] = useState(currentDoctor?.color || '#0d9488');
   const [avatar, setAvatar] = useState(currentDoctor?.avatar || '');
 
@@ -85,23 +81,36 @@ export default function ProfileModal({
 
   if (!isOpen) return null;
 
-  const handleBaseAddressChange = async (newAddr) => {
-    setBaseAddress(newAddr);
-    if (newAddr && newAddr.trim().length >= 3) {
-      try {
-        const res = await resolveAddressCoordinates(newAddr);
-        if (res && res.latitude && res.longitude) {
-          setBaseCoordinates({ latitude: res.latitude, longitude: res.longitude });
-          setResolvedLocationName(res.matched || res.city || 'Georreferenciado com sucesso');
-        }
-      } catch {}
+  const handleToggleSpecialty = (spec) => {
+    if (selectedSpecialties.includes(spec)) {
+      if (selectedSpecialties.length === 1) return; // Manter pelo menos 1
+      setSelectedSpecialties(selectedSpecialties.filter((s) => s !== spec));
+    } else {
+      if (selectedSpecialties.length >= 3) {
+        return; // Máximo 3 especialidades
+      }
+      setSelectedSpecialties([...selectedSpecialties, spec]);
     }
   };
 
-  const handleSelectLocationPreset = (preset) => {
-    setBaseAddress(preset.address);
-    setBaseCoordinates({ latitude: preset.lat, longitude: preset.lng });
-    setResolvedLocationName(preset.name);
+  const handleGeocodeAddress = async (addrToSearch = baseAddress) => {
+    if (!addrToSearch || addrToSearch.trim().length < 3) return;
+    setIsGeocoding(true);
+    try {
+      const res = await resolveAddressCoordinates(addrToSearch);
+      if (res && res.latitude && res.longitude) {
+        setBaseCoordinates({ latitude: res.latitude, longitude: res.longitude });
+        setResolvedLocationName(res.matched || res.city || 'Georreferenciado com sucesso');
+      }
+    } catch (err) {
+      console.warn('Erro ao geocodificar:', err);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleBaseAddressChange = (newAddr) => {
+    setBaseAddress(newAddr);
   };
 
   const handleSubmit = async (e) => {
@@ -124,7 +133,7 @@ export default function ProfileModal({
             },
             body: JSON.stringify({
               name,
-              specialty,
+              specialty: selectedSpecialties.join(', '),
               councilNumber,
               crm: councilNumber,
               latitude: baseCoordinates.latitude,
@@ -146,7 +155,8 @@ export default function ProfileModal({
         ...(currentDoctor || {}),
         name,
         profession,
-        specialty,
+        specialty: selectedSpecialties.join(', '),
+        specialties: selectedSpecialties,
         councilNumber,
         crm: councilNumber,
         baseAddress,
@@ -336,38 +346,62 @@ export default function ProfileModal({
               </div>
             </div>
 
-            {/* Seção 2: Conselho & Especialidade */}
+            {/* Seção 2: Conselho & Especialidade (Até 3 das 4 permitidas) */}
             <div style={{ marginBottom: '1.25rem' }}>
               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                2. Habilitação & Conselho de Classe
+                2. Habilitação & Especialidades Clínicas (Até 3)
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Registro no Conselho (CREFITO / COREN / CRFa / CRN)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={councilNumber}
-                    onChange={(e) => setCouncilNumber(e.target.value)}
-                    placeholder="ex: CREFITO/SP 88.340"
-                    required
-                  />
+              
+              <div style={{ marginBottom: '0.85rem' }}>
+                <label className="form-label" style={{ fontSize: '0.82rem', marginBottom: '0.4rem', display: 'block' }}>
+                  Especialidades Clínicas Restritas (Selecione de 1 até 3):
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+                  {CLINICAL_SPECIALTY_OPTIONS.map((spec) => {
+                    const isSelected = selectedSpecialties.includes(spec);
+                    return (
+                      <label
+                        key={spec}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '8px',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                          background: isSelected ? 'var(--primary-subtle)' : 'var(--bg-card)',
+                          cursor: 'pointer',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 600 : 400,
+                          color: isSelected ? 'var(--primary)' : 'var(--text-body)'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSpecialty(spec)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>{spec}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Especialidade Clínica</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={specialty}
-                    onChange={(e) => setSpecialty(e.target.value)}
-                    placeholder="ex: Reabilitação Motora & Cardiorrespiratória"
-                    required
-                  />
-                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Registro no Conselho (Opcional - CREFITO / COREN / CRFa / CRN)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={councilNumber}
+                  onChange={(e) => setCouncilNumber(e.target.value)}
+                  placeholder="ex: CREFITO/SP 88.340 (opcional)"
+                />
               </div>
             </div>
 
-            {/* Seção 3: Base de Deslocamento Urbano */}
+            {/* Seção 3: Base de Deslocamento Urbano com Mini-Mapa */}
             <div style={{ marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -378,14 +412,30 @@ export default function ProfileModal({
                 </span>
               </div>
               <div className="form-group" style={{ marginBottom: '0.65rem' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={baseAddress}
-                  onChange={(e) => handleBaseAddressChange(e.target.value)}
-                  placeholder="Endereço ou CEP de partida do profissional (em qualquer cidade)..."
-                  required
-                />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={baseAddress}
+                    onChange={(e) => handleBaseAddressChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGeocodeAddress(baseAddress);
+                      }
+                    }}
+                    placeholder="Endereço ou CEP de partida do profissional (ex: Rua Domingos de Morais, 1000 - SP)..."
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+                    onClick={() => handleGeocodeAddress(baseAddress)}
+                    disabled={isGeocoding}
+                  >
+                    {isGeocoding ? 'Buscando...' : '🔍 Localizar no Mapa'}
+                  </button>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem', fontSize: '0.72rem' }}>
                   <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <MapPin size={11} /> {resolvedLocationName}
@@ -396,31 +446,29 @@ export default function ProfileModal({
                 </div>
               </div>
 
-              {/* Sugestões Rápidas de Polos em todo o Brasil */}
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                  Polos rápidos em Capitais e Regiões de Atendimento:
-                </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                  {BASE_LOCATION_PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{
-                        fontSize: '0.72rem',
-                        padding: '0.25rem 0.5rem',
-                        background: baseAddress.includes(p.name.split(' ')[0]) ? 'var(--primary-subtle)' : 'var(--bg-card)',
-                        borderColor: baseAddress.includes(p.name.split(' ')[0]) ? 'var(--primary-light)' : 'var(--border-color)',
-                        color: baseAddress.includes(p.name.split(' ')[0]) ? 'var(--primary)' : 'var(--text-body)'
-                      }}
-                      onClick={() => handleSelectLocationPreset(p)}
-                    >
-                      <MapPin size={11} style={{ marginRight: '3px' }} />
-                      {p.name.split(' (')[0]}
-                    </button>
-                  ))}
-                </div>
+              {/* Mini-mapa OpenStreetMap com key reativa */}
+              <div
+                style={{
+                  width: '100%',
+                  height: '160px',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  position: 'relative'
+                }}
+              >
+                <iframe
+                  key={`${baseCoordinates.latitude.toFixed(5)}-${baseCoordinates.longitude.toFixed(5)}`}
+                  title="Mapa Ponto de Partida"
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  marginHeight="0"
+                  marginWidth="0"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${baseCoordinates.longitude - 0.008}%2C${baseCoordinates.latitude - 0.006}%2C${baseCoordinates.longitude + 0.008}%2C${baseCoordinates.latitude + 0.006}&layer=mapnik&marker=${baseCoordinates.latitude}%2C${baseCoordinates.longitude}`}
+                />
               </div>
             </div>
             {/* Seção 4: Cor na Agenda e Foto do Perfil */}

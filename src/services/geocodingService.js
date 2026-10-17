@@ -6,18 +6,32 @@
 
 export const BRAZIL_REGIONS = [
   {
+    state: 'ES',
+    stateName: 'Espírito Santo (Grande Vitória)',
+    presets: [
+      { name: 'Praia do Canto (Vitória - ES)', address: 'Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES', latitude: -20.301200, longitude: -40.292500 },
+      { name: 'Jardim Camburi (Vitória - ES)', address: 'Av. Dante Michelini, 3500 - Jardim Camburi, Vitória - ES', latitude: -20.267800, longitude: -40.284200 },
+      { name: 'Jardim da Penha (Vitória - ES)', address: 'Rua Darcy Grijó, 250 - Jardim da Penha, Vitória - ES', latitude: -20.288200, longitude: -40.299500 },
+      { name: 'Enseada do Suá (Vitória - ES)', address: 'Rua José Alexandre Buaiz, 300 - Enseada do Suá, Vitória - ES', latitude: -20.315500, longitude: -40.291500 },
+      { name: 'Bento Ferreira (Vitória - ES)', address: 'Av. Cézar Hilal, 1100 - Bento Ferreira, Vitória - ES', latitude: -20.317500, longitude: -40.311200 },
+      { name: 'Centro (Vitória - ES)', address: 'Av. Princesa Isabel, 500 - Centro, Vitória - ES', latitude: -20.320500, longitude: -40.338200 },
+      { name: 'Praia da Costa (Vila Velha - ES)', address: 'Av. Hugo Musso, 1200 - Praia da Costa, Vila Velha - ES', latitude: -20.338500, longitude: -40.286200 },
+      { name: 'Itapuã (Vila Velha - ES)', address: 'Rua Jair de Andrade, 400 - Itapuã, Vila Velha - ES', latitude: -20.354200, longitude: -40.292800 },
+      { name: 'Praia de Itaparica (Vila Velha - ES)', address: 'Rod. do Sol, 2000 - Praia de Itaparica, Vila Velha - ES', latitude: -20.370500, longitude: -40.301800 },
+      { name: 'Centro (Vila Velha - ES)', address: 'Rua Luciano das Neves, 600 - Centro, Vila Velha - ES', latitude: -20.347500, longitude: -40.298500 },
+      { name: 'Laranjeiras (Serra - ES)', address: 'Av. Central, 800 - Laranjeiras, Serra - ES', latitude: -20.198500, longitude: -40.252500 },
+      { name: 'Jacaraípe (Serra - ES)', address: 'Av. Abido Saadi, 1500 - Jacaraípe, Serra - ES', latitude: -20.142500, longitude: -40.201800 },
+      { name: 'Campo Grande (Cariacica - ES)', address: 'Av. Expedito Garcia, 1000 - Campo Grande, Cariacica - ES', latitude: -20.342500, longitude: -40.388200 }
+    ]
+  },
+  {
     state: 'SP',
     stateName: 'São Paulo',
     presets: [
       { name: 'Cerqueira César / Paulista (SP)', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', latitude: -23.563099, longitude: -46.654271 },
       { name: 'Pinheiros (SP)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', latitude: -23.567300, longitude: -46.693400 },
       { name: 'Moema (SP)', address: 'Av. Moema, 450 - Moema, São Paulo - SP', latitude: -23.602200, longitude: -46.662100 },
-      { name: 'Vila Mariana (SP)', address: 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP', latitude: -23.585000, longitude: -46.638000 },
-      { name: 'Santana (SP)', address: 'Rua Voluntários da Pátria, 1500 - Santana, São Paulo - SP', latitude: -23.502100, longitude: -46.627800 },
-      { name: 'Tatuapé (SP)', address: 'Rua Tuiuti, 1800 - Tatuapé, São Paulo - SP', latitude: -23.538000, longitude: -46.578000 },
-      { name: 'Campinas (SP)', address: 'Av. José de Souza Campos, 500 - Cambuí, Campinas - SP', latitude: -22.898400, longitude: -47.051900 },
-      { name: 'Santos (SP)', address: 'Av. Ana Costa, 400 - Gonzaga, Santos - SP', latitude: -23.964700, longitude: -46.333600 },
-      { name: 'Ribeirão Preto (SP)', address: 'Av. Nove de Julho, 800 - Centro, Ribeirão Preto - SP', latitude: -21.178900, longitude: -47.811400 }
+      { name: 'Vila Mariana (SP)', address: 'Rua Domingos de Morais, 800 - Vila Mariana, São Paulo - SP', latitude: -23.585000, longitude: -46.638000 }
     ]
   },
   {
@@ -114,13 +128,6 @@ export const BRAZIL_REGIONS = [
     presets: [
       { name: 'Setor Bueno / Marista (Goiânia - GO)', address: 'Av. 136, 800 - Setor Marista, Goiânia - GO', latitude: -16.698900, longitude: -49.261200 }
     ]
-  },
-  {
-    state: 'ES',
-    stateName: 'Espírito Santo (Vitória)',
-    presets: [
-      { name: 'Praia do Canto (Vitória - ES)', address: 'Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES', latitude: -20.301200, longitude: -40.292500 }
-    ]
   }
 ];
 
@@ -134,6 +141,13 @@ export const ALL_PRESET_LOCATIONS = BRAZIL_REGIONS.reduce((acc, region) => {
 
 // Dicionário de cidades e capitais brasileiras para fallback rápido offline
 export const CITY_COORDINATES_MAP = {
+  vitoria: { latitude: -20.315500, longitude: -40.312800 },
+  es: { latitude: -20.315500, longitude: -40.312800 },
+  'vila velha': { latitude: -20.347500, longitude: -40.298500 },
+  serra: { latitude: -20.198500, longitude: -40.252500 },
+  cariacica: { latitude: -20.342500, longitude: -40.388200 },
+  guarapari: { latitude: -20.670600, longitude: -40.498600 },
+  
   'sao paulo': { latitude: -23.550520, longitude: -46.633308 },
   sp: { latitude: -23.550520, longitude: -46.633308 },
   campinas: { latitude: -22.909938, longitude: -47.062633 },
@@ -250,7 +264,38 @@ export async function resolveAddressCoordinates(addressText) {
   const clean = addressText.trim();
   const normalized = normalizeText(clean);
 
-  // 1. Verifica se bate exatamente ou parcialmente com algum preset cadastrado
+  // 1. Verifica se há CEP válido no texto (ex: "01310-100" ou "01310100")
+  const cepMatch = clean.match(/\b(\d{5})-?(\d{3})\b/);
+  if (cepMatch && typeof fetch !== 'undefined') {
+    const rawCep = `${cepMatch[1]}${cepMatch[2]}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${rawCep}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        const coords = data?.location?.coordinates;
+        if (coords && coords.latitude && coords.longitude) {
+          const lat = parseFloat(coords.latitude);
+          const lon = parseFloat(coords.longitude);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            return {
+              latitude: lat,
+              longitude: lon,
+              source: 'brasilapi_cep',
+              matched: `${data.street || ''}, ${data.neighborhood || ''} - ${data.city}/${data.state}`.replace(/^,\s*/, ''),
+              city: data.city
+            };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Verifica se bate exatamente ou parcialmente com algum preset cadastrado
   for (const [presetName, loc] of Object.entries(ALL_PRESET_LOCATIONS)) {
     const normPreset = normalizeText(presetName);
     const normAddr = normalizeText(loc.address);
@@ -264,7 +309,45 @@ export async function resolveAddressCoordinates(addressText) {
     }
   }
 
-  // 2. Tenta geocodificação em tempo real via OpenStreetMap Nominatim
+  // 3. Geocodificação em tempo real via Photon (OpenStreetMap Komoot - rápido e com CORS liberado)
+  if (typeof fetch !== 'undefined') {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const queryStr = clean.toLowerCase().includes('brasil') ? clean : `${clean}, Brasil`;
+      const queryUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(queryStr)}&limit=1`;
+      const res = await fetch(queryUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.features) && data.features.length > 0) {
+          const feat = data.features[0];
+          const coords = feat.geometry?.coordinates; // [lon, lat]
+          if (Array.isArray(coords) && coords.length >= 2) {
+            const lon = coords[0];
+            const lat = coords[1];
+            if (!isNaN(lat) && !isNaN(lon)) {
+              const props = feat.properties || {};
+              const matchLabel = [props.name, props.street, props.district, props.city, props.state]
+                .filter(Boolean)
+                .join(', ');
+
+              return {
+                latitude: lat,
+                longitude: lon,
+                formattedAddress: matchLabel || clean,
+                matched: matchLabel || clean,
+                source: 'photon_osm'
+              };
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fallback secundário via OpenStreetMap Nominatim
   if (typeof fetch !== 'undefined') {
     try {
       const controller = new AbortController();
@@ -288,6 +371,7 @@ export async function resolveAddressCoordinates(addressText) {
               latitude: lat,
               longitude: lon,
               formattedAddress: first.display_name,
+              matched: first.display_name,
               source: 'nominatim'
             };
           }
@@ -298,7 +382,7 @@ export async function resolveAddressCoordinates(addressText) {
     }
   }
 
-  // 3. Fallback inteligente baseado em nomes de cidades e estados detectados no texto
+  // 5. Fallback inteligente baseado em nomes de cidades e estados detectados no texto
   for (const [cityName, coords] of Object.entries(CITY_COORDINATES_MAP)) {
     // Detecta nome da cidade ou sigla no texto (ex: "Curitiba - PR", "Rio de Janeiro", "Belo Horizonte")
     const regex = new RegExp(`\\b${cityName}\\b`, 'i');
@@ -307,11 +391,13 @@ export async function resolveAddressCoordinates(addressText) {
         latitude: coords.latitude,
         longitude: coords.longitude,
         source: 'city_fallback',
+        matched: `${cityName.toUpperCase()} (Centro)`,
         city: cityName
       };
     }
   }
 
-  // 4. Default neutro em caso de endereço completamente não identificado
-  return { latitude: -23.585000, longitude: -46.638000, source: 'default' };
+  // 6. Default neutro em caso de endereço completamente não identificado (Grande Vitória - ES)
+  return { latitude: -20.315500, longitude: -40.292500, source: 'default', matched: 'Vitória - ES (Padrão)' };
 }
+

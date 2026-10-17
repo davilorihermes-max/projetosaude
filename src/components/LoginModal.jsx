@@ -34,32 +34,14 @@ const COLOR_PRESETS = [
   { name: 'Verde Floresta', hex: '#059669' }
 ];
 
-import { resolveAddressCoordinates } from '../services/geocodingService';
-
-const LOCATION_PRESETS = [
-  // São Paulo
-  { name: 'Paulista (SP)', address: 'Alameda Santos, 1200 - Cerqueira César, São Paulo - SP', lat: -23.563099, lng: -46.654271 },
-  { name: 'Pinheiros (SP)', address: 'Rua Fradique Coutinho, 800 - Pinheiros, São Paulo - SP', lat: -23.567300, lng: -46.693400 },
-  { name: 'Campinas (SP)', address: 'Av. José de Souza Campos, 500 - Cambuí, Campinas - SP', lat: -22.898400, lng: -47.051900 },
-  // Rio de Janeiro
-  { name: 'Copacabana (RJ)', address: 'Av. Atlântica, 1500 - Copacabana, Rio de Janeiro - RJ', lat: -22.971100, lng: -43.182500 },
-  { name: 'Barra da Tijuca (RJ)', address: 'Av. das Américas, 3500 - Barra da Tijuca, Rio de Janeiro - RJ', lat: -22.999700, lng: -43.365900 },
-  // Paraná
-  { name: 'Batel (Curitiba - PR)', address: 'Av. do Batel, 1500 - Batel, Curitiba - PR', lat: -25.442800, lng: -49.288900 },
-  { name: 'Centro Cívico (Curitiba - PR)', address: 'Av. Cândido de Abreu, 500 - Centro Cívico, Curitiba - PR', lat: -25.417200, lng: -49.269400 },
-  // Minas Gerais
-  { name: 'Savassi (BH - MG)', address: 'Av. Cristóvão Colombo, 500 - Savassi, Belo Horizonte - MG', lat: -19.938600, lng: -43.933300 },
-  // Distrito Federal
-  { name: 'Asa Sul (Brasília - DF)', address: 'SHCS EQS 208/408 - Asa Sul, Brasília - DF', lat: -15.811400, lng: -47.906100 },
-  // Rio Grande do Sul
-  { name: 'Moinhos de Vento (POA - RS)', address: 'Rua Padre Chagas, 300 - Moinhos de Vento, Porto Alegre - RS', lat: -30.026100, lng: -51.203600 },
-  // Bahia
-  { name: 'Barra / Ondina (Salvador - BA)', address: 'Av. Oceânica, 1200 - Barra, Salvador - BA', lat: -13.008900, lng: -38.528300 },
-  // Pernambuco
-  { name: 'Boa Viagem (Recife - PE)', address: 'Av. Boa Viagem, 2000 - Boa Viagem, Recife - PE', lat: -8.127500, lng: -34.903600 },
-  // Santa Catarina
-  { name: 'Beira-Mar (Florianópolis - SC)', address: 'Av. Beira Mar Norte, 2200 - Centro, Florianópolis - SC', lat: -27.585500, lng: -48.552400 }
+export const CLINICAL_SPECIALTY_OPTIONS = [
+  'Fisioterapia Motora',
+  'Fisioterapia Respiratória',
+  'Terapia Ocupacional',
+  'Fonoaudiologia'
 ];
+
+import { resolveAddressCoordinates } from '../services/geocodingService';
 
 export default function LoginModal({
   isOpen,
@@ -76,24 +58,23 @@ export default function LoginModal({
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
-  // Register / Profile Creation States (Strict Healthcare Standards)
+  // Register / Profile Creation States
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regCpf, setRegCpf] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [regProfession, setRegProfession] = useState('Fisioterapia');
   const [regCouncilNumber, setRegCouncilNumber] = useState('');
-  const [regSpecialty, setRegSpecialty] = useState('');
-  const [regBaseAddress, setRegBaseAddress] = useState('São Paulo - SP');
-  const [regCoordinates, setRegCoordinates] = useState({ latitude: -23.585000, longitude: -46.638000 });
+  const [regSpecialties, setRegSpecialties] = useState(['Fisioterapia Motora']);
+  const [regBaseAddress, setRegBaseAddress] = useState('Praia do Canto, Vitória - ES');
+  const [regCoordinates, setRegCoordinates] = useState({ latitude: -20.301200, longitude: -40.292500 });
   const [regColor, setRegColor] = useState('#0d9488');
   const [regAvatar, setRegAvatar] = useState(null);
-  const [resolvedLocationName, setResolvedLocationName] = useState('São Paulo - SP');
+  const [resolvedLocationName, setResolvedLocationName] = useState('Praia do Canto, Vitória - ES');
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -182,24 +163,41 @@ export default function LoginModal({
     }
   };
 
-  const handleBaseAddressChange = async (newAddr) => {
-    setRegBaseAddress(newAddr);
-    if (newAddr && newAddr.trim().length >= 3) {
-      try {
-        const res = await resolveAddressCoordinates(newAddr);
-        if (res && res.latitude && res.longitude) {
-          setRegCoordinates({ latitude: res.latitude, longitude: res.longitude });
-          setResolvedLocationName(res.matched || res.city || 'Georreferenciado com sucesso');
-        }
-      } catch {}
+  const handleToggleSpecialty = (spec) => {
+    if (regSpecialties.includes(spec)) {
+      if (regSpecialties.length > 1) {
+        setRegSpecialties(regSpecialties.filter((s) => s !== spec));
+      }
+    } else {
+      if (regSpecialties.length < 3) {
+        setRegSpecialties([...regSpecialties, spec]);
+      }
     }
   };
 
-  const handleSelectLocation = (preset) => {
-    setRegBaseAddress(preset.address);
-    setRegCoordinates({ latitude: preset.lat, longitude: preset.lng });
-    setResolvedLocationName(preset.name);
+  const triggerBaseGeocode = async (val) => {
+    if (!val || val.trim().length < 3) return;
+    setIsGeocoding(true);
+    try {
+      const res = await resolveAddressCoordinates(val);
+      if (res && res.latitude && res.longitude) {
+        setRegCoordinates({ latitude: res.latitude, longitude: res.longitude });
+        setResolvedLocationName(res.matched || res.city || res.formattedAddress || 'Localização identificada');
+      }
+    } catch {
+    } finally {
+      setIsGeocoding(false);
+    }
   };
+
+  // Debounce automático para o endereço base
+  useEffect(() => {
+    if (!regBaseAddress || regBaseAddress.trim().length < 4) return;
+    const timer = setTimeout(() => {
+      triggerBaseGeocode(regBaseAddress);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [regBaseAddress]);
 
   const handleProfessionChange = (prof) => {
     setRegProfession(prof);
@@ -290,78 +288,25 @@ export default function LoginModal({
     setErrorMsg('');
     setSuccessMsg('');
 
-    // 1. Validação Estrita de Nome Completo
+    // Requisito: Apenas Nome e E-mail são obrigatórios!
     const nameTrimmed = regName.trim();
-    const nameWords = nameTrimmed.split(/\s+/);
-    if (nameTrimmed.length < 5 || nameWords.length < 2 || nameWords.some((w) => w.length < 2)) {
-      setErrorMsg('Requisito de Identificação: Informe seu nome e sobrenome completos (mínimo 5 caracteres e duas palavras, ex: Dr. Henrique Silva).');
+    if (!nameTrimmed) {
+      setErrorMsg('Informe o nome do profissional.');
       return;
     }
 
-    // 2. Validação de E-mail Corporativo
-    if (!regEmail || !CORPORATE_EMAIL_REGEX.test(regEmail.trim())) {
-      setErrorMsg('Requisito de Acesso: Informe um e-mail corporativo válido com domínio e extensão (ex: profissional@omnisaude.com.br).');
+    if (!regEmail || !regEmail.includes('@')) {
+      setErrorMsg('Informe um e-mail válido para o profissional.');
       return;
     }
 
-    // 3. Validação Estrita de CPF (Algoritmo da Receita Federal)
-    if (!regCpf || !isValidCPF(regCpf)) {
-      setErrorMsg('Requisito de Saúde & PEP: Informe um CPF válido (11 dígitos) para registro profissional e prescrição.');
-      return;
-    }
-
-    // 4. Validação de Telefone / WhatsApp
-    const cleanPhone = regPhone.replace(/\D/g, '');
-    if (cleanPhone.length < 10) {
-      setErrorMsg('Requisito de Comunicação: Informe um telefone celular/WhatsApp com DDD válido para escalas e rotas.');
-      return;
-    }
-
-    // 5. Validação de Registro de Conselho & Compatibilidade com a Profissão
-    if (!regCouncilNumber || regCouncilNumber.trim().length < 4) {
-      setErrorMsg(`Requisito Profissional: Informe seu registro ativo com conselho e UF (ex: ${getCouncilPlaceholder(regProfession)}).`);
-      return;
-    }
-
-    const councilValidation = validateCouncilForProfession(regProfession, regCouncilNumber.trim());
-    if (!councilValidation.isValid) {
-      setErrorMsg(councilValidation.error || 'Registro no conselho incompatível com a profissão.');
-      return;
-    }
-
-    // 6. Validação de Especialidade
-    if (!regSpecialty || regSpecialty.trim().length < 4) {
-      setErrorMsg('Requisito Clínico: Informe sua especialidade ou foco de atuação domiciliar (mínimo 4 caracteres).');
-      return;
-    }
-
-    // 7. Validação Estrita da Política de Senha
-    if (!passwordCriteria.minChars) {
-      setErrorMsg('Requisito de Segurança: A senha deve conter no mínimo 8 caracteres.');
-      return;
-    }
-    if (!passwordCriteria.hasUpper || !passwordCriteria.hasLower) {
-      setErrorMsg('Requisito de Segurança: A senha deve conter letras maiúsculas e minúsculas.');
-      return;
-    }
-    if (!passwordCriteria.hasNumber) {
-      setErrorMsg('Requisito de Segurança: A senha deve conter ao menos um número (0-9).');
-      return;
-    }
-    if (!passwordCriteria.hasSpecial) {
-      setErrorMsg('Requisito de Segurança: A senha deve conter ao menos um caractere especial (!@#$%...).');
-      return;
-    }
-    if (regPassword !== regConfirmPassword) {
-      setErrorMsg('Requisito de Confirmação: As senhas digitadas não coincidem. Digite novamente para confirmar.');
-      return;
-    }
-
-    // 8. Validação de Endereço Base para Roteirização
-    if (!regBaseAddress || regBaseAddress.trim().length < 8) {
-      setErrorMsg('Requisito de Roteirização: Informe o endereço residencial ou base de saída para o cálculo de rotas.');
-      return;
-    }
+    // Senha: não é preciso senha forte, qualquer senha serve
+    const passwordToUse = regPassword.trim() || '123456';
+    const specialtyStr = regSpecialties.join(', ') || 'Fisioterapia Motora';
+    const councilToUse = regCouncilNumber.trim() || 'Registro Ativo';
+    const cpfToUse = regCpf.trim() || `000.${Date.now().toString().slice(-6)}-00`;
+    const phoneToUse = regPhone.trim() || '(27) 99999-9999';
+    const addressToUse = regBaseAddress.trim() || 'Praia do Canto, Vitória - ES';
 
     setLoading(true);
 
@@ -374,16 +319,17 @@ export default function LoginModal({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: regName.trim(),
+            name: nameTrimmed,
             email: regEmail.trim().toLowerCase(),
-            password: regPassword,
+            password: passwordToUse,
             role: 'PROFESSIONAL',
             profession: regProfession,
-            specialty: regSpecialty.trim(),
-            councilNumber: regCouncilNumber.trim(),
-            crm: regCouncilNumber.trim(),
-            cpf: regCpf,
-            phone: regPhone,
+            specialty: specialtyStr,
+            specialties: regSpecialties,
+            councilNumber: councilToUse,
+            crm: councilToUse,
+            cpf: cpfToUse,
+            phone: phoneToUse,
             latitude: regCoordinates.latitude,
             longitude: regCoordinates.longitude,
             linkToCareTeams: true
@@ -405,7 +351,7 @@ export default function LoginModal({
         const savedUsersRaw = localStorage.getItem('omnihome_registered_users');
         const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
         const filtered = savedUsers.filter((u) => u.email.toLowerCase() !== createdUser.email.toLowerCase());
-        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, { ...createdUser, password: regPassword }]));
+        localStorage.setItem('omnihome_registered_users', JSON.stringify([...filtered, { ...createdUser, password: passwordToUse }]));
       } catch (backendErr) {
         if (backendErr.name !== 'TypeError' && !backendErr.message?.includes('fetch') && !backendErr.message?.includes('NetworkError')) {
           throw backendErr;
@@ -413,9 +359,9 @@ export default function LoginModal({
         console.warn('Backend Fastify indisponível, salvando registro em modo local:', backendErr);
         createdUser = {
           id: `usr-${Date.now()}`,
-          name: regName.trim(),
+          name: nameTrimmed,
           email: regEmail.trim().toLowerCase(),
-          password: regPassword,
+          password: passwordToUse,
           role: regProfession === 'Administração' || regEmail.toLowerCase().includes('admin') ? 'ADMIN' : 'PROFESSIONAL',
           professionalId: `doc-${Date.now()}`
         };
@@ -431,16 +377,17 @@ export default function LoginModal({
       // Constrói objeto do profissional formatado para a UI e Care Team
       const newProfessional = {
         id: createdUser?.professionalId || `doc-${Date.now()}`,
-        name: regName.trim(),
+        name: nameTrimmed,
         profession: regProfession,
-        specialty: regSpecialty.trim(),
-        councilNumber: regCouncilNumber.trim(),
-        crm: regCouncilNumber.trim(),
-        cpf: regCpf,
-        phone: regPhone,
+        specialty: specialtyStr,
+        specialties: regSpecialties,
+        councilNumber: councilToUse,
+        crm: councilToUse,
+        cpf: cpfToUse,
+        phone: phoneToUse,
         avatar: regAvatar,
         color: regColor,
-        baseAddress: regBaseAddress,
+        baseAddress: addressToUse,
         baseCoordinates: regCoordinates
       };
 
@@ -677,10 +624,10 @@ export default function LoginModal({
           ) : (
             /* TAB 2: CRIAR PERFIL PROFISSIONAL COM REQUISITOS ESTRITOS */
             <form onSubmit={handleExecuteRegister}>
-              {/* Seção 1: Identificação & Documentos Obrigatórios */}
+              {/* Seção 1: Identificação do Profissional */}
               <div style={{ marginBottom: '1.3rem' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                  <User size={14} /> 1. Identificação do Profissional (Obrigatório para Prontuário)
+                  <User size={14} /> 1. Identificação do Profissional
                 </span>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -689,22 +636,19 @@ export default function LoginModal({
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="Nome e Sobrenome (ex: Davi Loriato Hermes)"
+                      placeholder="Nome do profissional (ex: Dr. Lucas Mendes)"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       required
                     />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                      Mínimo duas palavras conforme registro no conselho.
-                    </span>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">E-mail Corporativo *</label>
+                    <label className="form-label">E-mail *</label>
                     <input
                       type="email"
                       className="form-input"
-                      placeholder="seu.email@empresa.com.br"
+                      placeholder="email@exemplo.com.br"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       required
@@ -714,252 +658,221 @@ export default function LoginModal({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-group">
-                    <label className="form-label">CPF do Profissional *</label>
+                    <label className="form-label">CPF (Opcional)</label>
                     <input
                       type="text"
                       className="form-input"
                       placeholder="000.000.000-00"
                       value={regCpf}
                       onChange={handleCpfChange}
-                      required
                     />
-                    <span style={{ fontSize: '0.7rem', color: regCpf && !isValidCPF(regCpf) ? 'var(--danger)' : 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                      {regCpf && !isValidCPF(regCpf) ? 'CPF inválido (11 dígitos)' : 'Validação algorítmica da Receita Federal'}
-                    </span>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Telefone / WhatsApp com DDD *</label>
+                    <label className="form-label">Telefone / WhatsApp (Opcional)</label>
                     <input
                       type="text"
                       className="form-input"
                       placeholder="(11) 98765-4321"
                       value={regPhone}
                       onChange={handlePhoneChange}
-                      required
                     />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                      Contato para alinhamento em rota e cuidadores
-                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Seção 2: Conselho de Classe & Especialidade Clínica */}
+              {/* Seção 2: Especialidade Clínica & Conselho */}
               <div style={{ marginBottom: '1.3rem' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                  <Award size={14} /> 2. Conselho de Classe & Especialidade Clínica
+                  <Award size={14} /> 2. Especialidades Clínicas (Até 3 para a Escala)
                 </span>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label" style={{ marginBottom: '0.35rem' }}>
+                    Selecione as especialidades de atuação (até 3):
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    {CLINICAL_SPECIALTY_OPTIONS.map((spec) => {
+                      const isSelected = regSpecialties.includes(spec);
+                      return (
+                        <button
+                          key={spec}
+                          type="button"
+                          onClick={() => handleToggleSpecialty(spec)}
+                          style={{
+                            padding: '0.55rem 0.75rem',
+                            borderRadius: '8px',
+                            border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}`,
+                            background: isSelected ? 'var(--primary-subtle)' : 'var(--bg-card)',
+                            color: isSelected ? 'var(--primary)' : 'var(--text-body)',
+                            fontWeight: isSelected ? 700 : 500,
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <span>{spec}</span>
+                          {isSelected && <Check size={14} color="var(--primary)" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                    Selecionadas: <strong>{regSpecialties.join(', ')}</strong> ({regSpecialties.length}/3)
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-group">
-                    <label className="form-label">Profissão Multidisciplinar *</label>
+                    <label className="form-label">Profissão (Opcional)</label>
                     <select
                       className="form-input"
                       value={regProfession}
                       onChange={(e) => handleProfessionChange(e.target.value)}
                     >
-                      <option value="Fisioterapia">Fisioterapia (CREFITO)</option>
-                      <option value="Enfermagem">Enfermagem (COREN)</option>
-                      <option value="Fonoaudiologia">Fonoaudiologia (CRFa)</option>
-                      <option value="Nutrição">Nutrição (CRN)</option>
-                      <option value="Terapia Ocupacional">Terapia Ocupacional (CREFITO)</option>
-                      <option value="Psicologia">Psicologia (CRP)</option>
-                      <option value="Medicina">Medicina (CRM)</option>
+                      <option value="Fisioterapia">Fisioterapia</option>
+                      <option value="Terapia Ocupacional">Terapia Ocupacional</option>
+                      <option value="Fonoaudiologia">Fonoaudiologia</option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Registro Ativo no Conselho (com UF) *</label>
+                    <label className="form-label">Registro no Conselho (Opcional)</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder={getCouncilPlaceholder(regProfession)}
+                      placeholder="ex: CREFITO/CRFa (opcional)"
                       value={regCouncilNumber}
                       onChange={(e) => setRegCouncilNumber(e.target.value)}
-                      required
                     />
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
-                      {PROFESSION_COUNCIL_MAP[regProfession]
-                        ? `Conselho regulamentar: ${PROFESSION_COUNCIL_MAP[regProfession].acronym} (ex: ${PROFESSION_COUNCIL_MAP[regProfession].example})`
-                        : 'Informe conselho e UF'}
-                    </span>
                   </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Especialidade Clínica / Foco de Atuação *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder={getSpecialtyPlaceholder(regProfession)}
-                    value={regSpecialty}
-                    onChange={(e) => setRegSpecialty(e.target.value)}
-                    required
-                  />
                 </div>
               </div>
 
-              {/* Seção 3: Política Estrita de Senha Segura (Bcrypt) */}
-              <div style={{ marginBottom: '1.3rem', background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                  <Lock size={14} /> 3. Segurança de Acesso & Política de Senha Forte
+              {/* Seção 3: Senha de Acesso (Qualquer Senha Serve) */}
+              <div style={{ marginBottom: '1.3rem', background: 'var(--bg-card)', padding: '0.9rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <Lock size={14} /> 3. Senha de Acesso
                 </span>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Senha de Acesso *</label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        className="form-input"
-                        placeholder="Mínimo 8 caracteres"
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        required
-                        style={{ paddingRight: '2.5rem' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        style={{
-                          position: 'absolute',
-                          right: '0.75rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-muted)'
-                        }}
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Confirmar Senha *</label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        className="form-input"
-                        placeholder="Repita a senha"
-                        value={regConfirmPassword}
-                        onChange={(e) => setRegConfirmPassword(e.target.value)}
-                        required
-                        style={{ paddingRight: '2.5rem' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        style={{
-                          position: 'absolute',
-                          right: '0.75rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-muted)'
-                        }}
-                      >
-                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Força da Senha (Barra Visual) */}
-                <div style={{ marginBottom: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Força da Senha:</span>
-                    <strong style={{ color: strength.color }}>{strength.label}</strong>
-                  </div>
-                  <div style={{ width: '100%', height: '6px', background: 'var(--bg-page)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${strength.percent}%`,
-                        height: '100%',
-                        background: strength.color,
-                        transition: 'all 0.3s ease'
-                      }}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Senha (qualquer senha serve):</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-input"
+                      placeholder="Digite qualquer senha (ex: 123456)"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      style={{ paddingRight: '2.5rem' }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)'
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
-                </div>
-
-                {/* Checklist Interativo dos Requisitos */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.72rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: passwordCriteria.minChars ? 'var(--success)' : 'var(--text-muted)' }}>
-                    {passwordCriteria.minChars ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
-                    <span>Mínimo de 8 caracteres</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: (passwordCriteria.hasUpper && passwordCriteria.hasLower) ? 'var(--success)' : 'var(--text-muted)' }}>
-                    {(passwordCriteria.hasUpper && passwordCriteria.hasLower) ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
-                    <span>Letras maiúsculas e minúsculas</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: passwordCriteria.hasNumber ? 'var(--success)' : 'var(--text-muted)' }}>
-                    {passwordCriteria.hasNumber ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
-                    <span>Ao menos um número (0-9)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: passwordCriteria.hasSpecial ? 'var(--success)' : 'var(--text-muted)' }}>
-                    {passwordCriteria.hasSpecial ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
-                    <span>Símbolo especial (!@#$%...)</span>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.35rem', color: passwordCriteria.matchesConfirm ? 'var(--success)' : 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {passwordCriteria.matchesConfirm ? <Check size={12} strokeWidth={3} /> : <X size={12} />}
-                    <span>As duas senhas são idênticas</span>
-                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                    Não é preciso senha forte. Se não preencher, será usada a senha padrão 123456.
+                  </span>
                 </div>
               </div>
 
-              {/* Seção 4: Ponto Base de Partida (Geolocalização) */}
+              {/* Seção 4: Ponto Base de Partida (Geolocalização & Mapa) */}
               <div style={{ marginBottom: '1.3rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                   <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <MapPin size={14} /> 4. Ponto Base de Partida (Georreferenciamento)
+                    <MapPin size={14} /> 4. Ponto Base de Partida
                   </span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Origem para cálculo da 1ª sessão
+                    Origem de saída para o cálculo de trânsito
                   </span>
                 </div>
+
                 <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={regBaseAddress}
-                    onChange={(e) => handleBaseAddressChange(e.target.value)}
-                    placeholder="Rua, número, bairro e cidade (em qualquer estado do Brasil)..."
-                    required
-                  />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={regBaseAddress}
+                      onChange={(e) => setRegBaseAddress(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          triggerBaseGeocode(regBaseAddress);
+                        }
+                      }}
+                      placeholder="Endereço, bairro, cidade ou CEP de saída..."
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+                      onClick={() => triggerBaseGeocode(regBaseAddress)}
+                      disabled={isGeocoding || !regBaseAddress}
+                    >
+                      <MapPin size={14} color="var(--primary)" />
+                      {isGeocoding ? 'Localizando...' : 'Localizar no Mapa'}
+                    </button>
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.3rem', fontSize: '0.72rem' }}>
                     <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <MapPin size={11} /> {resolvedLocationName}
                     </span>
                     <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                      {regCoordinates.latitude.toFixed(4)}, {regCoordinates.longitude.toFixed(4)}
+                      Lat: {regCoordinates.latitude.toFixed(4)}, Lon: {regCoordinates.longitude.toFixed(4)}
                     </span>
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                  {LOCATION_PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{
-                        fontSize: '0.72rem',
-                        padding: '0.2rem 0.5rem',
-                        background: regBaseAddress.includes(p.name) ? 'var(--primary-subtle)' : 'var(--bg-card)',
-                        borderColor: regBaseAddress.includes(p.name) ? 'var(--primary-light)' : 'var(--border-color)',
-                        color: regBaseAddress.includes(p.name) ? 'var(--primary)' : 'var(--text-body)'
-                      }}
-                      onClick={() => handleSelectLocation(p)}
-                    >
-                      <MapPin size={11} style={{ marginRight: '3px' }} />
-                      {p.name}
-                    </button>
-                  ))}
+
+                  {/* PEQUENO MAPA ABAIXO DO ENDEREÇO DA BASE */}
+                  <div style={{
+                    marginTop: '0.65rem',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--bg-card)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                  }}>
+                    <div style={{
+                      padding: '0.35rem 0.65rem',
+                      background: 'var(--bg-surface-hover)',
+                      borderBottom: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)'
+                    }}>
+                      <span>🗺️ Localização da Base de Partida</span>
+                      <span>OpenStreetMap</span>
+                    </div>
+                    <iframe
+                      key={`${regCoordinates.latitude.toFixed(5)}-${regCoordinates.longitude.toFixed(5)}`}
+                      title="Ponto Base de Partida do Profissional"
+                      width="100%"
+                      height="150"
+                      style={{ border: 0, display: 'block' }}
+                      loading="lazy"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${regCoordinates.longitude - 0.008}%2C${regCoordinates.latitude - 0.006}%2C${regCoordinates.longitude + 0.008}%2C${regCoordinates.latitude + 0.006}&layer=mapnik&marker=${regCoordinates.latitude}%2C${regCoordinates.longitude}`}
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -399,7 +399,7 @@ export class SchedulingService {
             durationMinutes: 45,
             preferredShift: 'any',
             location: { latitude: p.latitude, longitude: p.longitude },
-            address: p.address || 'São Paulo - SP'
+            address: p.address || 'Vitória - ES'
           };
         });
       }

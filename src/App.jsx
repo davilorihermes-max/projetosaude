@@ -159,8 +159,10 @@ export default function App() {
   const [modalInitialTime, setModalInitialTime] = useState('09:00');
   const [modalInitialDate, setModalInitialDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [modalInitialDuration, setModalInitialDuration] = useState(45);
+  const [scheduleActiveDate, setScheduleActiveDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [editingPatient, setEditingPatient] = useState(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Home Care Operational Notifications
@@ -229,10 +231,10 @@ export default function App() {
                   crm: p.crm || 'Registro Ativo',
                   avatar: p.user?.avatar || null,
                   color: '#0d9488',
-                  baseAddress: 'Curitiba - PR',
+                  baseAddress: 'Praia do Canto, Vitória - ES',
                   baseCoordinates: {
-                    latitude: p.latitude ?? -25.4284,
-                    longitude: p.longitude ?? -49.2733
+                    latitude: p.latitude ?? -20.301200,
+                    longitude: p.longitude ?? -40.292500
                   }
                 };
               });
@@ -248,8 +250,15 @@ export default function App() {
               }
             }
 
-            setDoctors(uniqueDocs);
-            localStorage.setItem('omnihome_doctors_v3', JSON.stringify(uniqueDocs));
+            setDoctors((prev) => {
+              const backendIds = new Set(uniqueDocs.map((d) => d.id));
+              const localWithoutAccount = prev.filter(
+                (d) => d.hasAccount === false && !backendIds.has(d.id) && !isMockDoctor(d)
+              );
+              const combined = [...uniqueDocs, ...localWithoutAccount];
+              localStorage.setItem('omnihome_doctors_v3', JSON.stringify(combined));
+              return combined;
+            });
           }
         }
       } catch (err) {
@@ -307,7 +316,11 @@ export default function App() {
                   accessNotes: cleanAccessNotes,
                   mobilityStatus: cleanMobility,
                   avatar: null,
-                  careTeamMembers: p.careTeamMembers || []
+                  demands: existing.demands || [],
+                  careTeamProfessionalIds:
+                    existing.careTeamProfessionalIds ||
+                    (Array.isArray(p.careTeamMembers) ? p.careTeamMembers.map((m) => m.professionalId) : []),
+                  careTeamMembers: p.careTeamMembers || existing.careTeamMembers || []
                 };
               });
 
@@ -363,14 +376,21 @@ export default function App() {
                   time: timeStr,
                   type: a.notes || 'Sessão Domiciliar',
                   durationMinutes: a.durationMinutes || 45,
-                  address: a.patient?.address || 'São Paulo - SP',
+                  address: a.patient?.address || 'Vitória - ES',
                   notes: a.notes || '',
                   status: a.status ? a.status.toLowerCase() : 'scheduled'
                 };
               });
 
-            setAppointments(mapped);
-            localStorage.setItem('omnihome_appointments_v3', JSON.stringify(mapped));
+            setAppointments((prev) => {
+              const backendIds = new Set(mapped.map((m) => m.id));
+              const localPlanned = prev.filter(
+                (p) => String(p.id || '').startsWith('apt-plan-') && !backendIds.has(p.id)
+              );
+              const combined = [...mapped, ...localPlanned];
+              localStorage.setItem('omnihome_appointments_v3', JSON.stringify(combined));
+              return combined;
+            });
           }
         }
       } catch (err) {
@@ -509,9 +529,34 @@ export default function App() {
     setAppointments((prev) => [newApt, ...prev]);
   };
 
-  const handleSavePatient = async (newPatient) => {
-    setPatients((prev) => [newPatient, ...prev]);
-    setActivePatientId(newPatient.id);
+  const handleRegisterDoctorWithoutAccount = (newDoctor) => {
+    setDoctors((prev) => {
+      const filtered = prev.filter((d) => d.id !== newDoctor.id);
+      const updated = [newDoctor, ...filtered];
+      localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+      return updated;
+    });
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        type: 'info',
+        title: 'Fisioterapeuta Cadastrado na Escala',
+        description: `${newDoctor.name} (${newDoctor.specialty}) foi adicionado(a) sem conta para atendimento domiciliar.`,
+        time: 'Agora'
+      },
+      ...prev
+    ]);
+  };
+
+  const handleSavePatient = async (savedPatient) => {
+    setPatients((prev) => {
+      const exists = prev.some((p) => p.id === savedPatient.id);
+      if (exists) {
+        return prev.map((p) => (p.id === savedPatient.id ? savedPatient : p));
+      }
+      return [savedPatient, ...prev];
+    });
+    setActivePatientId(savedPatient.id);
 
     // Tenta persistir no backend se disponível
     try {
@@ -523,13 +568,13 @@ export default function App() {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          name: newPatient.name,
-          cpf: newPatient.cpf,
-          email: newPatient.email,
-          phone: newPatient.phone,
-          address: newPatient.address,
-          latitude: newPatient.latitude,
-          longitude: newPatient.longitude,
+          name: savedPatient.name,
+          cpf: savedPatient.cpf,
+          email: savedPatient.email,
+          phone: savedPatient.phone,
+          address: savedPatient.address,
+          latitude: savedPatient.latitude,
+          longitude: savedPatient.longitude,
           professionalId: selectedDoctorId !== 'all' ? selectedDoctorId : undefined
         })
       });
@@ -537,7 +582,7 @@ export default function App() {
         const data = await res.json();
         if (data.patient?.id) {
           setPatients((prev) =>
-            prev.map((p) => (p.id === newPatient.id ? { ...p, id: data.patient.id } : p))
+            prev.map((p) => (p.id === savedPatient.id ? { ...p, id: data.patient.id } : p))
           );
         }
       }
@@ -661,6 +706,7 @@ export default function App() {
               onOpenNewAppointment={handleOpenNewAppointment}
               selectedDoctorId={selectedDoctorId}
               setSelectedDoctorId={setSelectedDoctorId}
+              initialSelectedDate={scheduleActiveDate}
             />
           )}
 
@@ -669,9 +715,21 @@ export default function App() {
               patients={patients}
               doctors={doctors}
               onCommitScaleToAppointments={(newAppointments) => {
-                setAppointments((prev) => [...newAppointments, ...prev]);
+                // Substitui agendamentos de plano gerados anteriormente evitando duplicação
+                setAppointments((prev) => {
+                  const nonPlanApts = prev.filter((a) => !a.id.startsWith('apt-plan-'));
+                  const merged = [...newAppointments, ...nonPlanApts];
+                  localStorage.setItem('omnihome_appointments_v3', JSON.stringify(merged));
+                  return merged;
+                });
+                if (newAppointments.length > 0 && newAppointments[0].date) {
+                  setScheduleActiveDate(newAppointments[0].date);
+                }
                 setActiveTab('schedule');
               }}
+              onRegisterDoctorWithoutAccount={handleRegisterDoctorWithoutAccount}
+              onNavigateToPatientsView={() => setActiveTab('patients')}
+              onUpdatePatient={handleSavePatient}
             />
           )}
 
@@ -680,8 +738,16 @@ export default function App() {
               patients={patients}
               appointments={appointments}
               activeDoctor={activeDoctor}
+              doctors={doctors}
               onOpenPatientRecord={handleOpenPatientRecord}
-              onOpenNewPatient={() => setIsPatientModalOpen(true)}
+              onOpenNewPatient={() => {
+                setEditingPatient(null);
+                setIsPatientModalOpen(true);
+              }}
+              onEditPatient={(pat) => {
+                setEditingPatient(pat);
+                setIsPatientModalOpen(true);
+              }}
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
               onDeletePatient={handleDeletePatient}
@@ -714,8 +780,13 @@ export default function App() {
 
       <NewPatientModal
         isOpen={isPatientModalOpen}
-        onClose={() => setIsPatientModalOpen(false)}
+        onClose={() => {
+          setIsPatientModalOpen(false);
+          setEditingPatient(null);
+        }}
         onSavePatient={handleSavePatient}
+        doctors={doctors}
+        initialPatientData={editingPatient}
       />
 
       <NotificationsModal
@@ -756,10 +827,10 @@ export default function App() {
                 crm: user.professional.crm || 'Registro Ativo',
                 avatar: user.avatar || null,
                 color: '#0d9488',
-                baseAddress: 'São Paulo - SP',
+                baseAddress: 'Praia do Canto, Vitória - ES',
                 baseCoordinates: {
-                  latitude: user.professional.latitude ?? -23.585,
-                  longitude: user.professional.longitude ?? -46.638
+                  latitude: user.professional.latitude ?? -20.3012,
+                  longitude: user.professional.longitude ?? -40.2925
                 }
               };
               return [prof, ...prev];
