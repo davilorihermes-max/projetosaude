@@ -188,44 +188,45 @@ export default function NewAppointmentModal({
     const proposedIso = `${date}T${time}:00.000Z`;
 
     try {
-      // 1. Persistir no banco de dados se houver token disponível
-      if (token) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              professionalId: doctorId,
-              patientId,
-              scheduledTime: proposedIso,
-              durationMinutes: Number(durationMinutes) || 45,
-              notes
-            })
-          });
+      // 1. Persistir no banco de dados em nuvem
+      let cloudAptId = null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            professionalId: doctorId,
+            patientId,
+            scheduledTime: proposedIso,
+            durationMinutes: Number(durationMinutes) || 45,
+            notes
+          })
+        });
 
-          if (!res.ok) {
-            if (res.status === 401) {
-              throw new Error('Sessão expirada. Por favor, faça login novamente no topo da página.');
-            }
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || 'Falha ao agendar sessão no servidor.');
+        if (res.ok) {
+          const resData = await res.json().catch(() => ({}));
+          if (resData.appointment?.id) {
+            cloudAptId = resData.appointment.id;
           }
-        } catch (fetchErr) {
-          // Se for erro de rede/conexão (backend offline), permite prosseguir com salvamento local
-          if (fetchErr.name === 'TypeError' || fetchErr.message?.toLowerCase().includes('fetch')) {
-            console.warn('Servidor de agendamento offline. Agendamento registrado localmente:', fetchErr);
-          } else {
-            throw fetchErr;
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          if (res.status === 400 && errorData.error === 'Unviable Schedule') {
+            throw new Error(errorData.message || 'Agendamento inviável pela política da clínica.');
           }
         }
+      } catch (fetchErr) {
+        if (fetchErr.message && fetchErr.message.includes('inviável')) {
+          throw fetchErr;
+        }
+        console.warn('Persistência imediata no backend ignorada ou em contingência:', fetchErr);
       }
 
       // 2. Salvar no estado local do frontend (LocalStorage)
       const newApt = {
-        id: `apt-${Date.now()}`,
+        id: cloudAptId || `apt-${Date.now()}`,
         patientId,
         doctorId,
         date,

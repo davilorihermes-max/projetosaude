@@ -158,15 +158,14 @@ export default function ProfileModal({
 
     try {
       const token = localStorage.getItem('omnihome_jwt');
-      if (!token) {
-        throw new Error('Sessão expirada. Faça login novamente para atualizar seu perfil no servidor em nuvem.');
-      }
+      const targetUserId = currentUser?.id || currentDoctor?.userId;
+      const targetProfId = (currentDoctor?.id && currentDoctor.id !== 'all') ? currentDoctor.id : currentUser?.professionalId;
 
       const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           name: name.trim(),
@@ -174,7 +173,9 @@ export default function ProfileModal({
           councilNumber: councilNumber.trim() || 'Registro Ativo',
           crm: councilNumber.trim() || 'Registro Ativo',
           latitude: baseCoordinates.latitude,
-          longitude: baseCoordinates.longitude
+          longitude: baseCoordinates.longitude,
+          userId: targetUserId,
+          professionalId: targetProfId
         })
       });
 

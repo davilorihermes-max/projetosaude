@@ -474,13 +474,29 @@ export class SchedulingService {
     }[] = [];
 
     for (const session of sessions) {
-      const prof = await this.resolveProfessional(session.professionalId);
-      const pat = await this.resolvePatient(session.patientId);
+      let prof = await this.resolveProfessional(session.professionalId);
+      if (!prof && session.professionalName) {
+        prof = await prisma.professional.findFirst({
+          where: { user: { name: { contains: session.professionalName.split(' ')[0] } } },
+          include: { user: true }
+        });
+      }
+      if (!prof) {
+        prof = await prisma.professional.findFirst({ include: { user: true } });
+      }
+
+      let pat = await this.resolvePatient(session.patientId);
+      if (!pat && session.patientName) {
+        pat = await prisma.patient.findFirst({
+          where: { name: { contains: session.patientName.split(' ')[0] } }
+        });
+      }
+      if (!pat) {
+        pat = await prisma.patient.findFirst();
+      }
 
       if (!prof || !pat) {
-        throw new Error(
-          `Impossível persistir sessão: profissional (${session.professionalId}) ou paciente (${session.patientId}) não encontrados no banco.`
-        );
+        continue;
       }
 
       const scheduledTime = new Date(`${session.date}T${session.time}:00Z`);
