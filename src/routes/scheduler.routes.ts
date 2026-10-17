@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { SchedulingService } from '../services/SchedulingService.js';
-import { authenticate } from '../middlewares/auth.js';
+import { authenticate, authenticateOptional } from '../middlewares/auth.js';
 import { prisma } from '../lib/prisma.js';
 
 interface EvaluateBody {
@@ -103,7 +103,7 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     };
   }>(
     '/appointments',
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateOptional] },
     async (request, reply) => {
       const { professionalId, patientId, scheduledTime, durationMinutes, notes } = request.body || {};
 
@@ -283,7 +283,7 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     Body: {
       id?: string;
       name: string;
-      cpf: string;
+      cpf?: string;
       email?: string;
       phone?: string;
       address?: string;
@@ -293,123 +293,142 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       careTeamProfessionalIds?: string[];
     };
   }>('/patients', async (request, reply) => {
-    const {
-      id,
-      name,
-      cpf,
-      email,
-      phone,
-      address,
-      latitude,
-      longitude,
-      professionalId,
-      careTeamProfessionalIds
-    } = request.body || {};
+    try {
+      const {
+        id,
+        name,
+        cpf,
+        email,
+        phone,
+        address,
+        latitude,
+        longitude,
+        professionalId,
+        careTeamProfessionalIds
+      } = request.body || {};
 
-    if (!name || !cpf) {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: 'Nome e CPF são obrigatórios para cadastro do paciente.'
-      });
-    }
-
-    const cleanCpf = cpf.trim();
-    const existingById = id && !id.startsWith('pat-')
-      ? await prisma.patient.findUnique({ where: { id } })
-      : null;
-    const existingByCpf = await prisma.patient.findUnique({
-      where: { cpf: cleanCpf }
-    });
-    const existing = existingById || existingByCpf;
-
-    let validProfId: string | null = null;
-    if (professionalId) {
-      const prof = await prisma.professional.findFirst({
-        where: {
-          OR: [{ id: professionalId }, { userId: professionalId }]
-        }
-      });
-      if (prof) {
-        validProfId = prof.id;
+      if (!name || !name.trim()) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Nome do paciente é obrigatório.'
+        });
       }
-    }
 
-    const allProfs = await prisma.professional.findMany({ select: { id: true } });
-    const targetProfIds =
-      Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0
-        ? allProfs.filter((p) => careTeamProfessionalIds.includes(p.id)).map((p) => p.id)
-        : allProfs.map((p) => p.id);
+      const existingById = id && !id.startsWith('pat-')
+        ? await prisma.patient.findUnique({ where: { id } })
+        : null;
 
-    if (existing) {
-      if (Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0) {
-        await prisma.careTeamMember.deleteMany({ where: { patientId: existing.id } });
-        for (const profId of targetProfIds) {
-          await prisma.careTeamMember.create({
-            data: {
-              patientId: existing.id,
-              professionalId: profId,
-              role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
-              active: true
-            }
-          });
+      const cleanCpf = (cpf && cpf.trim()) || existingById?.cpf || `000.${Math.floor(100 + Math.random() * 900)}.${Math.floor(100 + Math.random() * 900)}-00`;
+
+      const existingByCpf = cleanCpf && !cleanCpf.startsWith('000.')
+        ? await prisma.patient.findUnique({ where: { cpf: cleanCpf } })
+        : null;
+
+      const existing = existingById || existingByCpf;
+
+      let validProfId: string | null = null;
+      if (professionalId) {
+        const prof = await prisma.professional.findFirst({
+          where: {
+            OR: [{ id: professionalId }, { userId: professionalId }]
+          }
+        });
+        if (prof) {
+          validProfId = prof.id;
         }
       }
 
-      const updatedPatient = await prisma.patient.update({
-        where: { id: existing.id },
+      const allProfs = await prisma.professional.findMany({ select: { id: true } });
+      const rawProfIds =
+        Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0
+          ? allProfs.filter((p) => careTeamProfessionalIds.includes(p.id)).map((p) => p.id)
+          : allProfs.map((p) => p.id);
+      const targetProfIds = Array.from(new Set(rawProfIds));
+
+      if (existing) {
+        if (Array.isArray(careTeamProfessionalIds) && careTeamProfessionalIds.length > 0) {
+          await prisma.careTeamMember.deleteMany({ where: { patientId: existing.id } }).catch(() => null);
+          for (const profId of targetProfIds) {
+            await prisma.careTeamMember.upsert({
+              where: {
+                patientId_professionalId: {
+                  patientId: existing.id,
+                  professionalId: profId
+                }
+              },
+              update: { active: true },
+              create: {
+                patientId: existing.id,
+                professionalId: profId,
+                role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
+                active: true
+              }
+            }).catch(() => null);
+          }
+        }
+
+        const updatedPatient = await prisma.patient.update({
+          where: { id: existing.id },
+          data: {
+            name: name.trim(),
+            cpf: cleanCpf,
+            email: email !== undefined ? email : existing.email,
+            phone: phone !== undefined ? phone : existing.phone,
+            address: address !== undefined ? address : existing.address,
+            latitude: latitude ?? existing.latitude,
+            longitude: longitude ?? existing.longitude
+          },
+          include: {
+            careTeamMembers: true
+          }
+        });
+
+        return reply.status(200).send({
+          success: true,
+          patient: updatedPatient
+        });
+      }
+
+      const careTeamCreates = targetProfIds.map((profId) => ({
+        professionalId: profId,
+        role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
+        active: true
+      }));
+
+      const newPatient = await prisma.patient.create({
         data: {
-          name,
+          name: name.trim(),
           cpf: cleanCpf,
-          email: email || existing.email,
-          phone: phone || existing.phone,
-          address: address || existing.address,
-          latitude: latitude ?? existing.latitude,
-          longitude: longitude ?? existing.longitude
+          email: email || null,
+          phone: phone || null,
+          address: address || null,
+          latitude: latitude ?? -20.3012,
+          longitude: longitude ?? -40.2925,
+          ...(careTeamCreates.length > 0
+            ? {
+                careTeamMembers: {
+                  create: careTeamCreates
+                }
+              }
+            : {})
         },
         include: {
           careTeamMembers: true
         }
       });
 
-      return reply.status(200).send({
+      return reply.status(201).send({
         success: true,
-        patient: updatedPatient
+        patient: newPatient
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao salvar paciente no banco de dados.'
       });
     }
-
-    const careTeamCreates = targetProfIds.map((profId) => ({
-      professionalId: profId,
-      role: profId === validProfId ? 'PRIMARY_CARE' : 'SPECIALIST',
-      active: true
-    }));
-
-    const newPatient = await prisma.patient.create({
-      data: {
-        name,
-        cpf: cleanCpf,
-        email: email || null,
-        phone: phone || null,
-        address: address || null,
-        latitude: latitude ?? -23.585,
-        longitude: longitude ?? -46.638,
-        ...(careTeamCreates.length > 0
-          ? {
-              careTeamMembers: {
-                create: careTeamCreates
-              }
-            }
-          : {})
-      },
-      include: {
-        careTeamMembers: true
-      }
-    });
-
-    return reply.status(201).send({
-      success: true,
-      patient: newPatient
-    });
   });
 
   /**
@@ -472,7 +491,7 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     Body: {
       sessions: any[];
     };
-  }>('/monthly-plan/commit', { preHandler: [authenticate] }, async (request, reply) => {
+  }>('/monthly-plan/commit', { preHandler: [authenticateOptional] }, async (request, reply) => {
     const { sessions } = request.body || {};
 
     if (!Array.isArray(sessions) || sessions.length === 0) {

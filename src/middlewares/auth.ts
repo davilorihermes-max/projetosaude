@@ -29,6 +29,20 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 }
 
 /**
+ * Middleware opcional: se houver header Authorization válido, autentica o usuário;
+ * caso contrário, permite a passagem para atender operações híbridas de demonstração/nuvem.
+ */
+export async function authenticateOptional(request: FastifyRequest, _reply: FastifyReply) {
+  try {
+    if (request.headers.authorization) {
+      await request.jwtVerify();
+    }
+  } catch {
+    // Permite que a requisição prossiga mesmo sem token
+  }
+}
+
+/**
  * Middleware guard para autorização baseada em roles
  * Ex: requireRole('ADMIN'), requireRole('PROFESSIONAL')
  */

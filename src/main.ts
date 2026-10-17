@@ -25,7 +25,10 @@ export function buildServer(): FastifyInstance {
   // Registro de CORS
   server.register(cors, {
     origin: true,
-    credentials: true
+    credentials: true,
+    // O padrão do @fastify/cors é só GET,HEAD,POST; o frontend também usa PUT (perfil) e DELETE (pacientes)
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   });
 
   // Registro do JWT

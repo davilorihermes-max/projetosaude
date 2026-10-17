@@ -42,12 +42,147 @@ export const SCALE_STORAGE_KEY = 'omnihome_monthly_scale_state_v4';
 
 export const getInitialScaleSavedData = () => {
   try {
+    if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(SCALE_STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) {
     console.warn('Erro ao ler escala salva:', e);
   }
   return null;
+};
+
+// Carrega ou gera as sessões planejadas da escala mensal para visualização imediata na agenda
+export const getPlannedAppointments = (patientsList = [], doctorsList = []) => {
+  try {
+    const saved = getInitialScaleSavedData();
+    if (saved?.scaleResult?.plannedSessions && saved.scaleResult.plannedSessions.length > 0) {
+      return saved.scaleResult.plannedSessions.map((s) => ({
+        id: `apt-plan-${s.id}`,
+        patientId: s.patientId,
+        doctorId: s.professionalId,
+        date: s.date,
+        time: s.time,
+        status: s.status || 'scheduled',
+        type: 'home',
+        notes: `Plano Terapêutico: ${s.therapyType}${s.transitKmFromPrevious ? ` (${Number(s.transitKmFromPrevious).toFixed(1)} km da parada anterior)` : ''}`,
+        address: s.address,
+        accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
+        transitTime: `${s.transitTimeMinutes || 0} min de trânsito estimado`,
+        transitTimeMinutes: s.transitTimeMinutes || 0,
+        transitKmFromPrevious: s.transitKmFromPrevious || 0,
+        durationMinutes: s.durationMinutes || 45,
+        therapyType: s.therapyType,
+        isPlannedScale: true
+      }));
+    }
+
+    if (patientsList && patientsList.length > 0 && doctorsList && doctorsList.length > 0) {
+      const demands = patientsList.flatMap((p) => {
+        const coords = (p.latitude && p.longitude)
+          ? { latitude: Number(p.latitude), longitude: Number(p.longitude) }
+          : (ALL_PRESET_LOCATIONS[p.address] || { latitude: -20.3012, longitude: -40.2925 });
+
+        const patDemands = p.demands && p.demands.length > 0
+          ? p.demands
+          : [
+              {
+                id: `dem-${p.id}-1`,
+                therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+                sessionsPerWeek: 2,
+                durationMinutes: 45,
+                preferredShift: 'morning'
+              }
+            ];
+
+        return patDemands.map((d) => ({
+          id: d.id,
+          patientId: p.id,
+          patientName: p.name,
+          therapyType: d.therapyType,
+          sessionsPerWeek: d.sessionsPerWeek || 2,
+          durationMinutes: d.durationMinutes || 45,
+          preferredShift: d.preferredShift || 'morning',
+          location: coords,
+          address: p.address || 'Vitória - ES',
+          careTeamProfessionalIds: p.careTeamProfessionalIds || (p.careTeamMembers?.map((m) => m.professionalId || m)) || doctorsList.map((doc) => doc.id)
+        }));
+      });
+
+      const availabilities = doctorsList.map((doc) => {
+        const coords = (doc.baseCoordinates?.latitude && doc.baseCoordinates?.longitude)
+          ? doc.baseCoordinates
+          : (ALL_PRESET_LOCATIONS[doc.baseAddress] || { latitude: -20.3012, longitude: -40.2925 });
+
+        return {
+          professionalId: doc.id,
+          professionalName: doc.name,
+          specialty: doc.specialty || doc.profession || 'Fisioterapia Domiciliar',
+          baseLocation: coords,
+          weekdayWindows: doc.weekdayWindows || {
+            1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            5: { enabled: true, startTime: '08:00', endTime: '18:00' },
+            6: { enabled: false, startTime: '08:00', endTime: '12:00' },
+            0: { enabled: false, startTime: '08:00', endTime: '12:00' }
+          }
+        };
+      });
+
+      const careTeams = patientsList.map((p) => ({
+        patientId: p.id,
+        professionalIds: p.careTeamProfessionalIds || (p.careTeamMembers?.map((m) => m.professionalId || m)) || doctorsList.map((doc) => doc.id)
+      }));
+
+      const generator = new MonthlyScaleGenerator(28, 12);
+      const scaleResult = generator.generateMonthlyScale({
+        year: 2026,
+        month: 10,
+        demands,
+        availabilities,
+        careTeams
+      });
+
+      if (scaleResult?.plannedSessions && scaleResult.plannedSessions.length > 0) {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(SCALE_STORAGE_KEY, JSON.stringify({
+              selectedMonth: '2026-10',
+              patientsWithDemands: patientsList,
+              professionalAvailabilities: availabilities,
+              careTeams,
+              fixedAppointments: [],
+              scaleResult,
+              savedAt: new Date().toISOString()
+            }));
+          }
+        } catch {}
+
+        return scaleResult.plannedSessions.map((s) => ({
+          id: `apt-plan-${s.id}`,
+          patientId: s.patientId,
+          doctorId: s.professionalId,
+          date: s.date,
+          time: s.time,
+          status: s.status || 'scheduled',
+          type: 'home',
+          notes: `Plano Terapêutico: ${s.therapyType}${s.transitKmFromPrevious ? ` (${Number(s.transitKmFromPrevious).toFixed(1)} km da parada anterior)` : ''}`,
+          address: s.address,
+          accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
+          transitTime: `${s.transitTimeMinutes || 0} min de trânsito estimado`,
+          transitTimeMinutes: s.transitTimeMinutes || 0,
+          transitKmFromPrevious: s.transitKmFromPrevious || 0,
+          durationMinutes: s.durationMinutes || 45,
+          therapyType: s.therapyType,
+          isPlannedScale: true
+        }));
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar ou gerar sessões planejadas da escala:', e);
+  }
+  return [];
 };
 
 // Polos regionais e metropolitanos em todo o Brasil para coordenadas geodésicas automáticas
@@ -514,6 +649,29 @@ export default function MonthlyScalePlannerView({
 
       setScaleResult(result);
       setIsGenerating(false);
+
+      // Sincroniza automaticamente a escala gerada com a agenda
+      if (result && result.plannedSessions && result.plannedSessions.length > 0 && onCommitScaleToAppointments) {
+        const appointmentsToSave = result.plannedSessions.map((s) => ({
+          id: `apt-plan-${s.id}`,
+          patientId: s.patientId,
+          doctorId: s.professionalId,
+          date: s.date,
+          time: s.time,
+          status: 'scheduled',
+          type: 'home',
+          notes: `Plano Terapêutico: ${s.therapyType}${s.transitKmFromPrevious ? ` (${Number(s.transitKmFromPrevious).toFixed(1)} km da parada anterior)` : ''}`,
+          address: s.address,
+          accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
+          transitTime: `${s.transitTimeMinutes} min de trânsito estimado`,
+          transitTimeMinutes: s.transitTimeMinutes,
+          transitKmFromPrevious: s.transitKmFromPrevious,
+          durationMinutes: s.durationMinutes || 45,
+          therapyType: s.therapyType,
+          isPlannedScale: true
+        }));
+        onCommitScaleToAppointments(appointmentsToSave, result);
+      }
     }, 300);
   };
 
