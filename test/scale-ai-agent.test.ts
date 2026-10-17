@@ -36,6 +36,16 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
         1: { enabled: true, startTime: '08:00', endTime: '18:00' },
         2: { enabled: true, startTime: '08:00', endTime: '18:00' }
       }
+    },
+    {
+      professionalId: 'doc-sergio',
+      professionalName: 'Dr. Sérgio Hermes',
+      specialty: 'Fisioterapia Neurofuncional',
+      baseLocation: locPraiaDoCanto,
+      weekdayWindows: {
+        1: { enabled: true, startTime: '07:00', endTime: '13:00' },
+        3: { enabled: true, startTime: '07:00', endTime: '13:00' }
+      }
     }
   ];
 
@@ -165,5 +175,61 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
     expect(pat?.address).toContain('Jardim Camburi');
     expect(pat?.location?.latitude).toBeCloseTo(-20.2678, 2);
     expect(pat?.location?.longitude).toBeCloseTo(-40.2842, 2);
+  });
+
+  it('NÃO deve mutar a agenda nem alterar para 8-18h ao perguntar "quais os horários disponíveis de sergio"', () => {
+    const res = ScaleAIAgent.processMessage(
+      'quais os horários disponíveis de sergio',
+      baseContext
+    );
+
+    // Deve ser apenas consulta, SEM mutação
+    expect(res.mutated).toBe(false);
+    expect(res.newProfessionalAvailabilities).toBeUndefined();
+
+    // A resposta deve ser específica da agenda do Sérgio, com os horários cadastrados
+    expect(res.reply).toContain('Dr. Sérgio Hermes');
+    expect(res.reply).toContain('Fisioterapia Neurofuncional');
+    expect(res.reply).toContain('07:00 às 13:00');
+    expect(res.reply).not.toContain('A jornada de Dr. Sérgio Hermes foi atualizada para 08:00 às 18:00');
+  });
+
+  it('deve responder com a agenda de Sérgio e NÃO com o menu genérico ao perguntar "sobre a disponibilidade de sergio"', () => {
+    const res = ScaleAIAgent.processMessage(
+      'sobre a disponibilidade de sergio',
+      baseContext
+    );
+
+    expect(res.mutated).toBe(false);
+    expect(res.reply).toContain('Agenda & Disponibilidade: Dr. Sérgio Hermes');
+    expect(res.reply).toContain('Segunda-feira');
+    expect(res.reply).toContain('Quarta-feira');
+    // NÃO deve responder com as dicas genéricas de boas-vindas do copiloto
+    expect(res.reply).not.toContain('Olá! Sou seu Copiloto Inteligente');
+  });
+
+  it('deve responder adequadamente a "qual a disponibilidade de sergio"', () => {
+    const res = ScaleAIAgent.processMessage(
+      'qual a disponibilidade de sergio',
+      baseContext
+    );
+
+    expect(res.mutated).toBe(false);
+    expect(res.reply).toContain('Dr. Sérgio Hermes');
+    expect(res.reply).toContain('07:00 às 13:00');
+  });
+
+  it('deve permitir mutação quando houver comando e horários explícitos (ex: "mudar o horário de sergio na segunda para 08:00 às 17:00")', () => {
+    const res = ScaleAIAgent.processMessage(
+      'mudar o horário de sergio na segunda para 08:00 às 17:00',
+      baseContext
+    );
+
+    expect(res.mutated).toBe(true);
+    expect(res.newProfessionalAvailabilities).toBeDefined();
+
+    const prof = res.newProfessionalAvailabilities?.find((p) => p.professionalId === 'doc-sergio');
+    expect(prof?.weekdayWindows?.[1].startTime).toBe('08:00');
+    expect(prof?.weekdayWindows?.[1].endTime).toBe('17:00');
   });
 });

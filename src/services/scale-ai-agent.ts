@@ -224,103 +224,379 @@ export class ScaleAIAgent {
   }
 
   /**
+   * Normaliza texto removendo acentos e convertendo para minúsculas
+   */
+  public static normalizeText(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  /**
+   * Encontra um profissional citado no texto ignorando acentos e títulos
+   */
+  public static findProfessionalInText(
+    text: string,
+    availabilities: ProfessionalAvailability[]
+  ): ProfessionalAvailability | null {
+    const normText = this.normalizeText(text);
+
+    return (
+      availabilities.find((p) => {
+        const fullName = this.normalizeText(p.professionalName);
+        const cleanName = fullName.replace(/^(dr\.|dra\.|dr|dra|doutor|doutora)\s+/i, '').trim();
+        const parts = cleanName.split(/\s+/).filter((part) => part.length >= 3);
+
+        if (normText.includes(fullName) || normText.includes(cleanName)) return true;
+
+        return parts.some((part) => {
+          const regex = new RegExp(`\\b${part}\\b`, 'i');
+          return regex.test(normText);
+        });
+      }) || null
+    );
+  }
+
+  /**
+   * Encontra um paciente citado no texto ignorando acentos
+   */
+  public static findPatientInText(
+    text: string,
+    patients: ScaleAgentContext['patientsWithDemands']
+  ): ScaleAgentContext['patientsWithDemands'][0] | null {
+    const normText = this.normalizeText(text);
+
+    return (
+      patients.find((p) => {
+        const fullName = this.normalizeText(p.patientName);
+        const parts = fullName.split(/\s+/).filter((part) => part.length >= 3);
+
+        if (normText.includes(fullName)) return true;
+
+        return parts.some((part) => {
+          const regex = new RegExp(`\\b${part}\\b`, 'i');
+          return regex.test(normText);
+        });
+      }) || null
+    );
+  }
+
+  /**
+   * Explica detalhadamente a disponibilidade, horários de atendimento, bloqueios e sessões alocadas de um profissional
+   */
+  public static explainProfessionalSituation(
+    professional: ProfessionalAvailability,
+    ctx: ScaleAgentContext
+  ): AgentExecutionResult {
+    const { scaleResult, careTeams, patientsWithDemands } = ctx;
+
+    const weekdayLabels: Record<number, string> = {
+      1: 'Segunda-feira',
+      2: 'Terça-feira',
+      3: 'Quarta-feira',
+      4: 'Quinta-feira',
+      5: 'Sexta-feira',
+      6: 'Sábado',
+      0: 'Domingo'
+    };
+
+    let reply = `### 🧑‍⚕️ Agenda & Disponibilidade: ${professional.professionalName}\n\n`;
+
+    // Especialidades e Ponto Base
+    const specs =
+      professional.specialties && professional.specialties.length > 0
+        ? professional.specialties.join(', ')
+        : professional.specialty;
+    reply += `🩺 **Especialidades:** ${specs}\n`;
+    if (professional.baseLocation) {
+      reply += `📍 **Ponto Base:** Coordenadas (${professional.baseLocation.latitude.toFixed(4)}, ${professional.baseLocation.longitude.toFixed(4)})\n\n`;
+    }
+
+    // Grade de horários dia a dia
+    reply += `#### ⏰ Horários de Atendimento por Dia da Semana:\n`;
+    const windows = professional.weekdayWindows || {};
+    let totalWorkingDays = 0;
+
+    [1, 2, 3, 4, 5, 6, 0].forEach((dayNum) => {
+      const win = windows[dayNum];
+      const dayName = weekdayLabels[dayNum];
+      if (win && win.enabled) {
+        totalWorkingDays++;
+        reply += `• ✅ **${dayName}:** das **${win.startTime} às ${win.endTime}**\n`;
+      } else {
+        reply += `• ⚪ *${dayName}:* Não atende\n`;
+      }
+    });
+
+    // Bloqueios de Indisponibilidade
+    const blocks = professional.unavailabilityBlocks || [];
+    if (blocks.length > 0) {
+      reply += `\n#### ⛔ Bloqueios de Horário / Compromissos Externos (${blocks.length}):\n`;
+      blocks.forEach((b) => {
+        const dayLabel = b.dayOfWeek !== undefined ? weekdayLabels[b.dayOfWeek] : b.dateStr || 'Data';
+        reply += `• 🚫 **${dayLabel}:** das ${b.startTime} às ${b.endTime}${b.reason ? ` *(${b.reason})*` : ''}\n`;
+      });
+    }
+
+    // Sessões alocadas na escala mensal
+    if (scaleResult && scaleResult.plannedSessions) {
+      const profSessions = scaleResult.plannedSessions.filter(
+        (s) => s.professionalId === professional.professionalId
+      );
+      reply += `\n#### 📅 Ocupação na Escala do Mês:\n`;
+      reply += `• **Total de sessões atribuídas:** **${profSessions.length} sessões** no mês.\n`;
+
+      if (profSessions.length === 0) {
+        reply += `• ⚠️ **Capacidade Ociosa:** Nenhuma sessão foi alocada ainda para este profissional no mês atual.\n`;
+      } else {
+        const patientCounts = new Map<string, number>();
+        profSessions.forEach((s) => {
+          patientCounts.set(s.patientName, (patientCounts.get(s.patientName) || 0) + 1);
+        });
+
+        const patientSummary: string[] = [];
+        patientCounts.forEach((count, patName) => {
+          patientSummary.push(`${patName} (${count}x)`);
+        });
+        reply += `• **Pacientes em atendimento:** ${patientSummary.join(', ')}\n`;
+      }
+    }
+
+    // Pacientes autorizados no Care Team
+    const authorizedPatients = patientsWithDemands.filter((p) => {
+      const ct = careTeams.find((c) => c.patientId === p.patientId);
+      return ct?.professionalIds.includes(professional.professionalId);
+    });
+
+    reply += `\n#### 🛡️ Equipes de Cuidado (Care Team):\n`;
+    if (authorizedPatients.length > 0) {
+      reply += `• Autorizado para atender: **${authorizedPatients.map((p) => p.patientName).join(', ')}**\n`;
+    } else {
+      reply += `• ⚠️ *Não está vinculado ao Care Team de nenhum paciente ativo no momento.*\n`;
+    }
+
+    // Sugestões de Ação
+    const suggestions: AgentActionSuggestion[] = [];
+
+    if (!windows[0]?.enabled) {
+      suggestions.push({
+        id: `act-enable-dom-${professional.professionalId}`,
+        label: `Habilitar Domingo para ${professional.professionalName.split(' ')[0]}`,
+        actionType: 'ENABLE_DAY',
+        payload: {
+          professionalId: professional.professionalId,
+          dayOfWeek: 0,
+          startTime: '08:00',
+          endTime: '13:00'
+        }
+      });
+    }
+
+    if (!windows[6]?.enabled) {
+      suggestions.push({
+        id: `act-enable-sab-${professional.professionalId}`,
+        label: `Habilitar Sábado para ${professional.professionalName.split(' ')[0]}`,
+        actionType: 'ENABLE_DAY',
+        payload: {
+          professionalId: professional.professionalId,
+          dayOfWeek: 6,
+          startTime: '08:00',
+          endTime: '13:00'
+        }
+      });
+    }
+
+    return {
+      reply,
+      mutated: false,
+      suggestedActions: suggestions
+    };
+  }
+
+  /**
    * Processa a mensagem do planejador e executa ações de modificação de parâmetros ou diagnóstico
    */
   public static processMessage(input: string, ctx: ScaleAgentContext): AgentExecutionResult {
     const text = input.trim();
     const lower = text.toLowerCase();
+    const norm = this.normalizeText(text);
 
-    // 0. Comando: Alterar / Mudar Endereço Residencial do Paciente
+    // Identifica entidades citadas na mensagem
+    const matchedProfessional = this.findProfessionalInText(text, ctx.professionalAvailabilities);
+    const matchedPatient = this.findPatientInText(text, ctx.patientsWithDemands);
+
+    // Identifica se é uma pergunta / consulta informativa (e NÃO um comando de alteração)
+    const hasQuestionIndicator =
+      norm.startsWith('qual') ||
+      norm.startsWith('quais') ||
+      norm.startsWith('como') ||
+      norm.startsWith('onde') ||
+      norm.startsWith('quando') ||
+      norm.startsWith('quem') ||
+      norm.startsWith('por que') ||
+      norm.startsWith('porque') ||
+      norm.startsWith('me diga') ||
+      norm.startsWith('diga') ||
+      norm.startsWith('ver') ||
+      norm.startsWith('veja') ||
+      norm.startsWith('mostrar') ||
+      norm.startsWith('mostre') ||
+      norm.startsWith('consulte') ||
+      norm.startsWith('consultar') ||
+      norm.includes('?') ||
+      norm.includes('sobre a disponibilidade') ||
+      norm.includes('sobre a agenda') ||
+      norm.includes('sobre os horarios') ||
+      norm.includes('sobre o horario') ||
+      norm.includes('horarios disponiveis') ||
+      norm.includes('horario disponivel') ||
+      norm.includes('disponibilidade de') ||
+      norm.includes('disponibilidade do') ||
+      norm.includes('disponibilidade da');
+
+    // Verbos explícitos de alteração / mutação imperativa
+    const hasMutationVerb =
+      norm.includes('mudar') || norm.includes('mude') ||
+      norm.includes('alterar') || norm.includes('altere') ||
+      norm.includes('ajustar') || norm.includes('ajuste') ||
+      norm.includes('aumentar') || norm.includes('aumente') ||
+      norm.includes('reduzir') || norm.includes('reduza') ||
+      norm.includes('ampliar') || norm.includes('amplie') ||
+      norm.includes('definir') || norm.includes('defina') ||
+      norm.includes('estender') || norm.includes('estenda') ||
+      norm.includes('trocar') || norm.includes('troque');
+
+    // ============================================================
+    // CASO 1: CONSULTAS INFORMATIVAS DE PROFISSIONAL OU PACIENTE
+    // ============================================================
+    if (matchedProfessional && (hasQuestionIndicator || !hasMutationVerb)) {
+      if (
+        hasQuestionIndicator ||
+        norm.includes('horario') ||
+        norm.includes('disponib') ||
+        norm.includes('agenda') ||
+        norm.includes('atende') ||
+        norm.includes('sess') ||
+        norm.includes('dia') ||
+        norm.includes('sobre')
+      ) {
+        return this.explainProfessionalSituation(matchedProfessional, ctx);
+      }
+    }
+
+    if (matchedPatient && (hasQuestionIndicator || !hasMutationVerb)) {
+      if (
+        hasQuestionIndicator ||
+        norm.includes('situac') ||
+        norm.includes('meta') ||
+        norm.includes('cobertura') ||
+        norm.includes('demanda') ||
+        norm.includes('sess') ||
+        norm.includes('gargalo') ||
+        norm.includes('atend') ||
+        norm.includes('sobre')
+      ) {
+        return this.explainPatientSituation(matchedPatient, ctx);
+      }
+    }
+
+    // ============================================================
+    // CASO 2: COMANDOS DE MUTAÇÃO IMPERATIVA DE PARÂMETROS
+    // ============================================================
+
+    // 2.1. Alterar Endereço do Paciente
     if (
-      (lower.includes('endereço') || lower.includes('endereco') || lower.includes('mudou para') || lower.includes('mudar para') || lower.includes('mudar o endereço') || lower.includes('novo endereço')) &&
-      (lower.includes('mudar') || lower.includes('alterar') || lower.includes('atualizar') || lower.includes('trocar') || lower.includes('mudou') || lower.includes('novo') || lower.includes('para'))
+      (norm.includes('endereco') || norm.includes('mudou para') || norm.includes('mudar para') || norm.includes('novo endereco')) &&
+      (hasMutationVerb || norm.includes('mudou') || norm.includes('novo'))
     ) {
-      const addrRes = this.handleUpdatePatientAddress(text, lower, ctx);
+      const addrRes = this.handleUpdatePatientAddress(text, ctx);
       if (addrRes) return addrRes;
     }
 
-    // 1. Comando: Adicionar / Vincular profissional ao Care Team do paciente
-    // Ex: "Adicione o Dr. Rafael ao Care Team da Mariana", "Vincular Dra. Camila à Mariana"
+    // 2.2. Adicionar / Vincular ao Care Team
     if (
-      (lower.includes('adicione') || lower.includes('adicionar') || lower.includes('vincular') || lower.includes('incluir') || lower.includes('autorizar')) &&
-      (lower.includes('care team') || lower.includes('equipe') || lower.includes('paciente') || lower.includes('careteam'))
+      (norm.includes('adicione') || norm.includes('adicionar') || norm.includes('vincular') || norm.includes('vincule') || norm.includes('incluir') || norm.includes('inclua') || norm.includes('autorizar') || norm.includes('autorize')) &&
+      (norm.includes('care team') || norm.includes('equipe') || norm.includes('paciente') || norm.includes('careteam'))
     ) {
-      return this.handleCareTeamCommand(lower, ctx, true);
+      return this.handleCareTeamCommand(text, ctx, true);
     }
 
-    // 2. Comando: Remover profissional do Care Team
-    // Ex: "Remover Rafael do Care Team da Mariana"
+    // 2.3. Remover do Care Team
     if (
-      (lower.includes('remover') || lower.includes('retirar') || lower.includes('desvincular')) &&
-      (lower.includes('care team') || lower.includes('equipe'))
+      (norm.includes('remover') || norm.includes('remova') || norm.includes('retirar') || norm.includes('retire') || norm.includes('desvincular') || norm.includes('desvincule')) &&
+      (norm.includes('care team') || norm.includes('equipe'))
     ) {
-      return this.handleCareTeamCommand(lower, ctx, false);
+      return this.handleCareTeamCommand(text, ctx, false);
     }
 
-    // 3. Comando: Habilitar dia de atendimento (ex: "Habilite domingo para Dr. Rafael", "Ativar sábado para Rafael")
+    // 2.4. Habilitar dia de atendimento (ex: "Habilite domingo para Dr. Rafael")
     if (
-      (lower.includes('habilite') || lower.includes('habilitar') || lower.includes('ative') || lower.includes('ativar') || lower.includes('coloque')) &&
-      (lower.includes('domingo') || lower.includes('sábado') || lower.includes('sabado') || lower.includes('segunda') || lower.includes('terça') || lower.includes('terca') || lower.includes('quarta') || lower.includes('quinta') || lower.includes('sexta'))
+      !hasQuestionIndicator &&
+      (norm.includes('habilite') || norm.includes('habilitar') || norm.includes('ative') || norm.includes('ativar') || norm.includes('coloque para atender')) &&
+      (norm.includes('domingo') || norm.includes('sabado') || norm.includes('segunda') || norm.includes('terca') || norm.includes('quarta') || norm.includes('quinta') || norm.includes('sexta'))
     ) {
-      return this.handleToggleDayCommand(lower, ctx, true);
+      return this.handleToggleDayCommand(text, ctx, true);
     }
 
-    // 4. Comando: Ampliar ou alterar jornada diária (ex: "Aumente o horário do Dr. Rafael na terça para 08:00 às 18:00")
+    // 2.5. Ampliar ou alterar jornada diária (ex: "Aumente o horário do Dr. Rafael na terça para 08:00 às 18:00")
     if (
-      lower.includes('horário') || lower.includes('horario') || lower.includes('jornada') || lower.includes('aumente') || lower.includes('mude o horário')
+      hasMutationVerb &&
+      (norm.includes('horario') || norm.includes('jornada'))
     ) {
-      const windowChange = this.handleTimeWindowChange(lower, ctx);
+      const windowChange = this.handleTimeWindowChange(text, ctx);
       if (windowChange) return windowChange;
     }
 
-    // 5. Comando: Alterar frequência semanal de atendimento do paciente
-    // Ex: "Mude a frequência de fisioterapia do Roberto para 3 vezes na semana", "Aumentar Mariana para 3 sessões"
+    // 2.6. Alterar frequência semanal de sessões do paciente
     if (
-      (lower.includes('frequência') || lower.includes('frequencia') || lower.includes('vezes') || lower.includes('sessões') || lower.includes('sessoes') || lower.includes('meta')) &&
-      (lower.includes('semana') || lower.includes('mudar') || lower.includes('alterar') || lower.includes('aumentar') || lower.includes('reduzir'))
+      hasMutationVerb &&
+      (norm.includes('frequencia') || norm.includes('vezes') || norm.includes('sessoes') || norm.includes('meta'))
     ) {
-      const freqChange = this.handleFrequencyChange(lower, ctx);
+      const freqChange = this.handleFrequencyChange(text, ctx);
       if (freqChange) return freqChange;
     }
 
-    // 6. Comando: Fixar atendimento
-    // Ex: "Fixe o atendimento da Mariana com Dr. Rafael na terça às 09:00"
-    if (lower.includes('fixe') || lower.includes('fixar') || lower.includes('travar') || lower.includes('prioritário')) {
-      const fixResult = this.handleFixAppointmentCommand(lower, ctx);
+    // 2.7. Fixar Atendimento
+    if (norm.includes('fixe') || norm.includes('fixar') || norm.includes('travar')) {
+      const fixResult = this.handleFixAppointmentCommand(text, ctx);
       if (fixResult) return fixResult;
     }
 
-    // 7. Comando: Adicionar Bloqueio de Indisponibilidade
-    // Ex: "Bloquear Dr. Rafael na quinta das 10:00 às 12:00 por paciente particular"
-    if (lower.includes('bloquear') || lower.includes('bloqueio') || lower.includes('indisponível') || lower.includes('indisponibilidade')) {
-      const blockResult = this.handleBlockCommand(lower, ctx);
+    // 2.8. Adicionar Bloqueio de Indisponibilidade
+    if (norm.includes('bloquear') || norm.includes('bloqueie') || norm.includes('adicionar bloqueio')) {
+      const blockResult = this.handleBlockCommand(text, ctx);
       if (blockResult) return blockResult;
     }
 
-    // 8. Consulta Específica de Paciente: "Por que a Mariana não...", "Situação da Mariana", etc.
-    const matchedPatient = ctx.patientsWithDemands.find((p) =>
-      lower.includes(p.patientName.toLowerCase().split(' ')[0]) ||
-      lower.includes(p.patientName.toLowerCase())
-    );
+    // ============================================================
+    // CASO 3: CONSULTAS DE ENTIDADE SE NÃO CAIU ANTERIORMENTE
+    // ============================================================
+    if (matchedProfessional) {
+      return this.explainProfessionalSituation(matchedProfessional, ctx);
+    }
 
     if (matchedPatient) {
       return this.explainPatientSituation(matchedPatient, ctx);
     }
 
-    // 9. Consulta Geral: Dificuldades / Gargalos / Diagnóstico da Escala
+    // ============================================================
+    // CASO 4: CONSULTA GERAL DE GARGALOS E DIAGNÓSTICO DA ESCALA
+    // ============================================================
     if (
-      lower.includes('gargalo') ||
-      lower.includes('dificuldade') ||
-      lower.includes('fechar') ||
-      lower.includes('ajuda') ||
-      lower.includes('como') ||
-      lower.includes('diagnóstico') ||
-      lower.includes('diagnostico') ||
-      lower.includes('por que') ||
-      lower.includes('porque') ||
-      lower.includes('status') ||
-      lower.includes('cobertura') ||
-      lower.includes('ocioso')
+      norm.includes('gargalo') ||
+      norm.includes('dificuldade') ||
+      norm.includes('fechar') ||
+      norm.includes('ajuda') ||
+      norm.includes('como') ||
+      norm.includes('diagnostico') ||
+      norm.includes('por que') ||
+      norm.includes('porque') ||
+      norm.includes('status') ||
+      norm.includes('cobertura') ||
+      norm.includes('ocioso') ||
+      norm.includes('ociosidade')
     ) {
       const diag = this.diagnoseScale(ctx);
       let reply = `### 🧠 Diagnóstico da Escala Mensal\n\n${diag.summaryText}\n\n`;
@@ -347,14 +623,18 @@ export class ScaleAIAgent {
       };
     }
 
-    // Resposta Padrão do Copiloto orientando os comandos possíveis
+    // ============================================================
+    // CASO 5: MENSAGEM PADRÃO COM ORIENTAÇÕES E DICAS
+    // ============================================================
     return {
-      reply: `Olá! Sou seu **Copiloto Inteligente de Escala e Roteirização**. 🩺\n\nPosso ajudar você a entender qualquer dificuldade para fechar a escala e também **alterar parâmetros diretamente pelo chat**. Você pode me pedir, por exemplo:\n\n` +
-        `• **Diagnóstico:** *"Quais os gargalos para fechar a escala deste mês?"*\n` +
-        `• **Paciente Específico:** *"Por que a Mariana não atingiu 100% da meta?"*\n` +
+      reply:
+        `Olá! Sou seu **Copiloto Inteligente de Escala e Roteirização**. 🩺\n\nPosso ajudar você a entender qualquer dificuldade para fechar a escala e também **alterar parâmetros diretamente pelo chat**. Você pode me pedir, por exemplo:\n\n` +
+        `• **Consultar Disponibilidade do Profissional:** *"Quais os horários disponíveis de Sérgio?"* ou *"Disponibilidade do Dr. Rafael"*\n` +
+        `• **Diagnóstico Geral:** *"Quais os gargalos para fechar a escala deste mês?"*\n` +
+        `• **Situação do Paciente:** *"Por que a Mariana não atingiu 100% da meta?"*\n` +
         `• **Alterar Care Team:** *"Autorize o Dr. Rafael no Care Team da Mariana"*\n` +
-        `• **Ajustar Horário:** *"Aumente o horário da Dra. Beatriz na terça-feira das 08:00 às 18:00"*\n` +
-        `• **Ativar Domingo/Fins de Semana:** *"Habilite domingo para a Dra. Beatriz das 08:00 às 13:00"*\n` +
+        `• **Ajustar Horário:** *"Aumente o horário da Dra. Amanda na terça-feira para 08:00 às 19:00"*\n` +
+        `• **Ativar Domingo/Fins de Semana:** *"Habilite domingo para o Dr. Lucas das 08:00 às 13:00"*\n` +
         `• **Alterar Metas:** *"Altere as sessões semanais do Roberto para 3 vezes"*\n` +
         `• **Fixar Atendimento:** *"Fixe Mariana com Dr. Rafael na terça às 09:00"*\n` +
         `• **Bloquear Horário:** *"Bloqueie Dr. Rafael na quinta das 10:00 às 12:00"*\n\n` +
@@ -367,14 +647,9 @@ export class ScaleAIAgent {
   /**
    * Altera endereço e localização geodésica do paciente para roteirização
    */
-  private static handleUpdatePatientAddress(rawMessage: string, lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+  private static handleUpdatePatientAddress(rawMessage: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
     const { patientsWithDemands } = ctx;
-
-    const patient = patientsWithDemands.find((p) => {
-      const firstName = p.patientName.toLowerCase().split(' ')[0];
-      return lower.includes(firstName) || lower.includes(p.patientName.toLowerCase());
-    });
-
+    const patient = this.findPatientInText(rawMessage, patientsWithDemands);
     if (!patient) return null;
 
     // Extrai o novo endereço (ex: "para Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES")
@@ -430,21 +705,11 @@ export class ScaleAIAgent {
   /**
    * Executa vinculação ou desvinculação de Care Team via chat
    */
-  private static handleCareTeamCommand(lower: string, ctx: ScaleAgentContext, isAdd: boolean): AgentExecutionResult {
+  private static handleCareTeamCommand(rawMessage: string, ctx: ScaleAgentContext, isAdd: boolean): AgentExecutionResult {
     const { patientsWithDemands, professionalAvailabilities, careTeams } = ctx;
 
-    // Encontra o paciente citado
-    const patient = patientsWithDemands.find((p) => {
-      const firstName = p.patientName.toLowerCase().split(' ')[0];
-      return lower.includes(firstName) || lower.includes(p.patientName.toLowerCase());
-    });
-
-    // Encontra o profissional citado
-    const professional = professionalAvailabilities.find((p) => {
-      const parts = p.professionalName.toLowerCase().split(' ');
-      const cleanParts = parts.filter((part) => !['dr.', 'dra.', 'dr', 'dra', 'doutor', 'doutora'].includes(part));
-      return cleanParts.some((cp) => lower.includes(cp)) || lower.includes(p.professionalName.toLowerCase());
-    });
+    const patient = this.findPatientInText(rawMessage, patientsWithDemands);
+    const professional = this.findProfessionalInText(rawMessage, professionalAvailabilities);
 
     if (!patient || !professional) {
       return {
@@ -496,15 +761,9 @@ export class ScaleAIAgent {
   /**
    * Habilita ou desabilita um dia da semana na agenda do terapeuta
    */
-  private static handleToggleDayCommand(lower: string, ctx: ScaleAgentContext, enabled: boolean): AgentExecutionResult {
+  private static handleToggleDayCommand(rawMessage: string, ctx: ScaleAgentContext, enabled: boolean): AgentExecutionResult {
     const { professionalAvailabilities } = ctx;
-
-    // Acha o profissional
-    const professional = professionalAvailabilities.find((p) => {
-      const parts = p.professionalName.toLowerCase().split(' ');
-      const cleanParts = parts.filter((part) => !['dr.', 'dra.', 'dr', 'dra'].includes(part));
-      return cleanParts.some((cp) => lower.includes(cp)) || lower.includes(p.professionalName.toLowerCase());
-    });
+    const professional = this.findProfessionalInText(rawMessage, professionalAvailabilities);
 
     if (!professional) {
       return {
@@ -513,10 +772,13 @@ export class ScaleAIAgent {
       };
     }
 
+    const lower = rawMessage.toLowerCase();
+    const norm = this.normalizeText(rawMessage);
+
     // Acha o dia da semana citado
     let targetDayNum: number | null = null;
     for (const [dayKey, dayNum] of Object.entries(WEEKDAY_NAMES_MAP)) {
-      if (lower.includes(dayKey)) {
+      if (norm.includes(dayKey) || lower.includes(dayKey)) {
         targetDayNum = dayNum;
         break;
       }
@@ -569,20 +831,17 @@ export class ScaleAIAgent {
   /**
    * Altera horário de início e término de um dia de trabalho
    */
-  private static handleTimeWindowChange(lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+  private static handleTimeWindowChange(rawMessage: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
     const { professionalAvailabilities } = ctx;
-
-    const professional = professionalAvailabilities.find((p) => {
-      const parts = p.professionalName.toLowerCase().split(' ');
-      const cleanParts = parts.filter((part) => !['dr.', 'dra.', 'dr', 'dra'].includes(part));
-      return cleanParts.some((cp) => lower.includes(cp)) || lower.includes(p.professionalName.toLowerCase());
-    });
-
+    const professional = this.findProfessionalInText(rawMessage, professionalAvailabilities);
     if (!professional) return null;
+
+    const lower = rawMessage.toLowerCase();
+    const norm = this.normalizeText(rawMessage);
 
     let targetDayNum: number | null = null;
     for (const [dayKey, dayNum] of Object.entries(WEEKDAY_NAMES_MAP)) {
-      if (lower.includes(dayKey)) {
+      if (norm.includes(dayKey) || lower.includes(dayKey)) {
         targetDayNum = dayNum;
         break;
       }
@@ -591,8 +850,13 @@ export class ScaleAIAgent {
     if (targetDayNum === null) return null;
 
     const timeMatch = lower.match(/(\d{1,2}:\d{2})\s*(?:às|as|a|-)\s*(\d{1,2}:\d{2})/);
-    const startMatch = lower.match(/(?:das|a partir das|início às)\s*(\d{1,2}:\d{2})/);
-    const endMatch = lower.match(/(?:às|as|até às|até as|término às)\s*(\d{1,2}:\d{2})/);
+    const startMatch = lower.match(/(?:das|a partir das|início às|inicio as)\s*(\d{1,2}:\d{2})/);
+    const endMatch = lower.match(/(?:às|as|até às|até as|ate as|término às|termino as)\s*(\d{1,2}:\d{2})/);
+
+    // Se NÃO houver indicação explícita de horários, JAMAIS muta a janela
+    if (!timeMatch && !startMatch && !endMatch) {
+      return null;
+    }
 
     let startTime = timeMatch ? timeMatch[1] : (startMatch ? startMatch[1] : '08:00');
     let endTime = timeMatch ? timeMatch[2] : (endMatch ? endMatch[1] : '18:00');
@@ -634,15 +898,12 @@ export class ScaleAIAgent {
   /**
    * Altera a quantidade de sessões semanais demandadas pelo paciente
    */
-  private static handleFrequencyChange(lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+  private static handleFrequencyChange(rawMessage: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
     const { patientsWithDemands } = ctx;
-
-    const patient = patientsWithDemands.find((p) => {
-      const firstName = p.patientName.toLowerCase().split(' ')[0];
-      return lower.includes(firstName) || lower.includes(p.patientName.toLowerCase());
-    });
-
+    const patient = this.findPatientInText(rawMessage, patientsWithDemands);
     if (!patient) return null;
+
+    const lower = rawMessage.toLowerCase();
 
     // Extrai o número de vezes (ex: "3 vezes", "2x", "4 sessões", "1 vez")
     const numMatch = lower.match(/(\d+)\s*(?:x|vezes|vez|sessões|sessoes)?/);
@@ -674,25 +935,19 @@ export class ScaleAIAgent {
   /**
    * Fixa atendimento prioritário na grade
    */
-  private static handleFixAppointmentCommand(lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+  private static handleFixAppointmentCommand(rawMessage: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
     const { patientsWithDemands, professionalAvailabilities, fixedAppointments } = ctx;
-
-    const patient = patientsWithDemands.find((p) => {
-      const firstName = p.patientName.toLowerCase().split(' ')[0];
-      return lower.includes(firstName) || lower.includes(p.patientName.toLowerCase());
-    });
-
-    const professional = professionalAvailabilities.find((p) => {
-      const parts = p.professionalName.toLowerCase().split(' ');
-      const cleanParts = parts.filter((part) => !['dr.', 'dra.', 'dr', 'dra'].includes(part));
-      return cleanParts.some((cp) => lower.includes(cp)) || lower.includes(p.professionalName.toLowerCase());
-    });
+    const patient = this.findPatientInText(rawMessage, patientsWithDemands);
+    const professional = this.findProfessionalInText(rawMessage, professionalAvailabilities);
 
     if (!patient || !professional) return null;
 
+    const lower = rawMessage.toLowerCase();
+    const norm = this.normalizeText(rawMessage);
+
     let targetDayNum: number = 2; // Default Terça
     for (const [dayKey, dayNum] of Object.entries(WEEKDAY_NAMES_MAP)) {
-      if (lower.includes(dayKey)) {
+      if (norm.includes(dayKey) || lower.includes(dayKey)) {
         targetDayNum = dayNum;
         break;
       }
@@ -735,20 +990,17 @@ export class ScaleAIAgent {
   /**
    * Adiciona bloqueio de agenda
    */
-  private static handleBlockCommand(lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+  private static handleBlockCommand(rawMessage: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
     const { professionalAvailabilities } = ctx;
-
-    const professional = professionalAvailabilities.find((p) => {
-      const parts = p.professionalName.toLowerCase().split(' ');
-      const cleanParts = parts.filter((part) => !['dr.', 'dra.', 'dr', 'dra'].includes(part));
-      return cleanParts.some((cp) => lower.includes(cp)) || lower.includes(p.professionalName.toLowerCase());
-    });
-
+    const professional = this.findProfessionalInText(rawMessage, professionalAvailabilities);
     if (!professional) return null;
+
+    const lower = rawMessage.toLowerCase();
+    const norm = this.normalizeText(rawMessage);
 
     let targetDayNum: number = 2; // Default Terça
     for (const [dayKey, dayNum] of Object.entries(WEEKDAY_NAMES_MAP)) {
-      if (lower.includes(dayKey)) {
+      if (norm.includes(dayKey) || lower.includes(dayKey)) {
         targetDayNum = dayNum;
         break;
       }
