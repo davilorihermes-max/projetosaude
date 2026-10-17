@@ -150,4 +150,20 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
     expect(res.reply).toContain('Care Team');
     expect(res.suggestedActions).toBeDefined();
   });
+
+  it('deve processar comando para atualizar endereço do paciente e recalcular coordenadas', () => {
+    const res = ScaleAIAgent.processMessage(
+      'Mudar endereço de Mariana para Av. Dante Michelini, 3500 - Jardim Camburi, Vitória - ES',
+      baseContext
+    );
+
+    expect(res.mutated).toBe(true);
+    expect(res.actionExecuted?.type).toBe('UPDATE_PATIENT_ADDRESS');
+    expect(res.newPatientsWithDemands).toBeDefined();
+
+    const pat = res.newPatientsWithDemands?.find((p) => p.patientId === 'pat-1');
+    expect(pat?.address).toContain('Jardim Camburi');
+    expect(pat?.location?.latitude).toBeCloseTo(-20.2678, 2);
+    expect(pat?.location?.longitude).toBeCloseTo(-40.2842, 2);
+  });
 });

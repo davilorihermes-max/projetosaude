@@ -7,6 +7,7 @@ import {
   FixedAppointment,
   TimeBlock
 } from './monthly-scale-generator';
+import { ALL_PRESET_LOCATIONS } from './geocodingService';
 
 export interface AgentChatMessage {
   id: string;
@@ -31,6 +32,7 @@ export interface AgentActionSuggestion {
     | 'UPDATE_SESSIONS_COUNT'
     | 'ADD_FIXED_APPOINTMENT'
     | 'REMOVE_BLOCK'
+    | 'UPDATE_PATIENT_ADDRESS'
     | 'APPLY_ALL_RECOMMENDATIONS';
   payload: any;
 }
@@ -228,6 +230,15 @@ export class ScaleAIAgent {
     const text = input.trim();
     const lower = text.toLowerCase();
 
+    // 0. Comando: Alterar / Mudar Endereço Residencial do Paciente
+    if (
+      (lower.includes('endereço') || lower.includes('endereco') || lower.includes('mudou para') || lower.includes('mudar para') || lower.includes('mudar o endereço') || lower.includes('novo endereço')) &&
+      (lower.includes('mudar') || lower.includes('alterar') || lower.includes('atualizar') || lower.includes('trocar') || lower.includes('mudou') || lower.includes('novo') || lower.includes('para'))
+    ) {
+      const addrRes = this.handleUpdatePatientAddress(text, lower, ctx);
+      if (addrRes) return addrRes;
+    }
+
     // 1. Comando: Adicionar / Vincular profissional ao Care Team do paciente
     // Ex: "Adicione o Dr. Rafael ao Care Team da Mariana", "Vincular Dra. Camila à Mariana"
     if (
@@ -350,6 +361,69 @@ export class ScaleAIAgent {
         `Como posso te ajudar agora?`,
       mutated: false,
       suggestedActions: this.diagnoseScale(ctx).suggestedActions.slice(0, 3)
+    };
+  }
+
+  /**
+   * Altera endereço e localização geodésica do paciente para roteirização
+   */
+  private static handleUpdatePatientAddress(rawMessage: string, lower: string, ctx: ScaleAgentContext): AgentExecutionResult | null {
+    const { patientsWithDemands } = ctx;
+
+    const patient = patientsWithDemands.find((p) => {
+      const firstName = p.patientName.toLowerCase().split(' ')[0];
+      return lower.includes(firstName) || lower.includes(p.patientName.toLowerCase());
+    });
+
+    if (!patient) return null;
+
+    // Extrai o novo endereço (ex: "para Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES")
+    const match = rawMessage.match(/(?:para|novo endereço:?)\s+([A-Za-z0-9À-ÿ\s,.\-ºª]+)/i);
+    let newAddress = match ? match[1].trim() : '';
+
+    newAddress = newAddress.replace(/^(o|a|do|da|de|novo endereço)\s+/i, '');
+
+    if (!newAddress || newAddress.length < 3) {
+      return {
+        reply: `⚠️ Identifiquei o paciente **${patient.patientName}**, mas informe o novo endereço como, por exemplo: *"Mudar endereço de ${patient.patientName} para Rua Aleixo Netto, 800 - Praia do Canto, Vitória"*.`,
+        mutated: false
+      };
+    }
+
+    // Procura em presets cadastrados ou usa coordenadas padrão do Espírito Santo
+    let newCoords = { latitude: -20.3012, longitude: -40.2925 };
+    const norm = newAddress.toLowerCase();
+    for (const [presetName, loc] of Object.entries(ALL_PRESET_LOCATIONS as Record<string, any>)) {
+      if (norm.includes(presetName.toLowerCase()) || norm.includes((loc.address || '').toLowerCase())) {
+        newCoords = { latitude: loc.latitude, longitude: loc.longitude };
+        break;
+      }
+    }
+
+    const newPatientsWithDemands = patientsWithDemands.map((p) => {
+      if (p.patientId === patient.patientId) {
+        return {
+          ...p,
+          address: newAddress,
+          neighborhood: newAddress,
+          location: newCoords
+        };
+      }
+      return p;
+    });
+
+    return {
+      reply: `📍 **Endereço do Paciente Atualizado!**\n\n` +
+        `• **Paciente:** ${patient.patientName}\n` +
+        `• **Novo Domicílio:** ${newAddress}\n` +
+        `• **Coordenadas:** ${newCoords.latitude.toFixed(6)}, ${newCoords.longitude.toFixed(6)}\n\n` +
+        `A rota diária, tempos de trânsito e o mapa do planejador foram recalculados com o novo endereço!`,
+      mutated: true,
+      newPatientsWithDemands,
+      actionExecuted: {
+        type: 'UPDATE_PATIENT_ADDRESS',
+        description: `Novo endereço de ${patient.patientName}: ${newAddress}`
+      }
     };
   }
 

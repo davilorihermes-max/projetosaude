@@ -570,6 +570,7 @@ export default function App() {
               }}
               onRegisterDoctorWithoutAccount={handleRegisterDoctorWithoutAccount}
               onNavigateToPatientsView={() => setActiveTab('patients')}
+              onUpdatePatient={handleSavePatient}
             />
           )}
 

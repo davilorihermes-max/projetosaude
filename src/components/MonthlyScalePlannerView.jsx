@@ -78,7 +78,8 @@ export default function MonthlyScalePlannerView({
   doctors = [],
   onCommitScaleToAppointments,
   onRegisterDoctorWithoutAccount,
-  onNavigateToPatientsView
+  onNavigateToPatientsView,
+  onUpdatePatient
 }) {
   const [selectedMonth, setSelectedMonth] = useState(() => getInitialScaleSavedData()?.selectedMonth || '2026-10');
   const [activeTab, setActiveTab] = useState('demands'); // Inicia diretamente na aba de configuração de demandas e horários
@@ -103,12 +104,14 @@ export default function MonthlyScalePlannerView({
   const [isTherapistManagementModalOpen, setIsTherapistManagementModalOpen] = useState(false);
   const [therapistModalTab, setTherapistModalTab] = useState('with-account'); // 'with-account' | 'without-account'
 
-  // Modal para editar dados básicos do paciente (nome e bairro)
+  // Modal para editar dados cadastrais e endereço residencial do paciente
   const [editPatientModalState, setEditPatientModalState] = useState({
     isOpen: false,
     patientId: null,
     patientName: '',
-    neighborhood: 'Cerqueira César (Alameda Santos)'
+    address: 'Praia do Canto, Vitória - ES',
+    coordinates: { latitude: -20.3012, longitude: -40.2925 },
+    isGeocoding: false
   });
 
   // Modal para adicionar bloco de indisponibilidade (profissional ou paciente)
@@ -174,7 +177,29 @@ export default function MonthlyScalePlannerView({
   });
 
   // 1. Estado Dinâmico: Pacientes com DEMANDAS TERAPÊUTICAS do cadastro e BLOQUEIOS DE HORÁRIO
-  const [patientsWithDemands, setPatientsWithDemands] = useState(() => getInitialScaleSavedData()?.patientsWithDemands || []);
+  const [patientsWithDemands, setPatientsWithDemands] = useState(() => {
+    const saved = getInitialScaleSavedData()?.patientsWithDemands || [];
+    if (!saved || saved.length === 0) return [];
+    // Reconciliação imediata na montagem: se o paciente existe na base `patients`, atualiza endereço e coordenadas
+    if (patients && patients.length > 0) {
+      return saved.map((existing) => {
+        const matching = patients.find((p) => p.id === existing.patientId);
+        if (!matching) return existing;
+        const coords = (matching.latitude && matching.longitude)
+          ? { latitude: Number(matching.latitude), longitude: Number(matching.longitude) }
+          : existing.location;
+        return {
+          ...existing,
+          patientName: matching.name || existing.patientName,
+          address: matching.address || existing.address,
+          neighborhood: matching.address || existing.neighborhood,
+          location: coords || existing.location,
+          demands: (matching.demands && matching.demands.length > 0) ? matching.demands : existing.demands
+        };
+      });
+    }
+    return saved;
+  });
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
   const [professionalAvailabilities, setProfessionalAvailabilities] = useState(() => getInitialScaleSavedData()?.professionalAvailabilities || []);
@@ -182,47 +207,94 @@ export default function MonthlyScalePlannerView({
   // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState(() => getInitialScaleSavedData()?.careTeams || []);
 
-  // Sincroniza pacientes cadastrados com demandas caso o planejador esteja vazio
+  // Sincroniza dinamicamente dados atualizados de pacientes (novos endereços, coordenadas geodésicas e demandas)
   useEffect(() => {
-    if (patientsWithDemands.length === 0 && patients && patients.length > 0) {
-      const initialPatients = patients.map((pat) => {
-        const coords = (pat.latitude && pat.longitude)
-          ? { latitude: pat.latitude, longitude: pat.longitude }
-          : (SP_PRESET_LOCATIONS[pat.address] || SP_PRESET_LOCATIONS['Praia do Canto, Vitória - ES'] || { latitude: -20.3012, longitude: -40.2925 });
+    if (!patients || patients.length === 0) return;
 
-        const patDemands = pat.demands && pat.demands.length > 0
-          ? pat.demands
-          : [
-              {
-                id: `dem-${pat.id}-1`,
-                therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
-                sessionsPerWeek: 2,
-                durationMinutes: 45,
-                preferredShift: 'morning'
-              }
-            ];
+    setPatientsWithDemands((prevList) => {
+      // Se não há nenhum paciente na escala, inicializa a partir de patients
+      if (!prevList || prevList.length === 0) {
+        const initialPatients = patients.map((pat) => {
+          const coords = (pat.latitude && pat.longitude)
+            ? { latitude: Number(pat.latitude), longitude: Number(pat.longitude) }
+            : (ALL_PRESET_LOCATIONS[pat.address] || { latitude: -20.3012, longitude: -40.2925 });
 
-        return {
+          const patDemands = pat.demands && pat.demands.length > 0
+            ? pat.demands
+            : [
+                {
+                  id: `dem-${pat.id}-1`,
+                  therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+                  sessionsPerWeek: 2,
+                  durationMinutes: 45,
+                  preferredShift: 'morning'
+                }
+              ];
+
+          return {
+            patientId: pat.id,
+            patientName: pat.name,
+            neighborhood: pat.address || 'Vitória - ES',
+            address: pat.address || 'Vitória - ES',
+            location: coords,
+            demands: patDemands,
+            unavailabilityBlocks: pat.unavailabilityBlocks || []
+          };
+        });
+
+        const initialCareTeams = patients.map((pat) => ({
           patientId: pat.id,
-          patientName: pat.name,
-          neighborhood: pat.address || 'Vitória - ES',
-          address: pat.address || 'Vitória - ES',
-          location: coords,
-          demands: patDemands,
-          unavailabilityBlocks: pat.unavailabilityBlocks || []
-        };
+          professionalIds: pat.careTeamProfessionalIds ||
+            pat.careTeamMembers?.map((m) => m.professionalId || m) ||
+            doctors.map((d) => d.id)
+        }));
+
+        setCareTeams(initialCareTeams);
+        return initialPatients;
+      }
+
+      // Se já existem pacientes na escala, sincroniza endereços atualizados, coordenadas e nomes
+      let hasChanges = false;
+      const updatedList = prevList.map((existing) => {
+        const matching = patients.find((p) => p.id === existing.patientId);
+        if (!matching) return existing;
+
+        const newCoords = (matching.latitude && matching.longitude)
+          ? { latitude: Number(matching.latitude), longitude: Number(matching.longitude) }
+          : null;
+
+        const isAddressChanged = matching.address && matching.address.trim() !== (existing.address || '').trim();
+        const isCoordsChanged = newCoords && existing.location && (
+          Math.abs(newCoords.latitude - existing.location.latitude) > 0.00001 ||
+          Math.abs(newCoords.longitude - existing.location.longitude) > 0.00001
+        );
+        const isNameChanged = matching.name && matching.name !== existing.patientName;
+        const isDemandsChanged = matching.demands && JSON.stringify(matching.demands) !== JSON.stringify(existing.demands);
+
+        if (isAddressChanged || isCoordsChanged || isNameChanged || isDemandsChanged) {
+          hasChanges = true;
+          return {
+            ...existing,
+            patientName: matching.name || existing.patientName,
+            address: matching.address || existing.address,
+            neighborhood: matching.address || existing.neighborhood,
+            location: newCoords || existing.location,
+            demands: (matching.demands && matching.demands.length > 0) ? matching.demands : existing.demands
+          };
+        }
+        return existing;
       });
 
-      const initialCareTeams = patients.map((pat) => ({
-        patientId: pat.id,
-        professionalIds: pat.careTeamProfessionalIds ||
-          pat.careTeamMembers?.map((m) => m.professionalId || m) ||
-          doctors.map((d) => d.id)
-      }));
+      if (hasChanges) {
+        // Dispara recálculo imediato da escala e da roteirização com os novos endereços dos pacientes
+        setTimeout(() => {
+          runGeneration(updatedList, professionalAvailabilities, careTeams, fixedAppointments);
+        }, 100);
+        return updatedList;
+      }
 
-      setPatientsWithDemands(initialPatients);
-      setCareTeams(initialCareTeams);
-    }
+      return prevList;
+    });
   }, [patients]);
 
   // Sincroniza profissionais para compor a disponibilidade na escala inicial
@@ -495,30 +567,81 @@ export default function MonthlyScalePlannerView({
     runGeneration(updated, professionalAvailabilities, careTeams);
   };
 
-  // Salvar edição de dados básicos do paciente (nome e bairro)
-  const handleSaveEditPatient = (e) => {
+  // Geocodificar endereço do paciente em edição
+  const handleGeocodeEditPatientAddress = async () => {
+    const addr = editPatientModalState.address;
+    if (!addr || addr.trim().length < 3) return;
+    setEditPatientModalState((prev) => ({ ...prev, isGeocoding: true }));
+    try {
+      const res = await resolveAddressCoordinates(addr);
+      if (res && res.latitude && res.longitude) {
+        setEditPatientModalState((prev) => ({
+          ...prev,
+          coordinates: { latitude: res.latitude, longitude: res.longitude },
+          isGeocoding: false
+        }));
+      } else {
+        setEditPatientModalState((prev) => ({ ...prev, isGeocoding: false }));
+      }
+    } catch {
+      setEditPatientModalState((prev) => ({ ...prev, isGeocoding: false }));
+    }
+  };
+
+  // Salvar edição de dados cadastrais e novo endereço do paciente
+  const handleSaveEditPatient = async (e) => {
     e.preventDefault();
-    const { patientId, patientName, neighborhood } = editPatientModalState;
+    const { patientId, patientName, address, coordinates } = editPatientModalState;
     if (!patientId || !patientName.trim()) return;
 
-    const coords = SP_PRESET_LOCATIONS[neighborhood] || SP_PRESET_LOCATIONS['Cerqueira César (Alameda Santos)'];
+    let finalCoords = coordinates;
+    if (address && address.trim()) {
+      try {
+        const resolved = await resolveAddressCoordinates(address);
+        if (resolved && resolved.latitude && resolved.longitude) {
+          finalCoords = { latitude: resolved.latitude, longitude: resolved.longitude };
+        }
+      } catch {}
+    }
 
     const updated = patientsWithDemands.map((pat) => {
       if (pat.patientId === patientId) {
         return {
           ...pat,
           patientName: patientName.trim(),
-          neighborhood,
-          address: neighborhood,
-          location: coords
+          neighborhood: address.trim(),
+          address: address.trim(),
+          location: finalCoords
         };
       }
       return pat;
     });
 
     setPatientsWithDemands(updated);
-    setEditPatientModalState({ isOpen: false, patientId: null, patientName: '', neighborhood: '' });
-    runGeneration(updated, professionalAvailabilities, careTeams);
+    setEditPatientModalState({
+      isOpen: false,
+      patientId: null,
+      patientName: '',
+      address: '',
+      coordinates: { latitude: -20.3012, longitude: -40.2925 },
+      isGeocoding: false
+    });
+
+    // Propaga alteração cadastral para a base global de pacientes do sistema
+    if (onUpdatePatient) {
+      const matchingGlobal = patients.find((p) => p.id === patientId);
+      if (matchingGlobal) {
+        onUpdatePatient({
+          ...matchingGlobal,
+          name: patientName.trim(),
+          address: address.trim(),
+          latitude: finalCoords.latitude,
+          longitude: finalCoords.longitude
+        });
+      }
+    }
+
+    runGeneration(updated, professionalAvailabilities, careTeams, fixedAppointments);
   };
 
   // Alterar frequência semanal de uma terapia específica do paciente
@@ -2294,13 +2417,44 @@ export default function MonthlyScalePlannerView({
                         </div>
                       </div>
 
-                      <button
-                        className="btn-danger-icon"
-                        title="Remover da Escala Deste Mês"
-                        onClick={() => handleRemovePatientFromScale(patient.patientId)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{
+                            fontSize: '0.74rem',
+                            padding: '0.35rem 0.65rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontWeight: 600,
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                          title="Editar Nome e Endereço Residencial do Paciente"
+                          onClick={() => {
+                            setEditPatientModalState({
+                              isOpen: true,
+                              patientId: patient.patientId,
+                              patientName: patient.patientName,
+                              address: patient.address || '',
+                              coordinates: patient.location || { latitude: -20.3012, longitude: -40.2925 },
+                              isGeocoding: false
+                            });
+                          }}
+                        >
+                          <Edit3 size={13} color="var(--primary)" />
+                          <span>Editar Endereço</span>
+                        </button>
+
+                        <button
+                          className="btn-danger-icon"
+                          title="Remover da Escala Deste Mês"
+                          onClick={() => handleRemovePatientFromScale(patient.patientId)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Lista das demandas cadastradas deste paciente (Exibição apenas) */}
@@ -3222,19 +3376,44 @@ export default function MonthlyScalePlannerView({
                 </div>
 
                 <div className="form-group">
-                  <label>Região / Bairro do Domicílio *</label>
-                  <select
-                    className="planner-select"
-                    value={editPatientModalState.neighborhood}
-                    onChange={(e) => setEditPatientModalState({ ...editPatientModalState, neighborhood: e.target.value })}
-                  >
-                    {Object.keys(SP_PRESET_LOCATIONS).map((loc) => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
+                  <label>Endereço Residencial do Paciente (Rua, Número, Bairro, Cidade) *</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Rua Aleixo Netto, 800 - Praia do Canto, Vitória - ES"
+                      className="planner-input"
+                      value={editPatientModalState.address}
+                      onChange={(e) => setEditPatientModalState({ ...editPatientModalState, address: e.target.value })}
+                      onBlur={handleGeocodeEditPatientAddress}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', padding: '0 0.85rem' }}
+                      onClick={handleGeocodeEditPatientAddress}
+                      disabled={editPatientModalState.isGeocoding}
+                    >
+                      {editPatientModalState.isGeocoding ? 'Buscando...' : 'Localizar'}
+                    </button>
+                  </div>
                   <small style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-                    A rota será recalculada automaticamente para este bairro.
+                    Coordenadas: {editPatientModalState.coordinates?.latitude?.toFixed(6)}, {editPatientModalState.coordinates?.longitude?.toFixed(6)}
                   </small>
+                </div>
+
+                {/* Mini Mapa do OpenStreetMap com a Residência do Paciente */}
+                <div style={{ marginTop: '0.5rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)', height: '150px' }}>
+                  <iframe
+                    title="Mapa Residência Paciente em Edição"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    scrolling="no"
+                    marginHeight="0"
+                    marginWidth="0"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${editPatientModalState.coordinates.longitude - 0.008}%2C${editPatientModalState.coordinates.latitude - 0.006}%2C${editPatientModalState.coordinates.longitude + 0.008}%2C${editPatientModalState.coordinates.latitude + 0.006}&layer=mapnik&marker=${editPatientModalState.coordinates.latitude}%2C${editPatientModalState.coordinates.longitude}`}
+                  />
                 </div>
               </div>
 
@@ -3246,8 +3425,8 @@ export default function MonthlyScalePlannerView({
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary">
-                  Salvar Alterações & Recalcular
+                <button type="submit" className="btn-primary" style={{ background: '#2563eb', fontWeight: 700 }}>
+                  Salvar Endereço & Recalcular Roteirização
                 </button>
               </div>
             </form>
