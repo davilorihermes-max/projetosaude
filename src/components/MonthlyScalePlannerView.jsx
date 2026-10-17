@@ -1,5 +1,5 @@
 // src/components/MonthlyScalePlannerView.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CalendarDays,
   Sparkles,
@@ -148,6 +148,92 @@ export default function MonthlyScalePlannerView({
 
   // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState([]);
+
+  // Sincroniza os pacientes e profissionais reais vindos do banco / App.jsx
+  useEffect(() => {
+    setProfessionalAvailabilities((prev) => {
+      const existingById = new Map(prev.map((p) => [p.professionalId, p]));
+      const synced = [];
+      for (const doc of doctors) {
+        if (!doc || !doc.id) continue;
+        if (existingById.has(doc.id)) {
+          synced.push(existingById.get(doc.id));
+        } else {
+          synced.push({
+            professionalId: doc.id,
+            professionalName: doc.name,
+            specialty: doc.specialty || THERAPY_OPTIONS[0],
+            baseLocation: doc.baseCoordinates || { latitude: -25.4284, longitude: -49.2733 },
+            weekdayWindows: {
+              1: { enabled: true, startTime: '08:00', endTime: '18:00' },
+              2: { enabled: true, startTime: '08:00', endTime: '18:00' },
+              3: { enabled: true, startTime: '08:00', endTime: '18:00' },
+              4: { enabled: true, startTime: '08:00', endTime: '18:00' },
+              5: { enabled: true, startTime: '08:00', endTime: '18:00' }
+            },
+            unavailabilityBlocks: []
+          });
+        }
+      }
+      return synced;
+    });
+
+    setPatientsWithDemands((prev) => {
+      const existingById = new Map(prev.map((p) => [p.patientId, p]));
+      const synced = [];
+      for (const pat of patients) {
+        if (!pat || !pat.id) continue;
+        if (existingById.has(pat.id)) {
+          synced.push({
+            ...existingById.get(pat.id),
+            patientName: pat.name
+          });
+        } else {
+          synced.push({
+            patientId: pat.id,
+            patientName: pat.name,
+            neighborhood: pat.address || 'Curitiba - PR',
+            address: pat.address || '',
+            location: {
+              latitude: pat.latitude ?? -25.4284,
+              longitude: pat.longitude ?? -49.2733
+            },
+            demands: [
+              {
+                id: `dem-${pat.id}-1`,
+                therapyType: THERAPY_OPTIONS[0],
+                sessionsPerWeek: 2,
+                durationMinutes: 45,
+                preferredShift: 'any'
+              }
+            ],
+            unavailabilityBlocks: []
+          });
+        }
+      }
+      return synced;
+    });
+
+    setCareTeams((prev) => {
+      const existingByPatId = new Map(prev.map((ct) => [ct.patientId, ct]));
+      const allDocIds = doctors.map((d) => d.id).filter(Boolean);
+      return patients
+        .filter((p) => p && p.id)
+        .map((pat) => {
+          if (existingByPatId.has(pat.id)) {
+            const currentIds = existingByPatId.get(pat.id).professionalIds || [];
+            return {
+              patientId: pat.id,
+              professionalIds: currentIds.length > 0 ? currentIds : allDocIds
+            };
+          }
+          return {
+            patientId: pat.id,
+            professionalIds: allDocIds
+          };
+        });
+    });
+  }, [patients, doctors]);
 
   // Transforma os pacientes e suas demandas na lista plana consumida pelo motor
   const flatDemands = useMemo(() => {
@@ -1882,7 +1968,7 @@ export default function MonthlyScalePlannerView({
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Carlos Eduardo de Oliveira"
+                    placeholder="Nome completo do paciente"
                     className="planner-input"
                     value={newPatientForm.patientName}
                     onChange={(e) => setNewPatientForm({ ...newPatientForm, patientName: e.target.value })}
@@ -2075,7 +2161,7 @@ export default function MonthlyScalePlannerView({
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Dra. Larissa Prado"
+                    placeholder="Nome completo do profissional"
                     className="planner-input"
                     value={newTherapistForm.professionalName}
                     onChange={(e) => setNewTherapistForm({ ...newTherapistForm, professionalName: e.target.value })}

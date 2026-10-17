@@ -56,24 +56,24 @@ export const PatientsScreen: React.FC<PatientsScreenProps> = ({
     const newPatient: Patient = {
       id: `pat-${Date.now()}`,
       name: newName.trim(),
-      age: Number(newAge) || 45,
+      age: Number(newAge) || 0,
       gender: 'Não informado',
-      cpf: newCpf.trim() || '000.000.000-00',
-      birthDate: '1980-01-01',
-      phone: newPhone.trim() || '(11) 90000-0000',
+      cpf: newCpf.trim() || '',
+      birthDate: '',
+      phone: newPhone.trim() || '',
       email: '',
-      insurance: newInsurance.trim() || 'Particular Home Care',
-      insuranceNumber: `HC-${Math.floor(Math.random() * 90000 + 10000)}`,
+      insurance: newInsurance.trim() || '',
+      insuranceNumber: '',
       address: newAddress.trim(),
-      accessNotes: 'Residência cadastrada via OmniSaúde Mobile.',
-      caregiver: newCaregiver.trim() || 'Família / Cuidador',
-      mobilityStatus: newMobility.trim() || 'Em acompanhamento domiciliar',
+      accessNotes: '',
+      caregiver: newCaregiver.trim() || '',
+      mobilityStatus: newMobility.trim() || '',
       coordinates: {
-        latitude: -23.560000 + (Math.random() - 0.5) * 0.05,
-        longitude: -46.660000 + (Math.random() - 0.5) * 0.05,
+        latitude: -25.4284,
+        longitude: -49.2733,
       },
       lastVisit: 'Recém-cadastrado',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+      avatar: '',
     };
 
     onAddPatient(newPatient);
@@ -146,7 +146,9 @@ export const PatientsScreen: React.FC<PatientsScreenProps> = ({
           >
             {/* Top row */}
             <View style={styles.cardHeader}>
-              <Image source={{ uri: patient.avatar }} style={styles.patientAvatar} />
+              {patient.avatar ? (
+                <Image source={{ uri: patient.avatar }} style={styles.patientAvatar} />
+              ) : null}
               <View style={{ flex: 1, marginLeft: Spacing.md }}>
                 <Text style={[styles.patientName, { color: theme.textPrimary }]}>
                   {patient.name}
@@ -225,7 +227,7 @@ export const PatientsScreen: React.FC<PatientsScreenProps> = ({
               <TextInput
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="Ex: Maria Alice de Castro"
+                placeholder="Nome completo do paciente"
                 placeholderTextColor={theme.textMuted}
                 style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder, color: theme.textPrimary }]}
               />

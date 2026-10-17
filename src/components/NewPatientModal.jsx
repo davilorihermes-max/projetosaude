@@ -63,16 +63,14 @@ export default function NewPatientModal({ isOpen, onClose, onSavePatient }) {
       phone,
       email,
       insurance,
-      insuranceNumber: insuranceNumber || 'PART-000',
+      insuranceNumber: insuranceNumber || '',
       address,
       latitude: coords.latitude,
       longitude: coords.longitude,
       caregiver,
       accessNotes,
       mobilityStatus,
-      avatar: gender === 'Masculino'
-        ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80'
+      avatar: null
     };
 
     onSavePatient(newPatient);

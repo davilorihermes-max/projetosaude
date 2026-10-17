@@ -268,27 +268,48 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.patients && Array.isArray(data.patients)) {
+            let localById = {};
+            try {
+              const savedLocal = JSON.parse(localStorage.getItem('omnihome_patients_v3') || '[]');
+              if (Array.isArray(savedLocal)) {
+                for (const lp of savedLocal) {
+                  if (lp && lp.id) localById[lp.id] = lp;
+                }
+              }
+            } catch {}
+
             const mapped = data.patients
               .filter((p) => !isMockPatient(p))
-              .map((p) => ({
-                id: p.id,
-                name: p.name,
-                cpf: p.cpf || '000.000.000-00',
-                birthDate: '1990-01-01',
-                age: 45,
-                gender: 'Feminino',
-                phone: p.phone || '(11) 98765-4321',
-                email: p.email || '',
-                insurance: 'Unimed Pleno',
-                insuranceNumber: 'PLEN-001',
-                address: p.address || 'Endereço em rota domiciliar',
-                latitude: p.latitude,
-                longitude: p.longitude,
-                caregiver: 'Cuidador(a) cadastrado',
-                accessNotes: 'Residência autorizada para atendimento domiciliar',
-                mobilityStatus: 'Deambula sem auxílio',
-                careTeamMembers: p.careTeamMembers || []
-              }));
+              .map((p) => {
+                const existing = localById[p.id] || {};
+                const cleanPhone = p.phone && p.phone !== '(11) 98765-4321' ? p.phone : existing.phone && existing.phone !== '(11) 98765-4321' ? existing.phone : '';
+                const cleanInsurance = existing.insurance && existing.insurance !== 'Unimed Pleno' ? existing.insurance : '';
+                const cleanInsuranceNumber = existing.insuranceNumber && existing.insuranceNumber !== 'PLEN-001' ? existing.insuranceNumber : '';
+                const cleanCaregiver = existing.caregiver && existing.caregiver !== 'Cuidador(a) cadastrado' ? existing.caregiver : '';
+                const cleanAccessNotes = existing.accessNotes && existing.accessNotes !== 'Residência autorizada para atendimento domiciliar' ? existing.accessNotes : '';
+                const cleanMobility = existing.mobilityStatus && existing.mobilityStatus !== 'Deambula sem auxílio' ? existing.mobilityStatus : '';
+
+                return {
+                  id: p.id,
+                  name: p.name,
+                  cpf: p.cpf || existing.cpf || '',
+                  birthDate: existing.birthDate && existing.birthDate !== '1990-01-01' ? existing.birthDate : '',
+                  age: existing.age && existing.age !== 45 ? existing.age : null,
+                  gender: existing.gender || '',
+                  phone: cleanPhone,
+                  email: p.email || existing.email || '',
+                  insurance: cleanInsurance,
+                  insuranceNumber: cleanInsuranceNumber,
+                  address: p.address || existing.address || '',
+                  latitude: p.latitude ?? existing.latitude,
+                  longitude: p.longitude ?? existing.longitude,
+                  caregiver: cleanCaregiver,
+                  accessNotes: cleanAccessNotes,
+                  mobilityStatus: cleanMobility,
+                  avatar: null,
+                  careTeamMembers: p.careTeamMembers || []
+                };
+              });
 
             const uniquePats = [];
             const seen = new Set();

@@ -72,73 +72,7 @@ async function main() {
   });
   console.log('✓ Perfis da equipe OmniSaúde garantidos no banco de dados.');
 
-  // 3. SEED DE DADOS MOCK (Apenas se explicitamente solicitado via SEED_MOCK=true)
-  if (process.env.SEED_MOCK === 'true') {
-    console.log('⚠️ SEED_MOCK=true detectado. Injetando dados de teste...');
-
-    const doctorUser = await prisma.user.create({
-      data: {
-        name: 'Dr. Lucas Silveira',
-        email: `lucas.${Date.now()}@omnisaude.com.br`,
-        passwordHash: defaultPasswordHash,
-        role: 'PROFESSIONAL',
-        professional: {
-          create: {
-            crm: 'CRM/SP 142.890',
-            specialty: 'Cardiologia',
-            latitude: -23.561684,
-            longitude: -46.655981
-          }
-        }
-      },
-      include: { professional: true }
-    });
-
-    const rafaelUser = await prisma.user.create({
-      data: {
-        name: 'Rafael Fontes',
-        email: `rafael.${Date.now()}@omnisaude.com.br`,
-        passwordHash: defaultPasswordHash,
-        role: 'PROFESSIONAL',
-        professional: {
-          create: {
-            crm: 'CREFITO/SP 88.340',
-            specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-            latitude: -23.585000,
-            longitude: -46.638000
-          }
-        }
-      },
-      include: { professional: true }
-    });
-
-    const patientMariana = await prisma.patient.create({
-      data: {
-        name: 'Mariana Souza Lima',
-        cpf: `284.${Math.floor(100 + Math.random() * 900)}.839-44`,
-        email: 'mariana.lima@exemplo.com.br',
-        phone: '(11) 98452-1920',
-        latitude: -23.563099,
-        longitude: -46.654271,
-        address: 'Alameda Santos, 1000 - Cerqueira César, São Paulo - SP'
-      }
-    });
-
-    if (doctorUser.professional) {
-      await prisma.careTeamMember.create({
-        data: {
-          patientId: patientMariana.id,
-          professionalId: doctorUser.professional.id,
-          role: 'PRIMARY_CARE',
-          active: true
-        }
-      });
-    }
-
-    console.log('✓ Dados de teste injetados.');
-  }
-
-  // 4. Vincular profissionais existentes a pacientes reais existentes
+  // 2. Vincular profissionais existentes a pacientes reais existentes
   const allPros = await prisma.professional.findMany();
   const allPatients = await prisma.patient.findMany();
 

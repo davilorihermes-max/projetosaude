@@ -41,7 +41,7 @@ export default function App() {
   const [evolutions, setEvolutions] = useState<ClinicalEvolution[]>([]);
   const [selectedPatientForPEP, setSelectedPatientForPEP] = useState<Patient | null>(null);
 
-  const activeProfessional = PROFESSIONALS[0]; // Rafael Fontes (Fisioterapeuta)
+  const activeProfessional = PROFESSIONALS[0] || null;
   const theme = isDark ? darkTheme : lightTheme;
 
   useEffect(() => {
