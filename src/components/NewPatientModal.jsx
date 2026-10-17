@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { X, UserPlus, MapPin, Stethoscope, Plus, Trash2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { resolveAddressCoordinates } from '../services/geocodingService';
 
-export const THERAPY_OPTIONS = [
-  'Fisioterapia Cardiorrespiratória & Motora',
-  'Fisioterapia Motora & Neuroreabilitação',
-  'Fonoaudiologia Domiciliar',
-  'Enfermagem Estomaterapeuta & Curativos',
-  'Terapia Ocupacional Domiciliar'
+export const CLINICAL_SPECIALTY_OPTIONS = [
+  'Fisioterapia Motora',
+  'Fisioterapia Respiratória',
+  'Terapia Ocupacional',
+  'Fonoaudiologia'
 ];
+
+export const THERAPY_OPTIONS = CLINICAL_SPECIALTY_OPTIONS;
 
 export default function NewPatientModal({
   isOpen,
@@ -33,7 +34,7 @@ export default function NewPatientModal({
   const [demands, setDemands] = useState([
     {
       id: `dem-1`,
-      therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+      therapyType: 'Fisioterapia Motora',
       sessionsPerWeek: 2,
       durationMinutes: 45,
       preferredShift: 'morning'
@@ -82,7 +83,7 @@ export default function NewPatientModal({
       setDemands([
         {
           id: `dem-${Date.now()}-1`,
-          therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+          therapyType: 'Fisioterapia Motora',
           sessionsPerWeek: 2,
           durationMinutes: 45,
           preferredShift: 'morning'
@@ -92,22 +93,29 @@ export default function NewPatientModal({
     }
   }, [initialPatientData, isOpen]);
 
-  const handleAddressChange = async (val) => {
-    setAddress(val);
-    if (val && val.trim().length >= 3) {
-      setIsGeocoding(true);
-      try {
-        const coords = await resolveAddressCoordinates(val);
-        if (coords && coords.latitude && coords.longitude) {
-          setPatientCoordinates({ latitude: coords.latitude, longitude: coords.longitude });
-          setResolvedLocationName(coords.matched || coords.city || 'Localização identificada');
-        }
-      } catch {
-      } finally {
-        setIsGeocoding(false);
+  const triggerGeocode = async (val) => {
+    if (!val || val.trim().length < 3) return;
+    setIsGeocoding(true);
+    try {
+      const coords = await resolveAddressCoordinates(val);
+      if (coords && coords.latitude && coords.longitude) {
+        setPatientCoordinates({ latitude: coords.latitude, longitude: coords.longitude });
+        setResolvedLocationName(coords.matched || coords.city || coords.formattedAddress || 'Localização identificada');
       }
+    } catch {
+    } finally {
+      setIsGeocoding(false);
     }
   };
+
+  // Debounce automático ao digitar endereço
+  useEffect(() => {
+    if (!address || address.trim().length < 4) return;
+    const timer = setTimeout(() => {
+      triggerGeocode(address);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [address]);
 
   // Gerenciamento de Demandas Terapêuticas
   const handleAddDemand = () => {
@@ -328,13 +336,33 @@ export default function NewPatientModal({
               <label className="form-label" style={{ fontWeight: 600 }}>
                 Endereço Residencial (Domicílio de Atendimento)
               </label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Ex: Rua Vergueiro, 1500, Vila Mariana, São Paulo - SP"
-                value={address}
-                onChange={(e) => handleAddressChange(e.target.value)}
-              />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Ex: Rua Vergueiro, 1500, São Paulo ou CEP (04101-000)..."
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      triggerGeocode(address);
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+                  onClick={() => triggerGeocode(address)}
+                  disabled={isGeocoding || !address}
+                  title="Localizar endereço e marcar no mapa"
+                >
+                  <MapPin size={14} color="var(--primary)" />
+                  {isGeocoding ? 'Localizando...' : 'Localizar no Mapa'}
+                </button>
+              </div>
 
               <div style={{
                 display: 'flex',
@@ -344,7 +372,7 @@ export default function NewPatientModal({
                 fontSize: '0.75rem'
               }}>
                 <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <MapPin size={12} /> {resolvedLocationName || (isGeocoding ? 'Localizando endereço no mapa...' : 'Georreferenciamento de rota')}
+                  <MapPin size={12} /> {resolvedLocationName || (isGeocoding ? 'Localizando endereço no mapa...' : 'Digite o endereço ou CEP acima')}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                   Lat: {patientCoordinates.latitude.toFixed(4)}, Lon: {patientCoordinates.longitude.toFixed(4)}
@@ -375,6 +403,7 @@ export default function NewPatientModal({
                   <span>OpenStreetMap Satélite/Vias</span>
                 </div>
                 <iframe
+                  key={`${patientCoordinates.latitude.toFixed(5)}-${patientCoordinates.longitude.toFixed(5)}`}
                   title="Mapa Residencial do Paciente"
                   width="100%"
                   height="160"

@@ -39,9 +39,28 @@ export default function ScheduleView({
   onOpenPatientRecord,
   onOpenNewAppointment,
   selectedDoctorId,
-  setSelectedDoctorId
+  setSelectedDoctorId,
+  initialSelectedDate
 }) {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const allDatesWithApts = React.useMemo(() => {
+    return Array.from(new Set(appointments.map((a) => a.date).filter(Boolean))).sort();
+  }, [appointments]);
+
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (initialSelectedDate) return initialSelectedDate;
+    const today = new Date().toISOString().slice(0, 10);
+    if (appointments.some((a) => a.date === today)) return today;
+    if (appointments.length > 0 && appointments[0].date) return appointments[0].date;
+    return today;
+  });
+
+  // Atualiza data se initialSelectedDate mudar externamente
+  React.useEffect(() => {
+    if (initialSelectedDate) {
+      setSelectedDate(initialSelectedDate);
+    }
+  }, [initialSelectedDate]);
+
   const [statusFilter, setStatusFilter] = useState('all');
 
   const filteredAppointments = appointments.filter((apt) => {
@@ -185,6 +204,67 @@ export default function ScheduleView({
           </div>
         )}
       </div>
+
+      {/* Régua de Navegação Rápida pelos Dias da Escala Mensal */}
+      {allDatesWithApts.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            flexWrap: 'wrap',
+            padding: '0.65rem 0.85rem',
+            background: 'var(--bg-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)',
+            marginTop: '0.5rem',
+            marginBottom: '0.4rem'
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <CalendarDays size={14} color="var(--primary)" /> Dias com Sessões na Escala:
+          </span>
+          {allDatesWithApts.map((dStr) => {
+            const isSelected = dStr === selectedDate;
+            const countForDate = appointments.filter((a) => a.date === dStr).length;
+            const [y, m, d] = dStr.split('-');
+            return (
+              <button
+                key={dStr}
+                type="button"
+                onClick={() => setSelectedDate(dStr)}
+                style={{
+                  border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  background: isSelected ? 'var(--primary-subtle)' : 'var(--bg-card)',
+                  color: isSelected ? 'var(--primary)' : 'var(--text-body)',
+                  fontWeight: isSelected ? 700 : 500,
+                  borderRadius: '6px',
+                  padding: '0.2rem 0.6rem',
+                  fontSize: '0.76rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{d}/{m}</span>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    padding: '1px 5px',
+                    borderRadius: '10px',
+                    background: isSelected ? 'var(--primary)' : 'var(--bg-secondary)',
+                    color: isSelected ? '#ffffff' : 'var(--text-muted)'
+                  }}
+                >
+                  {countForDate}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Aviso amigável caso a data selecionada não contenha sessões */}
       {filteredAppointments.length === 0 && (
@@ -366,13 +446,53 @@ export default function ScheduleView({
                               ⏰ {aptInSlot.time} às {endTime} ({aptInSlot.durationMinutes || 45} min)
                             </span>
                             {getStatusBadge(aptInSlot.status)}
+                            {/* Destaque do tempo de deslocamento urbano */}
+                            {(aptInSlot.transitTimeMinutes !== undefined && aptInSlot.transitTimeMinutes > 0) ? (
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  background: 'rgba(37, 99, 235, 0.1)',
+                                  color: '#1d4ed8',
+                                  border: '1px solid rgba(37, 99, 235, 0.25)',
+                                  padding: '0.15rem 0.55rem',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem'
+                                }}
+                                title="Tempo de deslocamento urbano até o domicílio do paciente"
+                              >
+                                🚗 Trânsito: {aptInSlot.transitTimeMinutes} min
+                                {aptInSlot.transitKmFromPrevious ? ` (${aptInSlot.transitKmFromPrevious.toFixed(1)} km)` : ''}
+                              </span>
+                            ) : aptInSlot.transitTime ? (
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  background: 'rgba(37, 99, 235, 0.08)',
+                                  color: '#1d4ed8',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '6px'
+                                }}
+                              >
+                                🚗 {aptInSlot.transitTime}
+                              </span>
+                            ) : null}
                           </div>
-                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                            <span>{aptInSlot.type}</span>
+                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span>{aptInSlot.therapyType || aptInSlot.type}</span>
                             <span>• Profissional: <strong>{doctor?.name}</strong> {doctor?.profession ? `(${doctor.profession})` : ''}</span>
                             <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
                               📍 {patient?.address || aptInSlot.address}
                             </span>
+                            {aptInSlot.transitTimeMinutes !== undefined && (
+                              <span style={{ color: '#2563eb', fontWeight: 600 }}>
+                                • Tempo de Deslocamento: {aptInSlot.transitTimeMinutes} min
+                                {aptInSlot.transitKmFromPrevious ? ` (${aptInSlot.transitKmFromPrevious.toFixed(1)} km de rota)` : ''}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

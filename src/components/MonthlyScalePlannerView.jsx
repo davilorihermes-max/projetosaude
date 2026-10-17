@@ -25,18 +25,34 @@ import {
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
 
-import { ALL_PRESET_LOCATIONS } from '../services/geocodingService';
+import { ALL_PRESET_LOCATIONS, resolveAddressCoordinates } from '../services/geocodingService';
+
+// Chave para persistência da escala mensal no localStorage para não perder ao trocar de tela
+export const SCALE_STORAGE_KEY = 'omnihome_monthly_scale_state_v4';
+
+const getInitialScaleSavedData = () => {
+  try {
+    const raw = localStorage.getItem(SCALE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Erro ao ler escala salva:', e);
+  }
+  return null;
+};
+
+const initialSaved = getInitialScaleSavedData();
 
 // Polos regionais e metropolitanos em todo o Brasil para coordenadas geodésicas automáticas
 const SP_PRESET_LOCATIONS = ALL_PRESET_LOCATIONS;
 
-const THERAPY_OPTIONS = [
-  'Fisioterapia Cardiorrespiratória & Motora',
-  'Fisioterapia Motora & Neuroreabilitação',
-  'Fonoaudiologia Domiciliar',
-  'Enfermagem Estomaterapeuta & Curativos',
-  'Terapia Ocupacional Domiciliar'
+export const CLINICAL_SPECIALTY_OPTIONS = [
+  'Fisioterapia Motora',
+  'Fisioterapia Respiratória',
+  'Terapia Ocupacional',
+  'Fonoaudiologia'
 ];
+
+const THERAPY_OPTIONS = CLINICAL_SPECIALTY_OPTIONS;
 
 const WEEKDAY_NAMES = {
   1: 'Segunda-feira',
@@ -55,12 +71,13 @@ export default function MonthlyScalePlannerView({
   onRegisterDoctorWithoutAccount,
   onNavigateToPatientsView
 }) {
-  const [selectedMonth, setSelectedMonth] = useState('2026-10');
+  const [selectedMonth, setSelectedMonth] = useState(initialSaved?.selectedMonth || '2026-10');
   const [activeTab, setActiveTab] = useState('demands'); // Inicia diretamente na aba de configuração de demandas e horários
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
   const [selectedPatientFilter, setSelectedPatientFilter] = useState('all');
   const [committedSuccess, setCommittedSuccess] = useState(false);
+  const [saveExplicitSuccess, setSaveExplicitSuccess] = useState(false);
 
   // Modal para buscar e adicionar pacientes já cadastrados na base do sistema
   const [isAddPatientFromBaseModalOpen, setIsAddPatientFromBaseModalOpen] = useState(false);
@@ -94,14 +111,14 @@ export default function MonthlyScalePlannerView({
   });
 
   // Atendimentos Fixados / Travados na Grade
-  const [fixedAppointments, setFixedAppointments] = useState([]);
+  const [fixedAppointments, setFixedAppointments] = useState(initialSaved?.fixedAppointments || []);
 
   // Modal para cadastrar atendimento fixo
   const [fixedAppointmentModalState, setFixedAppointmentModalState] = useState({
     isOpen: false,
     patientId: '',
     professionalId: '',
-    therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+    therapyType: 'Fisioterapia Motora',
     recurrenceType: 'weekly', // 'weekly' | 'date'
     dayOfWeek: 2,
     dateStr: '',
@@ -110,11 +127,13 @@ export default function MonthlyScalePlannerView({
     notes: 'Horário fixado prioritário'
   });
 
-  // Form State: Novo Profissional Sem Conta (com janelas de horário)
+  // Form State: Novo Profissional Sem Conta (com suporte a até 3 especialidades e mapa de base)
   const [newTherapistForm, setNewTherapistForm] = useState({
     professionalName: '',
-    specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-    neighborhood: 'Bela Vista (Av. Paulista)',
+    specialties: ['Fisioterapia Motora'],
+    baseAddress: 'São Paulo - SP',
+    baseCoordinates: { latitude: -23.585, longitude: -46.638 },
+    isGeocoding: false,
     weekdayWindows: {
       1: { enabled: true, startTime: '08:00', endTime: '18:00' },
       2: { enabled: true, startTime: '08:00', endTime: '18:00' },
@@ -126,13 +145,35 @@ export default function MonthlyScalePlannerView({
   });
 
   // 1. Estado Dinâmico: Pacientes com DEMANDAS TERAPÊUTICAS do cadastro e BLOQUEIOS DE HORÁRIO
-  const [patientsWithDemands, setPatientsWithDemands] = useState([]);
+  const [patientsWithDemands, setPatientsWithDemands] = useState(initialSaved?.patientsWithDemands || []);
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
-  const [professionalAvailabilities, setProfessionalAvailabilities] = useState([]);
+  const [professionalAvailabilities, setProfessionalAvailabilities] = useState(initialSaved?.professionalAvailabilities || []);
 
   // 3. Vínculos de Care Team (Restrição de Ouro)
-  const [careTeams, setCareTeams] = useState([]);
+  const [careTeams, setCareTeams] = useState(initialSaved?.careTeams || []);
+
+  // Salva no localStorage para não perder a escala ao sair da tela
+  useEffect(() => {
+    if (patientsWithDemands.length > 0 || professionalAvailabilities.length > 0) {
+      try {
+        localStorage.setItem(
+          SCALE_STORAGE_KEY,
+          JSON.stringify({
+            selectedMonth,
+            patientsWithDemands,
+            professionalAvailabilities,
+            careTeams,
+            fixedAppointments,
+            scaleResult,
+            savedAt: new Date().toISOString()
+          })
+        );
+      } catch (err) {
+        console.warn('Erro ao salvar escala no localStorage:', err);
+      }
+    }
+  }, [selectedMonth, patientsWithDemands, professionalAvailabilities, careTeams, fixedAppointments, scaleResult]);
 
   // Sincroniza pacientes cadastrados com demandas caso o planejador esteja vazio
   useEffect(() => {
@@ -225,6 +266,7 @@ export default function MonthlyScalePlannerView({
 
   // Estado da escala gerada
   const [scaleResult, setScaleResult] = useState(() => {
+    if (initialSaved?.scaleResult) return initialSaved.scaleResult;
     const generator = new MonthlyScaleGenerator(28, 12);
     return generator.generateMonthlyScale({
       year: 2026,
@@ -739,26 +781,65 @@ export default function MonthlyScalePlannerView({
     runGeneration(patientsWithDemands, nextProfs, careTeams);
   };
 
+  // Alternar especialidade no formulário de novo fisioterapeuta sem conta (até 3)
+  const handleToggleNewTherapistSpecialty = (spec) => {
+    setNewTherapistForm((prev) => {
+      const current = prev.specialties || [];
+      if (current.includes(spec)) {
+        if (current.length === 1) return prev; // Manter pelo menos 1
+        return { ...prev, specialties: current.filter((s) => s !== spec) };
+      } else {
+        if (current.length >= 3) return prev; // Máximo de 3 especialidades
+        return { ...prev, specialties: [...current, spec] };
+      }
+    });
+  };
+
+  // Geocodificar endereço do novo fisioterapeuta sem conta
+  const handleGeocodeNewTherapistAddress = async () => {
+    const addr = newTherapistForm.baseAddress;
+    if (!addr || addr.trim().length < 3) return;
+    setNewTherapistForm((prev) => ({ ...prev, isGeocoding: true }));
+    try {
+      const res = await resolveAddressCoordinates(addr);
+      if (res && res.latitude && res.longitude) {
+        setNewTherapistForm((prev) => ({
+          ...prev,
+          baseCoordinates: { latitude: res.latitude, longitude: res.longitude },
+          isGeocoding: false
+        }));
+      } else {
+        setNewTherapistForm((prev) => ({ ...prev, isGeocoding: false }));
+      }
+    } catch {
+      setNewTherapistForm((prev) => ({ ...prev, isGeocoding: false }));
+    }
+  };
+
   // Criar Novo Fisioterapeuta SEM CONTA para compor a escala
   const handleCreateTherapistWithoutAccount = (e) => {
     e.preventDefault();
     if (!newTherapistForm.professionalName.trim()) return;
 
     const newDocId = `doc-sem-conta-${Date.now()}`;
-    const baseCoords = SP_PRESET_LOCATIONS[newTherapistForm.neighborhood] || SP_PRESET_LOCATIONS['Bela Vista (Av. Paulista)'] || { latitude: -23.585, longitude: -46.638 };
+    const baseCoords = newTherapistForm.baseCoordinates || { latitude: -23.585, longitude: -46.638 };
+    const specList = newTherapistForm.specialties && newTherapistForm.specialties.length > 0
+      ? newTherapistForm.specialties
+      : ['Fisioterapia Motora'];
 
     const newProf = {
       id: newDocId,
       professionalId: newDocId,
       name: newTherapistForm.professionalName.trim(),
       professionalName: newTherapistForm.professionalName.trim(),
-      specialty: newTherapistForm.specialty,
-      profession: newTherapistForm.specialty.includes('Fono')
+      specialty: specList.join(', '),
+      specialties: specList,
+      profession: specList.some((s) => s.includes('Fono'))
         ? 'Fonoaudiologia'
-        : newTherapistForm.specialty.includes('Enfermagem')
-        ? 'Enfermagem'
+        : specList.some((s) => s.includes('Terapia Ocupacional'))
+        ? 'Terapia Ocupacional'
         : 'Fisioterapia',
-      baseAddress: newTherapistForm.neighborhood,
+      baseAddress: newTherapistForm.baseAddress || 'São Paulo - SP',
       baseCoordinates: baseCoords,
       baseLocation: baseCoords,
       weekdayWindows: newTherapistForm.weekdayWindows,
@@ -788,8 +869,10 @@ export default function MonthlyScalePlannerView({
 
     setNewTherapistForm({
       professionalName: '',
-      specialty: 'Fisioterapia Cardiorrespiratória & Motora',
-      neighborhood: 'Bela Vista (Av. Paulista)',
+      specialties: ['Fisioterapia Motora'],
+      baseAddress: 'São Paulo - SP',
+      baseCoordinates: { latitude: -23.585, longitude: -46.638 },
+      isGeocoding: false,
       weekdayWindows: {
         1: { enabled: true, startTime: '08:00', endTime: '18:00' },
         2: { enabled: true, startTime: '08:00', endTime: '18:00' },
@@ -803,9 +886,34 @@ export default function MonthlyScalePlannerView({
     runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
   };
 
+  // Salvar explicitamente a escala e seus parâmetros no localStorage
+  const handleSaveScaleExplicitly = () => {
+    try {
+      localStorage.setItem(
+        SCALE_STORAGE_KEY,
+        JSON.stringify({
+          selectedMonth,
+          patientsWithDemands,
+          professionalAvailabilities,
+          careTeams,
+          fixedAppointments,
+          scaleResult,
+          savedAt: new Date().toISOString()
+        })
+      );
+      setSaveExplicitSuccess(true);
+      setTimeout(() => setSaveExplicitSuccess(false), 3500);
+    } catch (err) {
+      alert('Erro ao salvar escala localmente: ' + err.message);
+    }
+  };
+
   // Grava as sessões geradas no estado de agendamentos principal
   const handleCommitScale = () => {
     if (!scaleResult || scaleResult.plannedSessions.length === 0) return;
+
+    // Salva explicitamente no localStorage antes de publicar
+    handleSaveScaleExplicitly();
 
     if (onCommitScaleToAppointments) {
       const appointmentsToSave = scaleResult.plannedSessions.map((s) => ({
@@ -819,11 +927,16 @@ export default function MonthlyScalePlannerView({
         notes: `Plano Terapêutico: ${s.therapyType} (${s.transitKmFromPrevious.toFixed(1)} km da parada anterior)`,
         address: s.address,
         accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
-        transitTime: `${s.transitTimeMinutes} min de trânsito estimado`
+        transitTime: `${s.transitTimeMinutes} min de trânsito estimado`,
+        transitTimeMinutes: s.transitTimeMinutes,
+        transitKmFromPrevious: s.transitKmFromPrevious,
+        durationMinutes: s.durationMinutes || 45,
+        therapyType: s.therapyType
       }));
 
-      onCommitScaleToAppointments(appointmentsToSave);
+      onCommitScaleToAppointments(appointmentsToSave, scaleResult);
       setCommittedSuccess(true);
+      setTimeout(() => setCommittedSuccess(false), 4000);
     }
   };
 
@@ -892,17 +1005,47 @@ export default function MonthlyScalePlannerView({
             {isGenerating ? 'Calculando Escala...' : '⚡ Recalcular Escala Mensal'}
           </button>
 
+          {/* Botão de Salvar Escala (Persistência Garantida) */}
+          <button
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.6rem 1rem', fontWeight: 700 }}
+            onClick={handleSaveScaleExplicitly}
+            title="Salva a escala e todos os parâmetros no navegador para não perder ao trocar de tela"
+          >
+            <Save size={18} color="var(--primary)" />
+            {saveExplicitSuccess ? '✓ Escala Salva!' : '💾 Salvar Escala'}
+          </button>
+
           {scaleResult && scaleResult.plannedSessions.length > 0 && (
             <button
               className="btn-commit-scale"
               onClick={handleCommitScale}
+              title="Publica todas as sessões domiciliares na Agenda Oficial com tempos de deslocamento"
             >
-              <Save size={18} />
-              {committedSuccess ? 'Escala Publicada na Agenda!' : 'Publicar na Agenda Oficial'}
+              <CalendarDays size={18} />
+              {committedSuccess ? 'Publicada na Agenda!' : '📅 Enviar para a Agenda'}
             </button>
           )}
         </div>
       </div>
+
+      {/* Alerta de Sucesso ao Salvar Explicitamente */}
+      {saveExplicitSuccess && (
+        <div style={{
+          background: 'var(--primary-subtle)',
+          border: '1px solid var(--primary-border)',
+          color: 'var(--primary)',
+          padding: '0.85rem 1.25rem',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontWeight: 600
+        }}>
+          <CheckCircle2 size={20} color="var(--primary)" />
+          Escala mensal e parâmetros salvos com sucesso! Você pode navegar pelo sistema ou sair da tela sem perder nenhuma alteração.
+        </div>
+      )}
 
       {/* Alerta de Sucesso ao Publicar */}
       {committedSuccess && (
@@ -2250,29 +2393,90 @@ export default function MonthlyScalePlannerView({
                   </div>
 
                   <div className="form-group">
-                    <label>Especialidade de Atuação *</label>
-                    <select
-                      className="planner-select"
-                      value={newTherapistForm.specialty}
-                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, specialty: e.target.value })}
-                    >
-                      {THERAPY_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+                    <label>Especialidades de Atuação (Selecione de 1 até 3): *</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.45rem', marginTop: '0.25rem' }}>
+                      {CLINICAL_SPECIALTY_OPTIONS.map((opt) => {
+                        const isChecked = (newTherapistForm.specialties || []).includes(opt);
+                        return (
+                          <label
+                            key={opt}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '6px',
+                              border: isChecked ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                              background: isChecked ? 'var(--primary-subtle)' : 'var(--bg-card)',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              fontWeight: isChecked ? 600 : 400,
+                              color: isChecked ? 'var(--primary)' : 'var(--text-body)'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleNewTherapistSpecialty(opt)}
+                            />
+                            {opt}
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="form-group">
-                    <label>Região da Base de Saída (Ponto de Partida)</label>
-                    <select
-                      className="planner-select"
-                      value={newTherapistForm.neighborhood}
-                      onChange={(e) => setNewTherapistForm({ ...newTherapistForm, neighborhood: e.target.value })}
+                    <label>Ponto Base de Partida (Endereço ou CEP da Base de Saída)</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                      <input
+                        type="text"
+                        className="planner-input"
+                        placeholder="Ex: Av. Paulista, 1500 ou CEP 01310-100..."
+                        value={newTherapistForm.baseAddress}
+                        onChange={(e) => setNewTherapistForm({ ...newTherapistForm, baseAddress: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleGeocodeNewTherapistAddress();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                        onClick={handleGeocodeNewTherapistAddress}
+                        disabled={newTherapistForm.isGeocoding}
+                      >
+                        {newTherapistForm.isGeocoding ? 'Buscando...' : '🔍 Localizar no Mapa'}
+                      </button>
+                    </div>
+
+                    {/* Mini-mapa OpenStreetMap com key reativa */}
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '140px',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                        marginTop: '0.5rem'
+                      }}
                     >
-                      {Object.keys(SP_PRESET_LOCATIONS).map((neigh) => (
-                        <option key={neigh} value={neigh}>{neigh}</option>
-                      ))}
-                    </select>
+                      <iframe
+                        key={`${newTherapistForm.baseCoordinates.latitude.toFixed(5)}-${newTherapistForm.baseCoordinates.longitude.toFixed(5)}`}
+                        title="Mapa Ponto de Partida Terapeuta"
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        scrolling="no"
+                        marginHeight="0"
+                        marginWidth="0"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${newTherapistForm.baseCoordinates.longitude - 0.008}%2C${newTherapistForm.baseCoordinates.latitude - 0.006}%2C${newTherapistForm.baseCoordinates.longitude + 0.008}%2C${newTherapistForm.baseCoordinates.latitude + 0.006}&layer=mapnik&marker=${newTherapistForm.baseCoordinates.latitude}%2C${newTherapistForm.baseCoordinates.longitude}`}
+                      />
+                    </div>
                   </div>
 
                   {/* Janela de Horário Diária (Segunda a Sexta) */}

@@ -250,7 +250,38 @@ export async function resolveAddressCoordinates(addressText) {
   const clean = addressText.trim();
   const normalized = normalizeText(clean);
 
-  // 1. Verifica se bate exatamente ou parcialmente com algum preset cadastrado
+  // 1. Verifica se há CEP válido no texto (ex: "01310-100" ou "01310100")
+  const cepMatch = clean.match(/\b(\d{5})-?(\d{3})\b/);
+  if (cepMatch && typeof fetch !== 'undefined') {
+    const rawCep = `${cepMatch[1]}${cepMatch[2]}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${rawCep}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        const coords = data?.location?.coordinates;
+        if (coords && coords.latitude && coords.longitude) {
+          const lat = parseFloat(coords.latitude);
+          const lon = parseFloat(coords.longitude);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            return {
+              latitude: lat,
+              longitude: lon,
+              source: 'brasilapi_cep',
+              matched: `${data.street || ''}, ${data.neighborhood || ''} - ${data.city}/${data.state}`.replace(/^,\s*/, ''),
+              city: data.city
+            };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Verifica se bate exatamente ou parcialmente com algum preset cadastrado
   for (const [presetName, loc] of Object.entries(ALL_PRESET_LOCATIONS)) {
     const normPreset = normalizeText(presetName);
     const normAddr = normalizeText(loc.address);
@@ -264,7 +295,45 @@ export async function resolveAddressCoordinates(addressText) {
     }
   }
 
-  // 2. Tenta geocodificação em tempo real via OpenStreetMap Nominatim
+  // 3. Geocodificação em tempo real via Photon (OpenStreetMap Komoot - rápido e com CORS liberado)
+  if (typeof fetch !== 'undefined') {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const queryStr = clean.toLowerCase().includes('brasil') ? clean : `${clean}, Brasil`;
+      const queryUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(queryStr)}&limit=1`;
+      const res = await fetch(queryUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.features) && data.features.length > 0) {
+          const feat = data.features[0];
+          const coords = feat.geometry?.coordinates; // [lon, lat]
+          if (Array.isArray(coords) && coords.length >= 2) {
+            const lon = coords[0];
+            const lat = coords[1];
+            if (!isNaN(lat) && !isNaN(lon)) {
+              const props = feat.properties || {};
+              const matchLabel = [props.name, props.street, props.district, props.city, props.state]
+                .filter(Boolean)
+                .join(', ');
+
+              return {
+                latitude: lat,
+                longitude: lon,
+                formattedAddress: matchLabel || clean,
+                matched: matchLabel || clean,
+                source: 'photon_osm'
+              };
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fallback secundário via OpenStreetMap Nominatim
   if (typeof fetch !== 'undefined') {
     try {
       const controller = new AbortController();
@@ -288,6 +357,7 @@ export async function resolveAddressCoordinates(addressText) {
               latitude: lat,
               longitude: lon,
               formattedAddress: first.display_name,
+              matched: first.display_name,
               source: 'nominatim'
             };
           }
@@ -298,7 +368,7 @@ export async function resolveAddressCoordinates(addressText) {
     }
   }
 
-  // 3. Fallback inteligente baseado em nomes de cidades e estados detectados no texto
+  // 5. Fallback inteligente baseado em nomes de cidades e estados detectados no texto
   for (const [cityName, coords] of Object.entries(CITY_COORDINATES_MAP)) {
     // Detecta nome da cidade ou sigla no texto (ex: "Curitiba - PR", "Rio de Janeiro", "Belo Horizonte")
     const regex = new RegExp(`\\b${cityName}\\b`, 'i');
@@ -307,11 +377,13 @@ export async function resolveAddressCoordinates(addressText) {
         latitude: coords.latitude,
         longitude: coords.longitude,
         source: 'city_fallback',
+        matched: `${cityName.toUpperCase()} (Centro)`,
         city: cityName
       };
     }
   }
 
-  // 4. Default neutro em caso de endereço completamente não identificado
-  return { latitude: -23.585000, longitude: -46.638000, source: 'default' };
+  // 6. Default neutro em caso de endereço completamente não identificado
+  return { latitude: -23.585000, longitude: -46.638000, source: 'default', matched: 'São Paulo - SP (Padrão)' };
 }
+

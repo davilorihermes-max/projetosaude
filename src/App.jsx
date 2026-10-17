@@ -99,6 +99,7 @@ export default function App() {
   const [modalInitialTime, setModalInitialTime] = useState('09:00');
   const [modalInitialDate, setModalInitialDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [modalInitialDuration, setModalInitialDuration] = useState(45);
+  const [scheduleActiveDate, setScheduleActiveDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
@@ -546,6 +547,7 @@ export default function App() {
               onOpenNewAppointment={handleOpenNewAppointment}
               selectedDoctorId={selectedDoctorId}
               setSelectedDoctorId={setSelectedDoctorId}
+              initialSelectedDate={scheduleActiveDate}
             />
           )}
 
@@ -554,7 +556,16 @@ export default function App() {
               patients={patients}
               doctors={doctors}
               onCommitScaleToAppointments={(newAppointments) => {
-                setAppointments((prev) => [...newAppointments, ...prev]);
+                // Substitui agendamentos de plano gerados anteriormente evitando duplicação
+                setAppointments((prev) => {
+                  const nonPlanApts = prev.filter((a) => !a.id.startsWith('apt-plan-'));
+                  const merged = [...newAppointments, ...nonPlanApts];
+                  localStorage.setItem('omnihome_appointments_v3', JSON.stringify(merged));
+                  return merged;
+                });
+                if (newAppointments.length > 0 && newAppointments[0].date) {
+                  setScheduleActiveDate(newAppointments[0].date);
+                }
                 setActiveTab('schedule');
               }}
               onRegisterDoctorWithoutAccount={handleRegisterDoctorWithoutAccount}

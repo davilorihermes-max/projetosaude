@@ -797,27 +797,44 @@ export class MonthlyScaleGenerator {
   }
 
   /**
-   * Valida se a especialidade do profissional atende ao tipo de terapia solicitado
+   * Valida se a especialidade do profissional atende ao tipo de terapia solicitado.
+   * Suporta até 3 especialidades por profissional (array ou texto separado por vírgula/barra).
+   * Especialidades padronizadas:
+   * 1. Fisioterapia Motora
+   * 2. Fisioterapia Respiratória
+   * 3. Terapia Ocupacional
+   * 4. Fonoaudiologia
    */
-  private isSpecialtyCompatible(professionalSpecialty: string, demandedTherapy: string): boolean {
-    const profSpec = professionalSpecialty.toLowerCase();
-    const demand = demandedTherapy.toLowerCase();
+  private isSpecialtyCompatible(professionalSpecialty: string | string[], demandedTherapy: string): boolean {
+    if (!professionalSpecialty || !demandedTherapy) return false;
 
-    if (demand.includes('fisioterapia') && profSpec.includes('fisioterapia')) {
-      return true;
+    const demand = demandedTherapy.toLowerCase().trim();
+    const specs: string[] = (Array.isArray(professionalSpecialty)
+      ? professionalSpecialty
+      : professionalSpecialty.split(/[,;/+]+/)
+    ).map((s) => s.toLowerCase().trim());
+
+    // 1. Fisioterapia Motora
+    if (demand.includes('motora')) {
+      return specs.some((s) => s.includes('motora'));
     }
-    if (demand.includes('fono') && profSpec.includes('fono')) {
-      return true;
+
+    // 2. Fisioterapia Respiratória
+    if (demand.includes('respirat') || demand.includes('cardio')) {
+      return specs.some((s) => s.includes('respirat') || s.includes('cardio'));
     }
-    if (demand.includes('enfermagem') && profSpec.includes('enfermagem')) {
-      return true;
+
+    // 3. Terapia Ocupacional
+    if (demand.includes('ocupacional') || demand.includes('to')) {
+      return specs.some((s) => s.includes('ocupacional') || s.includes('to'));
     }
-    if (demand.includes('terapia ocupacional') && profSpec.includes('terapia ocupacional')) {
-      return true;
+
+    // 4. Fonoaudiologia
+    if (demand.includes('fono')) {
+      return specs.some((s) => s.includes('fono'));
     }
-    if (demand.includes('médic') || demand.includes('clínic') || demand.includes('consulta')) {
-      return profSpec.includes('medicina') || profSpec.includes('clínica') || profSpec.includes('família');
-    }
-    return profSpec.includes(demand) || demand.includes(profSpec);
+
+    // Fallback genérico para especialidades legadas
+    return specs.some((s) => s.includes(demand) || demand.includes(s));
   }
 }
