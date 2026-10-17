@@ -26,7 +26,7 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
     }
   ];
 
-  const mockProfessionals = [
+  const mockProfessionals: any[] = [
     {
       professionalId: 'doc-1',
       professionalName: 'Dr. Rafael Fontes',
@@ -66,6 +66,7 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
         therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
         sessionsPerWeek: 2,
         durationMinutes: 45,
+        preferredShift: 'morning',
         location: locEnseadaSua,
         address: 'Rua José Alexandre Buaiz, 300'
       }
@@ -231,5 +232,86 @@ describe('ScaleAIAgent - Chatbot do Gestor com Tool Calling', () => {
     const prof = res.newProfessionalAvailabilities?.find((p) => p.professionalId === 'doc-sergio');
     expect(prof?.weekdayWindows?.[1].startTime).toBe('08:00');
     expect(prof?.weekdayWindows?.[1].endTime).toBe('17:00');
+  });
+
+  it('deve responder com o resumo detalhado da escala ao perguntar "como ficou a escala?" ou "quantos atendimentos foram agendados?"', () => {
+    const res = ScaleAIAgent.processMessage('como ficou a escala deste mês?', baseContext);
+
+    expect(res.mutated).toBe(false);
+    expect(res.reply).toContain('Panorama Geral da Escala Criada');
+    expect(res.reply).toContain('Sessões Planejadas');
+    expect(res.reply).toContain('Taxa Geral de Cobertura');
+    expect(res.reply).toContain('Sessões Atribuídas por Terapeuta');
+
+    const res2 = ScaleAIAgent.processMessage('quantos atendimentos foram agendados?', baseContext);
+    expect(res2.reply).toContain('Panorama Geral da Escala Criada');
+    expect(res2.reply).toContain('Sessões Planejadas');
+  });
+
+  it('deve listar os atendimentos agendados de um dia específico (ex: "quais os atendimentos do dia 15?")', () => {
+    const contextWithSession: ScaleAgentContext = {
+      ...baseContext,
+      scaleResult: {
+        ...baseContext.scaleResult!,
+        plannedSessions: [
+          {
+            id: 'sess-15',
+            patientId: 'pat-1',
+            patientName: 'Mariana Souza Lima',
+            professionalId: 'doc-1',
+            professionalName: 'Dr. Rafael Fontes',
+            therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+            date: '2026-10-15',
+            time: '09:00',
+            durationMinutes: 45,
+            location: locEnseadaSua,
+            address: 'Rua José Alexandre Buaiz, 300',
+            transitKmFromPrevious: 3.5,
+            transitTimeMinutes: 12,
+            weekNumber: 3
+          }
+        ]
+      }
+    };
+
+    const res = ScaleAIAgent.processMessage('quais os atendimentos do dia 15?', contextWithSession);
+    expect(res.mutated).toBe(false);
+    expect(res.reply).toContain('Dia 15/10/2026');
+    expect(res.reply).toContain('Dr. Rafael Fontes');
+    expect(res.reply).toContain('Mariana Souza Lima');
+    expect(res.reply).toContain('09:00');
+  });
+
+  it('deve listar atendimentos agendados da paciente na resposta ao perguntar "quem atende a Mariana?"', () => {
+    const contextWithSession: ScaleAgentContext = {
+      ...baseContext,
+      scaleResult: {
+        ...baseContext.scaleResult!,
+        plannedSessions: [
+          {
+            id: 'sess-1',
+            patientId: 'pat-1',
+            patientName: 'Mariana Souza Lima',
+            professionalId: 'doc-1',
+            professionalName: 'Dr. Rafael Fontes',
+            therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+            date: '2026-10-06',
+            time: '09:00',
+            durationMinutes: 45,
+            location: locEnseadaSua,
+            address: 'Rua José Alexandre Buaiz, 300',
+            transitKmFromPrevious: 0,
+            transitTimeMinutes: 0,
+            weekNumber: 2
+          }
+        ]
+      }
+    };
+
+    const res = ScaleAIAgent.processMessage('quem atende a Mariana?', contextWithSession);
+    expect(res.mutated).toBe(false);
+    expect(res.reply).toContain('Mariana Souza Lima');
+    expect(res.reply).toContain('Atendimentos Agendados na Escala');
+    expect(res.reply).toContain('Dr. Rafael Fontes');
   });
 });

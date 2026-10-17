@@ -10,7 +10,9 @@ import {
   Play,
   XCircle,
   Filter,
-  UserCheck
+  UserCheck,
+  Car,
+  MapPin
 } from 'lucide-react';
 import './ScheduleView.css';
 import Avatar from './Avatar';
@@ -70,13 +72,19 @@ export default function ScheduleView({
     return matchesDate && matchesDoctor && matchesStatus;
   });
 
-  // Base padrão de horários + quaisquer horários reais cadastrados nos agendamentos (ex: 09:00, 09:15)
+  // Base padrão de horários + horários reais dos agendamentos + horários de saída para deslocamento urbano
   const baseSlots = [
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00',
     '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
   ];
   const activeTimes = filteredAppointments.map((a) => a.time).filter(Boolean);
-  const timeSlots = Array.from(new Set([...baseSlots, ...activeTimes])).sort();
+  const transitDepartureTimes = filteredAppointments
+    .filter((a) => (Number(a.transitTimeMinutes) || 0) > 0)
+    .map((a) => {
+      const departureMin = Math.max(0, timeToMinutes(a.time) - Number(a.transitTimeMinutes));
+      return minutesToTime(departureMin);
+    });
+  const timeSlots = Array.from(new Set([...baseSlots, ...activeTimes, ...transitDepartureTimes])).sort();
 
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
@@ -327,6 +335,15 @@ export default function ScheduleView({
             return slotMin > start && slotMin < end;
           });
 
+          // Verifica se este slot está reservado para deslocamento até algum paciente
+          const inTransitApts = filteredAppointments.filter((a) => {
+            const transitMin = Number(a.transitTimeMinutes) || 0;
+            if (transitMin <= 0) return false;
+            const aptStart = timeToMinutes(a.time);
+            const departureMin = Math.max(0, aptStart - transitMin);
+            return slotMin >= departureMin && slotMin < aptStart;
+          });
+
           // Caso 1: Horário intermediário de uma sessão em andamento
           if (aptsInSlot.length === 0 && ongoingApt) {
             const ongoingPatient = patients.find((p) => p.id === ongoingApt.patientId);
@@ -371,12 +388,179 @@ export default function ScheduleView({
             );
           }
 
-          // Caso 2: Horário livre na rota
+          // Caso 2: Horário reservado para Deslocamento Urbano entre pacientes (Bloqueado para agendamentos)
+          if (aptsInSlot.length === 0 && inTransitApts.length > 0) {
+            return (
+              <div key={slot} className="slot-row">
+                <span className="slot-time-col" style={{ color: '#d97706', opacity: 0.9 }}>{slot}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {inTransitApts.map((transitApt) => {
+                    const patient = patients.find((p) => p.id === transitApt.patientId);
+                    const doctor = doctors.find((d) => d.id === transitApt.doctorId);
+                    const transitMin = Number(transitApt.transitTimeMinutes) || 0;
+                    const departureMin = Math.max(0, timeToMinutes(transitApt.time) - transitMin);
+                    const departureTimeStr = minutesToTime(departureMin);
+
+                    return (
+                      <div
+                        key={`transit-${transitApt.id}-${slot}`}
+                        className="slot-transit-card"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+                          <div
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: '12px',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#d97706',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Car size={22} />
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  background: '#fef3c7',
+                                  color: '#92400e',
+                                  border: '1px solid #fde68a',
+                                  padding: '0.15rem 0.55rem',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                🚗 Tempo de Deslocamento Bloqueado
+                              </span>
+
+                              <strong style={{ fontSize: '0.95rem', color: 'var(--text-headline)' }}>
+                                Em trânsito até {patient?.name || 'Paciente'}
+                              </strong>
+
+                              <span
+                                style={{
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  color: '#b45309'
+                                }}
+                              >
+                                ⏱️ {departureTimeStr} às {transitApt.time} ({transitMin} min de rota)
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                gap: '0.65rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-muted)',
+                                marginTop: '0.25rem',
+                                flexWrap: 'wrap',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <span>Profissional: <strong>{doctor?.name}</strong></span>
+                              <span>• Especialidade: {transitApt.therapyType || transitApt.type}</span>
+                              <span style={{ color: '#d97706', fontWeight: 600 }}>
+                                📍 Destino: {patient?.address || transitApt.address}
+                              </span>
+                              {transitApt.transitKmFromPrevious ? (
+                                <span style={{ fontWeight: 600 }}>
+                                  • Distância: {transitApt.transitKmFromPrevious.toFixed(1)} km
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {transitApt.status === 'scheduled' && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{
+                                fontSize: '0.78rem',
+                                padding: '0.4rem 0.75rem',
+                                borderColor: '#f59e0b',
+                                color: '#b45309',
+                                background: 'rgba(245, 158, 11, 0.08)'
+                              }}
+                              onClick={() => onUpdateAppointmentStatus(transitApt.id, 'waiting')}
+                              title="Registrar início do trajeto urbano até o domicílio do paciente"
+                            >
+                              <Car size={13} style={{ marginRight: '0.3rem' }} /> Iniciar Deslocamento
+                            </button>
+                          )}
+
+                          {transitApt.status === 'waiting' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span
+                                className="badge badge-warning"
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '0.35rem 0.65rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                🚗 Em Rota Domiciliar
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                style={{ fontSize: '0.78rem', padding: '0.35rem 0.7rem' }}
+                                onClick={() => {
+                                  onUpdateAppointmentStatus(transitApt.id, 'in_progress');
+                                  onOpenPatientRecord(patient?.id);
+                                }}
+                              >
+                                <Play size={12} style={{ marginRight: '0.25rem' }} /> Cheguei / Check-in
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          // Caso 3: Horário verdadeiramente livre na rota (sem atendimento e sem deslocamento)
           if (aptsInSlot.length === 0) {
-            const nextApt = filteredAppointments
-              .filter((a) => timeToMinutes(a.time) > slotMin)
-              .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
-            const freeMinutes = nextApt ? timeToMinutes(nextApt.time) - slotMin : null;
+            let nextBlockMin = null;
+            let nextBlockTarget = '';
+            let nextBlockTimeStr = '';
+
+            for (const a of filteredAppointments) {
+              const aptStart = timeToMinutes(a.time);
+              const transitMin = Number(a.transitTimeMinutes) || 0;
+              const departureMin = transitMin > 0 ? aptStart - transitMin : aptStart;
+
+              if (departureMin > slotMin) {
+                if (nextBlockMin === null || departureMin < nextBlockMin) {
+                  nextBlockMin = departureMin;
+                  nextBlockTimeStr = minutesToTime(departureMin);
+                  const p = patients.find((pat) => pat.id === a.patientId);
+                  nextBlockTarget = transitMin > 0 
+                    ? `saída p/ trânsito até ${p?.name || 'próximo paciente'} (${transitMin} min)`
+                    : `sessão de ${p?.name || 'atendimento'}`;
+                }
+              }
+            }
+
+            const freeMinutes = nextBlockMin !== null ? nextBlockMin - slotMin : null;
 
             return (
               <div key={slot} className="slot-row">
@@ -386,11 +570,11 @@ export default function ScheduleView({
                   onClick={() => onOpenNewAppointment(null, slot, selectedDate, freeMinutes !== null && freeMinutes <= 30 ? 30 : 45)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span>Horário livre na rota de atendimento</span>
                     {freeMinutes !== null && freeMinutes < 60 && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
-                        (Janela de {freeMinutes} min até {nextApt.time})
+                        (Janela livre de {freeMinutes} min até {nextBlockTimeStr} • {nextBlockTarget})
                       </span>
                     )}
                   </div>

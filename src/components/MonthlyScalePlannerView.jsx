@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import ScaleAIChatWidget from './ScaleAIChatWidget';
+import BottlenecksVisualManager from './BottlenecksVisualManager';
 import './MonthlyScalePlannerView.css';
 import './ScaleAIChatWidget.css';
 
@@ -207,10 +208,46 @@ export default function MonthlyScalePlannerView({
   // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState(() => getInitialScaleSavedData()?.careTeams || []);
 
-  // Sincroniza dinamicamente dados atualizados de pacientes (novos endereços, coordenadas geodésicas e demandas)
+  // Sincroniza dinamicamente dados atualizados de pacientes (novos cadastros, endereços, coordenadas, demandas e Care Team)
   useEffect(() => {
     if (!patients || patients.length === 0) return;
 
+    // 1. Sincroniza vínculos de Care Team a partir dos dados do cadastro de pacientes
+    setCareTeams((prevCareTeams) => {
+      let careChanged = false;
+      const nextCareTeams = [...prevCareTeams];
+
+      patients.forEach((pat) => {
+        const docIds = pat.careTeamProfessionalIds ||
+          pat.careTeamMembers?.map((m) => m.professionalId || m);
+
+        if (docIds && docIds.length > 0) {
+          const idx = nextCareTeams.findIndex((c) => c.patientId === pat.id);
+          if (idx >= 0) {
+            const currentIds = nextCareTeams[idx].professionalIds || [];
+            const isDifferent = currentIds.length !== docIds.length || !docIds.every((id) => currentIds.includes(id));
+            if (isDifferent) {
+              nextCareTeams[idx] = { ...nextCareTeams[idx], professionalIds: docIds };
+              careChanged = true;
+            }
+          } else {
+            nextCareTeams.push({ patientId: pat.id, professionalIds: docIds });
+            careChanged = true;
+          }
+        } else {
+          // Se não há care team configurado ainda, garante que o paciente tenha registro
+          const exists = nextCareTeams.some((c) => c.patientId === pat.id);
+          if (!exists) {
+            nextCareTeams.push({ patientId: pat.id, professionalIds: [] });
+            careChanged = true;
+          }
+        }
+      });
+
+      return careChanged ? nextCareTeams : prevCareTeams;
+    });
+
+    // 2. Sincroniza lista de pacientes e demandas
     setPatientsWithDemands((prevList) => {
       // Se não há nenhum paciente na escala, inicializa a partir de patients
       if (!prevList || prevList.length === 0) {
@@ -253,7 +290,7 @@ export default function MonthlyScalePlannerView({
         return initialPatients;
       }
 
-      // Se já existem pacientes na escala, sincroniza endereços atualizados, coordenadas e nomes
+      // Se já existem pacientes na escala, sincroniza alterações e inclui novos pacientes cadastrados
       let hasChanges = false;
       const updatedList = prevList.map((existing) => {
         const matching = patients.find((p) => p.id === existing.patientId);
@@ -285,8 +322,39 @@ export default function MonthlyScalePlannerView({
         return existing;
       });
 
+      // Inclui pacientes recém-cadastrados na base que ainda não estavam na escala
+      patients.forEach((pat) => {
+        if (!updatedList.some((p) => p.patientId === pat.id)) {
+          hasChanges = true;
+          const coords = (pat.latitude && pat.longitude)
+            ? { latitude: Number(pat.latitude), longitude: Number(pat.longitude) }
+            : (ALL_PRESET_LOCATIONS[pat.address] || { latitude: -20.3012, longitude: -40.2925 });
+
+          const patDemands = pat.demands && pat.demands.length > 0
+            ? pat.demands
+            : [
+                {
+                  id: `dem-${pat.id}-1`,
+                  therapyType: 'Fisioterapia Cardiorrespiratória & Motora',
+                  sessionsPerWeek: 2,
+                  durationMinutes: 45,
+                  preferredShift: 'morning'
+                }
+              ];
+
+          updatedList.push({
+            patientId: pat.id,
+            patientName: pat.name,
+            neighborhood: pat.address || 'Vitória - ES',
+            address: pat.address || 'Vitória - ES',
+            location: coords,
+            demands: patDemands,
+            unavailabilityBlocks: pat.unavailabilityBlocks || []
+          });
+        }
+      });
+
       if (hasChanges) {
-        // Dispara recálculo imediato da escala e da roteirização com os novos endereços dos pacientes
         setTimeout(() => {
           runGeneration(updatedList, professionalAvailabilities, careTeams, fixedAppointments);
         }, 100);
@@ -341,10 +409,12 @@ export default function MonthlyScalePlannerView({
         availableWindows: d.availableWindows,
         location: p.location,
         address: p.address,
-        unavailabilityBlocks: p.unavailabilityBlocks || []
+        unavailabilityBlocks: p.unavailabilityBlocks || [],
+        careTeamProfessionalIds: (careTeams.find((c) => c.patientId === p.patientId)?.professionalIds ||
+          p.careTeamProfessionalIds || [])
       }))
     );
-  }, [patientsWithDemands]);
+  }, [patientsWithDemands, careTeams]);
 
   // Estado da escala gerada
   const [scaleResult, setScaleResult] = useState(() => {
@@ -421,7 +491,9 @@ export default function MonthlyScalePlannerView({
         availableWindows: d.availableWindows,
         location: p.location,
         address: p.address,
-        unavailabilityBlocks: p.unavailabilityBlocks || []
+        unavailabilityBlocks: p.unavailabilityBlocks || [],
+        careTeamProfessionalIds: (currentCareTeams.find((c) => c.patientId === p.patientId)?.professionalIds ||
+          p.careTeamProfessionalIds || [])
       }))
     );
 
@@ -880,19 +952,40 @@ export default function MonthlyScalePlannerView({
 
   // Alternar vínculo de Care Team
   const handleToggleCareTeamMember = (patientId, profId) => {
-    const updated = careTeams.map((ct) => {
-      if (ct.patientId === patientId) {
-        const hasProf = ct.professionalIds.includes(profId);
-        const nextProfs = hasProf
-          ? ct.professionalIds.filter((id) => id !== profId)
-          : [...ct.professionalIds, profId];
-        return { ...ct, professionalIds: nextProfs };
-      }
-      return ct;
-    });
+    const exists = careTeams.some((ct) => ct.patientId === patientId);
+    let updated;
+    if (exists) {
+      updated = careTeams.map((ct) => {
+        if (ct.patientId === patientId) {
+          const hasProf = ct.professionalIds.includes(profId);
+          const nextProfs = hasProf
+            ? ct.professionalIds.filter((id) => id !== profId)
+            : [...ct.professionalIds, profId];
+          return { ...ct, professionalIds: nextProfs };
+        }
+        return ct;
+      });
+    } else {
+      updated = [...careTeams, { patientId, professionalIds: [profId] }];
+    }
 
     setCareTeams(updated);
     runGeneration(patientsWithDemands, professionalAvailabilities, updated);
+
+    // Sincroniza com o cadastro global de pacientes
+    if (onUpdatePatient && patients) {
+      const targetPatient = patients.find((p) => p.id === patientId);
+      if (targetPatient) {
+        const teamForPt = updated.find((ct) => ct.patientId === patientId);
+        onUpdatePatient({
+          ...targetPatient,
+          careTeamProfessionalIds: teamForPt ? teamForPt.professionalIds : [],
+          careTeamMembers: teamForPt
+            ? teamForPt.professionalIds.map((pid) => ({ professionalId: pid, role: 'PRIMARY_CARE', active: true }))
+            : []
+        });
+      }
+    }
   };
 
   // Remover Paciente Apenas da Escala Mensal (sem excluir o cadastro)
@@ -1068,6 +1161,8 @@ export default function MonthlyScalePlannerView({
     if (onRegisterDoctorWithoutAccount) {
       onRegisterDoctorWithoutAccount(newProf);
     }
+
+    runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
 
     setNewTherapistForm({
       professionalName: '',
@@ -1903,57 +1998,15 @@ export default function MonthlyScalePlannerView({
 
       {/* Conteúdo da Aba 3: Gargalos & Ações do Gestor */}
       {activeTab === 'bottlenecks' && (
-        <div className="tab-content">
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: 'var(--text-headline)' }}>
-              Diagnóstico de Gargalos & Otimizações do Gestor
-            </h3>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Demandas que não puderam ser 100% preenchidas por restrição de equipe ou capacidade de agenda.
-            </p>
-          </div>
-
-          {(!scaleResult?.bottlenecks || scaleResult.bottlenecks.length === 0) ? (
-            <div style={{
-              background: 'var(--success-subtle)',
-              padding: '2rem',
-              borderRadius: '12px',
-              textAlign: 'center',
-              color: 'var(--success)'
-            }}>
-              <CheckCircle2 size={40} color="var(--success)" style={{ margin: '0 auto 0.75rem auto' }} />
-              <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-headline)' }}>Escala Sem Gargalos!</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-body)' }}>
-                Todas as metas terapêuticas do mês foram 100% alocadas dentro das janelas de horário e Care Team.
-              </p>
-            </div>
-          ) : (
-            <div>
-              {scaleResult.bottlenecks.map((b, idx) => (
-                <div
-                  key={idx}
-                  className={`bottleneck-card ${b.reason === 'NO_CARE_TEAM_SPECIALIST' ? 'critical' : ''}`}
-                >
-                  <div className="bottleneck-title">
-                    <AlertTriangle size={18} />
-                    {b.patientName} — Déficit de {b.missingSessions} sessão(ões) na Semana {b.weekNumber} ({b.therapyType})
-                  </div>
-                  <div className="bottleneck-desc">
-                    {b.reason === 'NO_CARE_TEAM_SPECIALIST' && (
-                      <strong>Motivo: Nenhum profissional com especialidade em {b.therapyType} está cadastrado na Equipe de Cuidado autorizada deste paciente.</strong>
-                    )}
-                    {b.reason === 'PROFESSIONAL_CAPACITY_EXCEEDED' && (
-                      <span>Motivo: As janelas de horário de trabalho dos terapeutas autorizados não comportam mais atendimentos nos dias/turnos solicitados.</span>
-                    )}
-                  </div>
-                  <div className="bottleneck-solution">
-                    <Info size={16} />
-                    <strong>Ação Recomendada:</strong> {b.suggestedAction}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="tab-content" style={{ padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}>
+          <BottlenecksVisualManager
+            scaleResult={scaleResult}
+            professionalAvailabilities={professionalAvailabilities}
+            patientsWithDemands={patientsWithDemands}
+            careTeams={careTeams}
+            onApplyMutation={handleApplyAiMutation}
+            onOpenAIChat={() => setIsAiChatOpen(true)}
+          />
         </div>
       )}
 

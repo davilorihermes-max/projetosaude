@@ -1,13 +1,16 @@
 // src/services/scale-ai-agent.ts
 import {
-  MonthlyScaleResult,
+  ScaleResult,
+  PlannedSession,
+  ScaleBottleneck,
+  PatientCoverageReport,
   PatientTherapyDemand,
   ProfessionalAvailability,
   CareTeamRelation,
   FixedAppointment,
   TimeBlock
-} from './monthly-scale-generator';
-import { ALL_PRESET_LOCATIONS } from './geocodingService';
+} from './monthly-scale-generator.js';
+import { ALL_PRESET_LOCATIONS } from './geocodingService.js';
 
 export interface AgentChatMessage {
   id: string;
@@ -38,12 +41,13 @@ export interface AgentActionSuggestion {
 }
 
 export interface ScaleAgentContext {
-  scaleResult: MonthlyScaleResult | null;
+  scaleResult: ScaleResult | null;
   patientsWithDemands: Array<{
     patientId: string;
     patientName: string;
     address: string;
-    neighborhood: string;
+    neighborhood?: string;
+    location?: { latitude: number; longitude: number };
     demands: Array<{
       id: string;
       therapyType: string;
@@ -97,7 +101,217 @@ const WEEKDAY_NAMES_MAP: { [key: string]: number } = {
   dom: 0
 };
 
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: 'Segunda-feira',
+  2: 'Terça-feira',
+  3: 'Quarta-feira',
+  4: 'Quinta-feira',
+  5: 'Sexta-feira',
+  6: 'Sábado',
+  0: 'Domingo'
+};
+
 export class ScaleAIAgent {
+  /**
+   * Obtém a chave de API do Google Gemini configurada no navegador ou ambiente
+   */
+  public static getStoredApiKey(): string | null {
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem('omnihome_gemini_api_key');
+      if (stored && stored.trim().length > 5) return stored.trim();
+    }
+    try {
+      const viteKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
+      if (viteKey && typeof viteKey === 'string' && viteKey.trim().length > 5) return viteKey.trim();
+    } catch {}
+    try {
+      const procKey = process.env?.GEMINI_API_KEY;
+      if (procKey && typeof procKey === 'string' && procKey.trim().length > 5) return procKey.trim();
+    } catch {}
+    return null;
+  }
+
+  /**
+   * Salva ou remove a chave do Google Gemini no localStorage do navegador
+   */
+  public static setStoredApiKey(key: string | null): void {
+    if (typeof localStorage !== 'undefined') {
+      if (key && key.trim()) {
+        localStorage.setItem('omnihome_gemini_api_key', key.trim());
+      } else {
+        localStorage.removeItem('omnihome_gemini_api_key');
+      }
+    }
+  }
+
+  /**
+   * Comunica-se com a API do Google Gemini (Gemini 2.5 Flash / 1.5 Flash) alimentada pelo snapshot integral da escala
+   */
+  public static async callGemini(
+    userPrompt: string,
+    ctx: ScaleAgentContext,
+    apiKey: string
+  ): Promise<string | null> {
+    const { scaleResult, patientsWithDemands, professionalAvailabilities, careTeams, fixedAppointments } = ctx;
+
+    const contextPayload = {
+      mesAno: scaleResult?.monthLabel || 'Outubro de 2026',
+      totalDias: scaleResult?.totalDaysInMonth || 31,
+      resumoGeral: scaleResult?.summary || null,
+      gargalosAtivos: scaleResult?.bottlenecks || [],
+      relatoriosCobertura: scaleResult?.coverageReports || [],
+      pacientes: patientsWithDemands.map((p) => ({
+        id: p.patientId,
+        nome: p.patientName,
+        endereco: p.address,
+        demandas: p.demands.map((d) => ({
+          tipo: d.therapyType,
+          sessoesSemanais: d.sessionsPerWeek,
+          duracaoMin: d.durationMinutes,
+          turnoPreferencial: d.preferredShift,
+          janelasHabilitadas: d.availableWindows
+        })),
+        bloqueiosCompromissos: p.unavailabilityBlocks
+      })),
+      profissionais: professionalAvailabilities.map((p) => ({
+        id: p.professionalId,
+        nome: p.professionalName,
+        especialidade: p.specialty,
+        especialidades: p.specialties,
+        horariosDiasSemana: p.weekdayWindows,
+        bloqueiosCompromissos: p.unavailabilityBlocks
+      })),
+      careTeams: careTeams.map((ct) => {
+        const pat = patientsWithDemands.find((p) => p.patientId === ct.patientId);
+        const profNames = professionalAvailabilities
+          .filter((p) => ct.professionalIds.includes(p.professionalId))
+          .map((p) => p.professionalName);
+        return {
+          paciente: pat?.patientName || ct.patientId,
+          profissionaisAutorizados: profNames
+        };
+      }),
+      atendimentosAgendados: (scaleResult?.plannedSessions || []).map((s) => ({
+        data: s.date,
+        horario: s.time,
+        paciente: s.patientName,
+        terapeuta: s.professionalName,
+        terapia: s.therapyType,
+        transitoKm: s.transitKmFromPrevious,
+        transitoMin: s.transitTimeMinutes
+      }))
+    };
+
+    const systemInstruction = `Você é o Copiloto Clínico e Operacional Sênior do Projeto Saúde (sistema de home care com inteligência artificial para otimização de escalas e roteirização domiciliar).
+Você possui visão raio-X de toda a grade de atendimento, disponibilidade dos terapeutas, rotas geodésicas e necessidades dos pacientes.
+
+DADOS DA ESCALA ATUAL (Snapshot Integral em Tempo Real):
+${JSON.stringify(contextPayload, null, 2)}
+
+DIRETRIZES DA ANÁLISE:
+1. Responda em português brasileiro com clareza clínica, perspicácia analítica e empatia profissional.
+2. Analise profundamente por que um paciente não foi atendido ou por que houve gargalos, cruzando:
+   - Especialidades autorizadas e restrição de Care Team (regra de ouro: terapeuta não autorizado jamais pode ser escalado).
+   - Janelas de horário diárias de cada profissional (início, término, dias de folga, bloqueios particulares).
+   - Turnos preferenciais do paciente (manhã vs tarde), janelas de disponibilidade e tempo de trânsito urbano entre bairros.
+3. Se perguntarem sobre um paciente específico (ex: Gabriel) ou profissional (ex: fisio1), avalie a compatibilidade de especialidades, o Care Team, a concorrência por horários matutinos com outros pacientes e a distribuição dos dias.
+4. Apresente soluções estratégicas de alto valor (permutas de horários, autorização no Care Team, ampliação de horário ou dias habilitados).
+5. Use formatação markdown rica com tópicos, negrito e emojis pertinentes.
+6. IMPORTANTE: Responda de forma completa, profunda e concluída, finalizando sempre seus raciocínios e recomendações sem deixar tópicos ou frases pela metade.`;
+
+    const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.25,
+              maxOutputTokens: 8192
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          console.warn(`[Gemini API] Falha no modelo ${model}:`, errData);
+          continue;
+        }
+
+        const data = await response.json();
+        // Concatena todas as partes (parts) do conteúdo para evitar truncamento quando o Gemini divide a resposta
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const fullText = parts.map((p: any) => p?.text || '').join('');
+        if (fullText && fullText.trim()) {
+          return fullText.trim();
+        }
+      } catch (err) {
+        console.warn(`[Gemini API] Erro ao chamar ${model}:`, err);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Processamento assíncrono avançado que conecta a IA Generativa do Google Gemini
+   */
+  public static async processMessageAsync(input: string, ctx: ScaleAgentContext): Promise<AgentExecutionResult> {
+    const text = input.trim();
+    const norm = this.normalizeText(text);
+
+    // Verbos explícitos de mutação imperativa
+    const hasMutationVerb =
+      norm.includes('mudar') || norm.includes('mude') ||
+      norm.includes('alterar') || norm.includes('altere') ||
+      norm.includes('ajustar') || norm.includes('ajuste') ||
+      norm.includes('aumentar') || norm.includes('aumente') ||
+      norm.includes('reduzir') || norm.includes('reduza') ||
+      norm.includes('ampliar') || norm.includes('amplie') ||
+      norm.includes('definir') || norm.includes('defina') ||
+      norm.includes('estender') || norm.includes('estenda') ||
+      norm.includes('trocar') || norm.includes('troque') ||
+      norm.includes('adicione') || norm.includes('adicionar') ||
+      norm.includes('vincular') || norm.includes('vincule') ||
+      norm.includes('remover') || norm.includes('remova') ||
+      norm.includes('habilite') || norm.includes('habilitar') ||
+      norm.includes('fixe') || norm.includes('fixar') ||
+      norm.includes('bloqueie') || norm.includes('bloquear');
+
+    // Se for comando direto de mutação de parâmetros, executa pelo motor determinístico
+    if (hasMutationVerb) {
+      const localResult = this.processMessage(input, ctx);
+      if (localResult.mutated) {
+        return localResult;
+      }
+    }
+
+    // Se houver chave Gemini configurada, chama o Google Gemini 2.5 Flash
+    const apiKey = this.getStoredApiKey();
+    if (apiKey) {
+      try {
+        const geminiReply = await this.callGemini(input, ctx, apiKey);
+        if (geminiReply) {
+          const diag = this.diagnoseScale(ctx);
+          return {
+            reply: geminiReply,
+            mutated: false,
+            suggestedActions: diag.suggestedActions.slice(0, 3)
+          };
+        }
+      } catch (e) {
+        console.warn('[ScaleAIAgent] Erro no Gemini, acionando fallback analítico:', e);
+      }
+    }
+
+    // Fallback: Motor analítico local robusto
+    return this.processMessage(input, ctx);
+  }
+
   /**
    * Analisa a escala atual e gera um diagnóstico completo dos gargalos
    */
@@ -292,15 +506,7 @@ export class ScaleAIAgent {
   ): AgentExecutionResult {
     const { scaleResult, careTeams, patientsWithDemands } = ctx;
 
-    const weekdayLabels: Record<number, string> = {
-      1: 'Segunda-feira',
-      2: 'Terça-feira',
-      3: 'Quarta-feira',
-      4: 'Quinta-feira',
-      5: 'Sexta-feira',
-      6: 'Sábado',
-      0: 'Domingo'
-    };
+    const weekdayLabels = WEEKDAY_LABELS;
 
     let reply = `### 🧑‍⚕️ Agenda & Disponibilidade: ${professional.professionalName}\n\n`;
 
@@ -345,7 +551,7 @@ export class ScaleAIAgent {
       const profSessions = scaleResult.plannedSessions.filter(
         (s) => s.professionalId === professional.professionalId
       );
-      reply += `\n#### 📅 Ocupação na Escala do Mês:\n`;
+      reply += `\n#### 📅 Atendimentos Agendados na Escala do Mês:\n`;
       reply += `• **Total de sessões atribuídas:** **${profSessions.length} sessões** no mês.\n`;
 
       if (profSessions.length === 0) {
@@ -360,7 +566,26 @@ export class ScaleAIAgent {
         patientCounts.forEach((count, patName) => {
           patientSummary.push(`${patName} (${count}x)`);
         });
-        reply += `• **Pacientes em atendimento:** ${patientSummary.join(', ')}\n`;
+        reply += `• **Pacientes em atendimento:** ${patientSummary.join(', ')}\n\n`;
+
+        // Grade Semanal Recorrente
+        const weeklyDist = new Map<string, { patientName: string; therapy: string; time: string; count: number }>();
+        profSessions.forEach((s) => {
+          const d = new Date(s.date + 'T12:00:00');
+          const dayName = weekdayLabels[d.getDay()] || 'Dia';
+          const key = `${dayName}-${s.time}-${s.patientName}`;
+          if (!weeklyDist.has(key)) {
+            weeklyDist.set(key, { patientName: s.patientName, therapy: s.therapyType, time: s.time, count: 1 });
+          } else {
+            weeklyDist.get(key)!.count++;
+          }
+        });
+
+        reply += `• **Grade de Atendimentos Recorrente:**\n`;
+        weeklyDist.forEach((val, key) => {
+          const [dayName] = key.split('-');
+          reply += `  - 🗓️ **${dayName} às ${val.time}:** ${val.patientName} (*${val.therapy}* — ${val.count}x no mês)\n`;
+        });
       }
     }
 
@@ -469,6 +694,28 @@ export class ScaleAIAgent {
       norm.includes('trocar') || norm.includes('troque');
 
     // ============================================================
+    // CASO 0: CONSULTA DE ATENDIMENTOS POR DIA ESPECÍFICO DO MÊS
+    // ============================================================
+    const dayMatch = norm.match(/(?:dia|data)\s+(\d{1,2})\b/);
+    if (
+      dayMatch &&
+      (hasQuestionIndicator ||
+        norm.includes('atend') ||
+        norm.includes('sess') ||
+        norm.includes('agenda') ||
+        norm.includes('escala') ||
+        norm.includes('rota') ||
+        norm.includes('quem') ||
+        norm.includes('o que tem') ||
+        norm.includes('visita'))
+    ) {
+      const dayNum = parseInt(dayMatch[1], 10);
+      if (dayNum >= 1 && dayNum <= 31) {
+        return this.explainDaySchedule(dayNum, ctx);
+      }
+    }
+
+    // ============================================================
     // CASO 1: CONSULTAS INFORMATIVAS DE PROFISSIONAL OU PACIENTE
     // ============================================================
     if (matchedProfessional && (hasQuestionIndicator || !hasMutationVerb)) {
@@ -500,6 +747,42 @@ export class ScaleAIAgent {
       ) {
         return this.explainPatientSituation(matchedPatient, ctx);
       }
+    }
+
+    // ============================================================
+    // CASO 1.5: CONSULTAS SOBRE O PANORAMA / RESULTADO DA ESCALA
+    // ============================================================
+    const isScaleOverview =
+      norm.includes('resumo da escala') ||
+      norm.includes('resultado da escala') ||
+      norm.includes('como ficou a escala') ||
+      norm.includes('como esta a escala') ||
+      norm.includes('como e a escala') ||
+      norm.includes('quantos atendimentos') ||
+      norm.includes('quantas sessoes') ||
+      norm.includes('total de atendimentos') ||
+      norm.includes('total de sessoes') ||
+      norm.includes('sessoes agendadas') ||
+      norm.includes('atendimentos agendados') ||
+      norm.includes('escala criada') ||
+      norm.includes('escala gerada') ||
+      norm.includes('escala pronta') ||
+      norm.includes('sobre a escala') ||
+      norm.includes('ver a escala') ||
+      norm.includes('mostrar a escala') ||
+      norm.includes('escala do mes') ||
+      norm.includes('escala mensal') ||
+      norm.includes('metricas da escala') ||
+      norm.includes('estatisticas da escala') ||
+      norm.includes('cobertura da escala') ||
+      norm.includes('taxa de cobertura') ||
+      norm.includes('distancia total') ||
+      norm.includes('deslocamento total') ||
+      norm.includes('quem atende quem') ||
+      (norm.includes('escala') && (hasQuestionIndicator || norm.includes('resumo') || norm.includes('status')));
+
+    if (isScaleOverview && !hasMutationVerb) {
+      return this.explainScaleOverview(ctx);
     }
 
     // ============================================================
@@ -589,14 +872,12 @@ export class ScaleAIAgent {
       norm.includes('dificuldade') ||
       norm.includes('fechar') ||
       norm.includes('ajuda') ||
-      norm.includes('como') ||
       norm.includes('diagnostico') ||
       norm.includes('por que') ||
       norm.includes('porque') ||
-      norm.includes('status') ||
-      norm.includes('cobertura') ||
       norm.includes('ocioso') ||
-      norm.includes('ociosidade')
+      norm.includes('ociosidade') ||
+      norm.includes('deficit')
     ) {
       const diag = this.diagnoseScale(ctx);
       let reply = `### 🧠 Diagnóstico da Escala Mensal\n\n${diag.summaryText}\n\n`;
@@ -733,7 +1014,7 @@ export class ScaleAIAgent {
       }
       nextIds = [...currentCt.professionalIds, professional.professionalId];
     } else {
-      nextIds = currentCt.professionalIds.filter((id) => id !== professional.professionalId);
+      nextIds = currentCt.professionalIds.filter((id: string) => id !== professional.professionalId);
     }
 
     const newCareTeams = [
@@ -1040,6 +1321,152 @@ export class ScaleAIAgent {
   }
 
   /**
+   * Apresenta o panorama executivo da escala mensal calculada, estatísticas e alocação por profissional
+   */
+  public static explainScaleOverview(ctx: ScaleAgentContext): AgentExecutionResult {
+    const { scaleResult, professionalAvailabilities } = ctx;
+
+    if (!scaleResult) {
+      return {
+        reply:
+          `### 📅 Escala Mensal Ainda Não Calculada\n\n` +
+          `Ainda não há atendimentos agendados para este mês na escala ativa.\n\n` +
+          `Para gerar a escala completa com base nas demandas dos pacientes, equipes autorizadas (Care Team) e horários de trabalho dos profissionais, clique no botão **"Recalcular Escala Mensal"** no topo da tela ou me peça: *"Calcular a escala mensal agora"*!`,
+        mutated: false,
+        suggestedActions: []
+      };
+    }
+
+    const { summary, plannedSessions, coverageReports, bottlenecks } = scaleResult;
+
+    const totalAllocated = (summary as any).totalAllocatedSessions ?? (summary as any).totalPlannedSessions ?? plannedSessions.length;
+    const coveragePct = (summary as any).globalCoveragePercent ?? (summary as any).overallCoveragePercent ?? (summary.totalDemandedSessions > 0 ? Math.round((totalAllocated / summary.totalDemandedSessions) * 100) : 100);
+    const transitKm = (summary as any).totalEstimatedTransitKm ?? (summary as any).totalTransitDistanceKm ?? 0;
+    const transitHours = (summary as any).totalEstimatedTransitHours ?? ((summary as any).totalTransitTimeMinutes ? Math.round((summary as any).totalTransitTimeMinutes / 60) : 0);
+
+    let reply = `### 📊 Panorama Geral da Escala Criada (${scaleResult.month}/${scaleResult.year})\n\n`;
+
+    // 1. Métricas Principais
+    const coverageIcon = coveragePct >= 95 ? '🟢' : coveragePct >= 75 ? '🟡' : '🔴';
+    reply += `• ${coverageIcon} **Taxa Geral de Cobertura:** **${coveragePct}%**\n`;
+    reply += `• 🗓️ **Sessões Planejadas:** **${totalAllocated}** de **${summary.totalDemandedSessions}** demandadas (${summary.totalDemandedSessions - totalAllocated} em déficit)\n`;
+    reply += `• 🚗 **Deslocamento Urbano Total:** **${transitKm} km** estimados (~${transitHours}h de trânsito otimizado entre domicílios)\n\n`;
+
+    // 2. Distribuição por Profissional
+    reply += `#### 🩺 Sessões Atribuídas por Terapeuta:\n`;
+    const profCounts = new Map<string, { name: string; count: number; spec: string }>();
+    professionalAvailabilities.forEach((p) => {
+      profCounts.set(p.professionalId, { name: p.professionalName, count: 0, spec: p.specialty });
+    });
+    plannedSessions.forEach((s) => {
+      const entry = profCounts.get(s.professionalId);
+      if (entry) {
+        entry.count++;
+      } else {
+        profCounts.set(s.professionalId, { name: s.professionalName, count: 1, spec: s.therapyType });
+      }
+    });
+
+    Array.from(profCounts.values())
+      .sort((a, b) => b.count - a.count)
+      .forEach((p) => {
+        const badge = p.count > 0 ? `**${p.count} sessões**` : `*0 sessões (Disponível)*`;
+        reply += `• **${p.name}** (*${p.spec}*): ${badge}\n`;
+      });
+
+    // 3. Status dos Pacientes
+    reply += `\n#### 👤 Cobertura por Paciente:\n`;
+    const fullPatients = coverageReports.filter((c) => c.status === 'FULL_COVERAGE');
+    const deficitPatients = coverageReports.filter((c) => c.status !== 'FULL_COVERAGE');
+
+    reply += `• ✅ **Metas 100% Cumpridas (${fullPatients.length}):** ${fullPatients.length > 0 ? fullPatients.map((p) => p.patientName).join(', ') : 'Nenhum'}\n`;
+    if (deficitPatients.length > 0) {
+      reply += `• ⚠️ **Com Déficit / Gargalo (${deficitPatients.length}):**\n`;
+      deficitPatients.forEach((d) => {
+        reply += `  - **${d.patientName}** (*${d.therapyType}*): ${d.allocatedMonthlySessions}/${d.demandedMonthlySessions} sessões (**${d.coveragePercent}%**)\n`;
+      });
+    }
+
+    // 4. Gargalos Principais
+    if (bottlenecks.length > 0) {
+      reply += `\n#### ⚠️ Gargalos Principais a Resolver (${bottlenecks.length}):\n`;
+      bottlenecks.slice(0, 3).forEach((b) => {
+        const reasonText =
+          b.reason === 'NO_CARE_TEAM_SPECIALIST'
+            ? 'Falta especialista no Care Team'
+            : 'Capacidade de horário esgotada';
+        reply += `• **${b.patientName}** (${b.therapyType}): ${reasonText}\n`;
+      });
+    }
+
+    reply += `\n💡 *Experimente perguntar:* *"Quais os atendimentos do Dr. Rafael?"*, *"Quem atende a Mariana?"* ou *"Atendimentos do dia 15"*.`;
+
+    const diag = this.diagnoseScale(ctx);
+    return {
+      reply,
+      mutated: false,
+      suggestedActions: diag.suggestedActions.slice(0, 3)
+    };
+  }
+
+  /**
+   * Detalha os atendimentos e rotas agendadas em um dia específico do mês
+   */
+  public static explainDaySchedule(dayNumber: number, ctx: ScaleAgentContext): AgentExecutionResult {
+    const { scaleResult } = ctx;
+
+    if (!scaleResult) {
+      return {
+        reply: `A escala ainda não foi gerada para avaliar os atendimentos do dia ${dayNumber}.`,
+        mutated: false
+      };
+    }
+
+    // Filtra sessões daquele dia
+    const daySessions = scaleResult.plannedSessions.filter((s) => {
+      const parts = s.date.split('-');
+      const d = parseInt(parts[2], 10);
+      return d === dayNumber;
+    });
+
+    if (daySessions.length === 0) {
+      return {
+        reply: `📅 **Dia ${dayNumber}/${scaleResult.month}/${scaleResult.year}:**\n\nNenhum atendimento domiciliar está agendado para esta data na escala atual.`,
+        mutated: false
+      };
+    }
+
+    daySessions.sort((a, b) => a.time.localeCompare(b.time));
+
+    let reply = `### 📅 Atendimentos Agendados para o Dia ${dayNumber}/${scaleResult.month}/${scaleResult.year} (${daySessions.length} sessões)\n\n`;
+
+    const byProf = new Map<string, PlannedSession[]>();
+    daySessions.forEach((s) => {
+      if (!byProf.has(s.professionalName)) {
+        byProf.set(s.professionalName, []);
+      }
+      byProf.get(s.professionalName)!.push(s);
+    });
+
+    byProf.forEach((sessions, profName) => {
+      reply += `#### 🧑‍⚕️ Rota de ${profName} (${sessions.length} visitas):\n`;
+      sessions.forEach((s, idx) => {
+        const transitInfo =
+          s.transitKmFromPrevious > 0
+            ? ` • 🚗 +${s.transitKmFromPrevious.toFixed(1)} km (~${s.transitTimeMinutes} min de trânsito)`
+            : ' • 🏁 Início da rota';
+        reply += `${idx + 1}. **${s.time}** — **${s.patientName}** (*${s.therapyType}*)${transitInfo}\n   📍 *${s.address}*\n`;
+      });
+      reply += `\n`;
+    });
+
+    return {
+      reply,
+      mutated: false
+    };
+  }
+
+  /**
    * Explica detalhadamente a situação clínica e os gargalos de um paciente específico
    */
   private static explainPatientSituation(
@@ -1057,7 +1484,7 @@ export class ScaleAIAgent {
 
     const report = scaleResult.coverageReports.filter((r) => r.patientId === patient.patientId);
     const sessions = scaleResult.plannedSessions.filter((s) => s.patientId === patient.patientId);
-    const ct = careTeams.find((c) => c.patientId === patient.patientId) || { professionalIds: [] };
+    const ct = careTeams.find((c) => c.patientId === patient.patientId) || { patientId: patient.patientId, professionalIds: [] as string[] };
     const patientBottlenecks = scaleResult.bottlenecks.filter((b) => b.patientId === patient.patientId);
 
     const authorizedProfs = professionalAvailabilities.filter((p) => ct.professionalIds.includes(p.professionalId));
@@ -1071,6 +1498,27 @@ export class ScaleAIAgent {
       const icon = r.status === 'FULL_COVERAGE' ? '✅' : r.status === 'PARTIAL_COVERAGE' ? '⚠️' : '🚨';
       reply += `• ${icon} **${r.therapyType}**: ${r.allocatedMonthlySessions} de ${r.demandedMonthlySessions} sessões alocadas (**${r.coveragePercent}%** de meta cumprida).\n`;
     });
+
+    if (sessions.length > 0) {
+      reply += `\n#### 🗓️ Atendimentos Agendados na Escala (${sessions.length} sessões no mês):\n`;
+      const weeklySchedule = new Map<string, { profName: string; therapy: string; count: number }>();
+      sessions.forEach((s) => {
+        const d = new Date(s.date + 'T12:00:00');
+        const dayName = WEEKDAY_LABELS[d.getDay()] || 'Dia';
+        const key = `Toda ${dayName} às ${s.time} com ${s.professionalName} (${s.therapyType})`;
+        if (!weeklySchedule.has(key)) {
+          weeklySchedule.set(key, { profName: s.professionalName, therapy: s.therapyType, count: 1 });
+        } else {
+          weeklySchedule.get(key)!.count++;
+        }
+      });
+
+      weeklySchedule.forEach((val, key) => {
+        reply += `• 🗓️ **${key}** — *${val.count}x no mês*\n`;
+      });
+    } else {
+      reply += `\n#### 🗓️ Atendimentos Agendados na Escala:\n• ⚠️ *Nenhuma sessão agendada no mês atual devido a gargalos de equipe ou horários.*\n`;
+    }
 
     if (patientBottlenecks.length > 0) {
       reply += `\n#### 🔍 Por que não atingiu 100%?\n`;
