@@ -20,7 +20,11 @@ import {
   Stethoscope,
   Sliders,
   Ban,
-  Lock
+  Lock,
+  Printer,
+  FileDown,
+  FileText,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { MonthlyScaleGenerator } from '../services/monthly-scale-generator';
 import './MonthlyScalePlannerView.css';
@@ -30,7 +34,7 @@ import { ALL_PRESET_LOCATIONS, resolveAddressCoordinates } from '../services/geo
 // Chave para persistência da escala mensal no localStorage para não perder ao trocar de tela
 export const SCALE_STORAGE_KEY = 'omnihome_monthly_scale_state_v4';
 
-const getInitialScaleSavedData = () => {
+export const getInitialScaleSavedData = () => {
   try {
     const raw = localStorage.getItem(SCALE_STORAGE_KEY);
     if (raw) return JSON.parse(raw);
@@ -39,8 +43,6 @@ const getInitialScaleSavedData = () => {
   }
   return null;
 };
-
-const initialSaved = getInitialScaleSavedData();
 
 // Polos regionais e metropolitanos em todo o Brasil para coordenadas geodésicas automáticas
 const SP_PRESET_LOCATIONS = ALL_PRESET_LOCATIONS;
@@ -62,7 +64,7 @@ const WEEKDAY_NAMES = {
   5: 'Sexta-feira'
 };
 
-const WEEKDAY_SHORT = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' };
+const WEEKDAY_SHORT = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 0: 'Dom' };
 
 export default function MonthlyScalePlannerView({
   patients = [],
@@ -71,13 +73,19 @@ export default function MonthlyScalePlannerView({
   onRegisterDoctorWithoutAccount,
   onNavigateToPatientsView
 }) {
-  const [selectedMonth, setSelectedMonth] = useState(initialSaved?.selectedMonth || '2026-10');
+  const [selectedMonth, setSelectedMonth] = useState(() => getInitialScaleSavedData()?.selectedMonth || '2026-10');
   const [activeTab, setActiveTab] = useState('demands'); // Inicia diretamente na aba de configuração de demandas e horários
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
   const [selectedPatientFilter, setSelectedPatientFilter] = useState('all');
   const [committedSuccess, setCommittedSuccess] = useState(false);
   const [saveExplicitSuccess, setSaveExplicitSuccess] = useState(false);
+
+  // Estados para Modal de Exportação da Escala em PDF
+  const [isPdfExportModalOpen, setIsPdfExportModalOpen] = useState(false);
+  const [pdfTargetType, setPdfTargetType] = useState('all'); // 'all' | 'patient' | 'professional'
+  const [pdfSelectedPatientId, setPdfSelectedPatientId] = useState('');
+  const [pdfSelectedDoctorId, setPdfSelectedDoctorId] = useState('');
 
   // Modal para buscar e adicionar pacientes já cadastrados na base do sistema
   const [isAddPatientFromBaseModalOpen, setIsAddPatientFromBaseModalOpen] = useState(false);
@@ -111,7 +119,7 @@ export default function MonthlyScalePlannerView({
   });
 
   // Atendimentos Fixados / Travados na Grade
-  const [fixedAppointments, setFixedAppointments] = useState(initialSaved?.fixedAppointments || []);
+  const [fixedAppointments, setFixedAppointments] = useState(() => getInitialScaleSavedData()?.fixedAppointments || []);
 
   // Modal para cadastrar atendimento fixo
   const [fixedAppointmentModalState, setFixedAppointmentModalState] = useState({
@@ -145,13 +153,13 @@ export default function MonthlyScalePlannerView({
   });
 
   // 1. Estado Dinâmico: Pacientes com DEMANDAS TERAPÊUTICAS do cadastro e BLOQUEIOS DE HORÁRIO
-  const [patientsWithDemands, setPatientsWithDemands] = useState(initialSaved?.patientsWithDemands || []);
+  const [patientsWithDemands, setPatientsWithDemands] = useState(() => getInitialScaleSavedData()?.patientsWithDemands || []);
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
-  const [professionalAvailabilities, setProfessionalAvailabilities] = useState(initialSaved?.professionalAvailabilities || []);
+  const [professionalAvailabilities, setProfessionalAvailabilities] = useState(() => getInitialScaleSavedData()?.professionalAvailabilities || []);
 
   // 3. Vínculos de Care Team (Restrição de Ouro)
-  const [careTeams, setCareTeams] = useState(initialSaved?.careTeams || []);
+  const [careTeams, setCareTeams] = useState(() => getInitialScaleSavedData()?.careTeams || []);
 
   // Sincroniza pacientes cadastrados com demandas caso o planejador esteja vazio
   useEffect(() => {
@@ -235,6 +243,7 @@ export default function MonthlyScalePlannerView({
         sessionsPerWeek: d.sessionsPerWeek,
         durationMinutes: d.durationMinutes,
         preferredShift: d.preferredShift,
+        availableWindows: d.availableWindows,
         location: p.location,
         address: p.address,
         unavailabilityBlocks: p.unavailabilityBlocks || []
@@ -245,8 +254,9 @@ export default function MonthlyScalePlannerView({
   // Estado da escala gerada
   const [scaleResult, setScaleResult] = useState(() => {
     try {
-      if (initialSaved?.scaleResult && initialSaved.scaleResult.plannedSessions && initialSaved.scaleResult.summary) {
-        return initialSaved.scaleResult;
+      const saved = getInitialScaleSavedData();
+      if (saved?.scaleResult && saved.scaleResult.plannedSessions && saved.scaleResult.plannedSessions.length > 0) {
+        return saved.scaleResult;
       }
       const generator = new MonthlyScaleGenerator(28, 12);
       return generator.generateMonthlyScale({
@@ -267,6 +277,15 @@ export default function MonthlyScalePlannerView({
   useEffect(() => {
     if (patientsWithDemands.length > 0 || professionalAvailabilities.length > 0 || scaleResult) {
       try {
+        let resultToSave = scaleResult;
+        // Blindagem contra perda de dados: se scaleResult for nulo ou vazio, preservar o resultado já salvo previamente
+        if (!resultToSave || !resultToSave.plannedSessions || resultToSave.plannedSessions.length === 0) {
+          const prevSaved = getInitialScaleSavedData();
+          if (prevSaved?.scaleResult?.plannedSessions && prevSaved.scaleResult.plannedSessions.length > 0) {
+            resultToSave = prevSaved.scaleResult;
+          }
+        }
+
         localStorage.setItem(
           SCALE_STORAGE_KEY,
           JSON.stringify({
@@ -275,7 +294,7 @@ export default function MonthlyScalePlannerView({
             professionalAvailabilities,
             careTeams,
             fixedAppointments,
-            scaleResult,
+            scaleResult: resultToSave,
             savedAt: new Date().toISOString()
           })
         );
@@ -304,6 +323,7 @@ export default function MonthlyScalePlannerView({
         sessionsPerWeek: d.sessionsPerWeek,
         durationMinutes: d.durationMinutes,
         preferredShift: d.preferredShift,
+        availableWindows: d.availableWindows,
         location: p.location,
         address: p.address,
         unavailabilityBlocks: p.unavailabilityBlocks || []
@@ -893,7 +913,7 @@ export default function MonthlyScalePlannerView({
     runGeneration(patientsWithDemands, nextProfs, nextCareTeams);
   };
 
-  // Salvar explicitamente a escala e seus parâmetros no localStorage
+  // Salvar explicitamente a escala e seus parâmetros no localStorage E sincronizar com a Agenda e Rota do Dia
   const handleSaveScaleExplicitly = () => {
     try {
       localStorage.setItem(
@@ -908,8 +928,31 @@ export default function MonthlyScalePlannerView({
           savedAt: new Date().toISOString()
         })
       );
+
+      // Sincroniza imediatamente com a agenda e rota do dia se houver sessões planejadas
+      if (scaleResult && scaleResult.plannedSessions && scaleResult.plannedSessions.length > 0 && onCommitScaleToAppointments) {
+        const appointmentsToSave = scaleResult.plannedSessions.map((s) => ({
+          id: `apt-plan-${s.id}`,
+          patientId: s.patientId,
+          doctorId: s.professionalId,
+          date: s.date,
+          time: s.time,
+          status: 'waiting',
+          type: 'home',
+          notes: `Plano Terapêutico: ${s.therapyType} (${s.transitKmFromPrevious.toFixed(1)} km da parada anterior)`,
+          address: s.address,
+          accessNotes: 'Sessão gerada pelo motor de escala mensal automatizada.',
+          transitTime: `${s.transitTimeMinutes} min de trânsito estimado`,
+          transitTimeMinutes: s.transitTimeMinutes,
+          transitKmFromPrevious: s.transitKmFromPrevious,
+          durationMinutes: s.durationMinutes || 45,
+          therapyType: s.therapyType
+        }));
+        onCommitScaleToAppointments(appointmentsToSave, scaleResult);
+      }
+
       setSaveExplicitSuccess(true);
-      setTimeout(() => setSaveExplicitSuccess(false), 3500);
+      setTimeout(() => setSaveExplicitSuccess(false), 4000);
     } catch (err) {
       alert('Erro ao salvar escala localmente: ' + err.message);
     }
@@ -945,6 +988,93 @@ export default function MonthlyScalePlannerView({
       setCommittedSuccess(true);
       setTimeout(() => setCommittedSuccess(false), 4000);
     }
+  };
+
+  // ----------------------------------------------------
+  // GERAÇÃO DO CALENDÁRIO MENSAL EM FORMATO PDF
+  // (Cada linha uma semana começando na Segunda e terminando no Domingo)
+  // ----------------------------------------------------
+  const calendarMonthData = useMemo(() => {
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+
+    const monthNames = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const monthTitle = `${monthNames[month - 1]} de ${year}`;
+
+    const firstDay = new Date(year, month - 1, 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Começa na Segunda-feira (1):
+    // 0 = Domingo -> offset 6
+    // 1 = Segunda -> offset 0
+    // 2 = Terça   -> offset 1
+    // 3 = Quarta  -> offset 2
+    // 4 = Quinta  -> offset 3
+    // 5 = Sexta   -> offset 4
+    // 6 = Sábado  -> offset 5
+    const startOffset = (firstDay.getDay() + 6) % 7;
+
+    const weeks = [];
+    let currentWeek = [];
+
+    // Células vazias antes do dia 1
+    for (let i = 0; i < startOffset; i++) {
+      currentWeek.push({ dayNumber: null, dateStr: null, isCurrentMonth: false });
+    }
+
+    // Dias do mês
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      currentWeek.push({ dayNumber: day, dateStr, isCurrentMonth: true });
+
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+
+    // Completa a última semana até 7 dias (Domingo)
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push({ dayNumber: null, dateStr: null, isCurrentMonth: false });
+      }
+      weeks.push(currentWeek);
+    }
+
+    return { year, month, monthTitle, weeks };
+  }, [selectedMonth]);
+
+  // Sessões filtradas para o relatório PDF
+  const pdfSessions = useMemo(() => {
+    if (!scaleResult || !scaleResult.plannedSessions) return [];
+    return scaleResult.plannedSessions.filter((s) => {
+      if (pdfTargetType === 'patient') {
+        return pdfSelectedPatientId ? s.patientId === pdfSelectedPatientId : true;
+      }
+      if (pdfTargetType === 'professional') {
+        return pdfSelectedDoctorId ? s.professionalId === pdfSelectedDoctorId : true;
+      }
+      return true;
+    });
+  }, [scaleResult, pdfTargetType, pdfSelectedPatientId, pdfSelectedDoctorId]);
+
+  const handleOpenPdfExport = () => {
+    // Inicializa seleção padrão se não selecionado
+    if (!pdfSelectedPatientId && patientsWithDemands.length > 0) {
+      setPdfSelectedPatientId(patientsWithDemands[0].patientId);
+    }
+    if (!pdfSelectedDoctorId && professionalAvailabilities.length > 0) {
+      setPdfSelectedDoctorId(professionalAvailabilities[0].professionalId);
+    }
+    setIsPdfExportModalOpen(true);
+  };
+
+  const handlePrintPdf = () => {
+    window.print();
   };
 
   // Sessões filtradas para exibição no calendário
@@ -1017,10 +1147,21 @@ export default function MonthlyScalePlannerView({
             className="btn btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.6rem 1rem', fontWeight: 700 }}
             onClick={handleSaveScaleExplicitly}
-            title="Salva a escala e todos os parâmetros no navegador para não perder ao trocar de tela"
+            title="Salva a escala e todos os parâmetros no navegador e envia diretamente para a Agenda e Rota do Dia"
           >
             <Save size={18} color="var(--primary)" />
-            {saveExplicitSuccess ? '✓ Escala Salva!' : '💾 Salvar Escala'}
+            {saveExplicitSuccess ? '✓ Escala Salva & Sincronizada!' : '💾 Salvar Escala'}
+          </button>
+
+          {/* Botão de Exportar Escala em Formato PDF (Calendário Mensal) */}
+          <button
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.6rem 1rem', fontWeight: 700, background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+            onClick={handleOpenPdfExport}
+            title="Exporta a escala do paciente ou profissional em formato de calendário mensal (PDF limpo e estético)"
+          >
+            <Printer size={18} color="#059669" />
+            <span>📄 Exportar Escala em PDF</span>
           </button>
 
           {scaleResult && scaleResult.plannedSessions.length > 0 && (
@@ -1050,7 +1191,7 @@ export default function MonthlyScalePlannerView({
           fontWeight: 600
         }}>
           <CheckCircle2 size={20} color="var(--primary)" />
-          Escala mensal e parâmetros salvos com sucesso! Você pode navegar pelo sistema ou sair da tela sem perder nenhuma alteração.
+          Escala mensal salva com sucesso e sincronizada com a Agenda e Rota do Dia! Você pode navegar pelo sistema ou sair da tela sem perder nenhuma alteração.
         </div>
       )}
 
@@ -1982,9 +2123,35 @@ export default function MonthlyScalePlannerView({
                             color: 'var(--text-body)',
                             marginTop: '0.35rem'
                           }}>
-                            <span>Turno: <strong>{demand.preferredShift === 'morning' ? 'Manhã' : demand.preferredShift === 'afternoon' ? 'Tarde' : 'Qualquer horário'}</strong></span>
+                            <span>Frequência: <strong>{demand.sessionsPerWeek}x / semana</strong></span>
                             <span>Duração: <strong>{demand.durationMinutes || 45} min</strong></span>
                           </div>
+
+                          {demand.availableWindows && (
+                            <div style={{ marginTop: '0.35rem', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                              {Object.entries(demand.availableWindows)
+                                .filter(([_, win]) => win.enabled)
+                                .map(([dNum, win]) => (
+                                  <span
+                                    key={dNum}
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      background: 'var(--primary-subtle)',
+                                      color: 'var(--primary)',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px'
+                                    }}
+                                  >
+                                    <Clock size={10} />
+                                    {WEEKDAY_SHORT[dNum]}: {win.startTime}-{win.endTime}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
                         </div>
                       ))}
 
@@ -3000,6 +3167,406 @@ export default function MonthlyScalePlannerView({
           </div>
         </div>
       )}
+
+      {/* -------------------------------------------------------------------------- */}
+      {/* MODAL DE EXPORTAÇÃO DA ESCALA EM FORMATO PDF (CALENDÁRIO MENSAL)           */}
+      {/* -------------------------------------------------------------------------- */}
+      {isPdfExportModalOpen && (
+        <div className="modal-backdrop no-print" onClick={() => setIsPdfExportModalOpen(false)}>
+          <div
+            className="modal-content"
+            style={{ maxWidth: '1050px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Printer size={22} color="var(--primary)" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-headline)' }}>
+                    Exportar Escala em PDF — Calendário Mensal
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Visualização em formato de calendário semanal (Segunda a Domingo), limpa e pronta para impressão ou exportação em PDF.
+                  </p>
+                </div>
+              </div>
+              <button className="btn-icon" onClick={() => setIsPdfExportModalOpen(false)} type="button">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
+              {/* Barra de Filtros e Ação */}
+              <div style={{
+                background: 'var(--bg-surface-hover)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '10px',
+                padding: '0.85rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-headline)' }}>Filtrar Escala:</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="pdfTargetType"
+                        value="all"
+                        checked={pdfTargetType === 'all'}
+                        onChange={() => setPdfTargetType('all')}
+                      />
+                      Geral (Equipe)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="pdfTargetType"
+                        value="patient"
+                        checked={pdfTargetType === 'patient'}
+                        onChange={() => setPdfTargetType('patient')}
+                      />
+                      Por Paciente
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="pdfTargetType"
+                        value="professional"
+                        checked={pdfTargetType === 'professional'}
+                        onChange={() => setPdfTargetType('professional')}
+                      />
+                      Por Profissional
+                    </label>
+                  </div>
+
+                  {pdfTargetType === 'patient' && (
+                    <select
+                      className="form-select"
+                      style={{ fontSize: '0.82rem', minWidth: '220px' }}
+                      value={pdfSelectedPatientId}
+                      onChange={(e) => setPdfSelectedPatientId(e.target.value)}
+                    >
+                      {patientsWithDemands.map((p) => (
+                        <option key={p.patientId} value={p.patientId}>
+                          👤 Paciente: {p.patientName}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {pdfTargetType === 'professional' && (
+                    <select
+                      className="form-select"
+                      style={{ fontSize: '0.82rem', minWidth: '220px' }}
+                      value={pdfSelectedDoctorId}
+                      onChange={(e) => setPdfSelectedDoctorId(e.target.value)}
+                    >
+                      {professionalAvailabilities.map((doc) => (
+                        <option key={doc.professionalId} value={doc.professionalId}>
+                          🧑‍⚕️ Terapeuta: {doc.professionalName} ({doc.specialty})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handlePrintPdf}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1.1rem', fontWeight: 700 }}
+                >
+                  <Printer size={16} />
+                  Imprimir / Salvar em PDF
+                </button>
+              </div>
+
+              {/* PRÉVIA DO CALENDÁRIO MENSAL NA TELA */}
+              <div style={{
+                background: '#ffffff',
+                color: '#1e293b',
+                padding: '1.5rem',
+                borderRadius: '10px',
+                border: '1px solid var(--border-light)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+              }}>
+                {/* Cabeçalho do Documento */}
+                <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: '0.85rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0284c7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      PROJETO SAÚDE • GESTÃO INTEGRADA DE REABILITAÇÃO DOMICILIAR
+                    </span>
+                    <h2 style={{ margin: '0.2rem 0', fontSize: '1.35rem', color: '#0f172a', fontWeight: 800 }}>
+                      ESCALA MENSAL DE ATENDIMENTO — {calendarMonthData.monthTitle.toUpperCase()}
+                    </h2>
+                    <div style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
+                      {pdfTargetType === 'patient' && (
+                        <span>
+                          Paciente: <strong>{patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.patientName || 'Todos os Pacientes'}</strong>
+                          {' '}• Endereço: {patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.address || 'Não especificado'}
+                        </span>
+                      )}
+                      {pdfTargetType === 'professional' && (
+                        <span>
+                          Profissional: <strong>{professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.professionalName || 'Toda a Equipe'}</strong>
+                          {' '}• Especialidade: {professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.specialty}
+                        </span>
+                      )}
+                      {pdfTargetType === 'all' && (
+                        <span>Escala Geral Multidisciplinar da Equipe • Todas as Especialidades</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div>Total de Sessões no Mês: <strong style={{ color: '#0284c7', fontSize: '0.95rem' }}>{pdfSessions.length}</strong></div>
+                    <div>Carga Estimada: <strong>~{Math.round((pdfSessions.length * 45) / 60)}h</strong> de reabilitação</div>
+                  </div>
+                </div>
+
+                {/* Grade do Calendário Mensal: 7 colunas (Segunda a Domingo), cada linha uma semana */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', background: '#e2e8f0', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
+                  {/* Cabeçalho dos 7 dias da semana começando na Segunda */}
+                  {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((dayName, idx) => (
+                    <div
+                      key={dayName}
+                      style={{
+                        background: idx < 5 ? '#0284c7' : '#0369a1',
+                        color: '#ffffff',
+                        padding: '0.45rem 0.25rem',
+                        textAlign: 'center',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      {dayName}
+                    </div>
+                  ))}
+
+                  {/* Semanas em Linhas */}
+                  {calendarMonthData.weeks.map((week, wIdx) => (
+                    <React.Fragment key={wIdx}>
+                      {week.map((cell, cIdx) => {
+                        const sessionsInCell = cell.dateStr ? pdfSessions.filter((s) => s.date === cell.dateStr) : [];
+                        const isWeekend = cIdx >= 5;
+
+                        return (
+                          <div
+                            key={cIdx}
+                            style={{
+                              background: cell.isCurrentMonth ? (isWeekend ? '#f8fafc' : '#ffffff') : '#f1f5f9',
+                              minHeight: '105px',
+                              padding: '0.35rem',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              borderRight: cIdx < 6 ? '1px solid #e2e8f0' : 'none',
+                              borderBottom: wIdx < calendarMonthData.weeks.length - 1 ? '1px solid #e2e8f0' : 'none'
+                            }}
+                          >
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: '0.25rem'
+                            }}>
+                              <span style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 800,
+                                color: cell.isCurrentMonth ? '#0f172a' : '#94a3b8',
+                                background: cell.isCurrentMonth && sessionsInCell.length > 0 ? '#e0f2fe' : 'transparent',
+                                borderRadius: '4px',
+                                padding: '1px 5px'
+                              }}>
+                                {cell.dayNumber || ''}
+                              </span>
+                              {sessionsInCell.length > 0 && (
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0284c7' }}>
+                                  {sessionsInCell.length} {sessionsInCell.length === 1 ? 'sessão' : 'sessões'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, overflowY: 'auto' }}>
+                              {sessionsInCell.map((sess) => (
+                                <div
+                                  key={sess.id}
+                                  style={{
+                                    background: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
+                                    borderRadius: '4px',
+                                    padding: '3px 5px',
+                                    fontSize: '0.68rem',
+                                    lineHeight: 1.25,
+                                    color: '#166534'
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 800, color: '#0f766e', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>⏰ {sess.time}</span>
+                                    <span>({sess.durationMinutes || 45}m)</span>
+                                  </div>
+                                  <div style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {pdfTargetType === 'patient' ? `🧑‍⚕️ ${sess.professionalName}` : `👤 ${sess.patientName}`}
+                                  </div>
+                                  <div style={{ fontSize: '0.62rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    🏥 {sess.therapyType}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                {/* Rodapé do Relatório */}
+                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
+                  <span>Emitido pelo Sistema OmniHome • Projeto Saúde</span>
+                  <span>Data de Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-light)', padding: '0.75rem 1rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsPdfExportModalOpen(false)}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handlePrintPdf}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+              >
+                <Printer size={16} />
+                Imprimir / Salvar em PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------------------- */}
+      {/* ÁREA DE IMPRESSÃO DEDICADA (@media print / .print-only)                    */}
+      {/* -------------------------------------------------------------------------- */}
+      <div className="print-only" style={{ padding: '20px', fontFamily: 'Inter, system-ui, sans-serif', color: '#000000', background: '#ffffff' }}>
+        <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: '10px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              PROJETO SAÚDE • GESTÃO INTEGRADA DE REABILITAÇÃO DOMICILIAR
+            </div>
+            <h1 style={{ margin: '3px 0', fontSize: '18px', color: '#0f172a', fontWeight: 800 }}>
+              ESCALA MENSAL DE ATENDIMENTO — {calendarMonthData.monthTitle.toUpperCase()}
+            </h1>
+            <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600 }}>
+              {pdfTargetType === 'patient' && (
+                <span>
+                  Paciente: <strong>{patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.patientName || 'Todos os Pacientes'}</strong>
+                  {' '}• Endereço: {patientsWithDemands.find((p) => p.patientId === pdfSelectedPatientId)?.address}
+                </span>
+              )}
+              {pdfTargetType === 'professional' && (
+                <span>
+                  Profissional: <strong>{professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.professionalName || 'Toda a Equipe'}</strong>
+                  {' '}• Especialidade: {professionalAvailabilities.find((p) => p.professionalId === pdfSelectedDoctorId)?.specialty}
+                </span>
+              )}
+              {pdfTargetType === 'all' && (
+                <span>Escala Geral Multidisciplinar da Equipe • Todas as Especialidades</span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569' }}>
+            <div>Total de Sessões no Mês: <strong style={{ color: '#0284c7', fontSize: '13px' }}>{pdfSessions.length}</strong></div>
+            <div>Carga Estimada: <strong>~{Math.round((pdfSessions.length * 45) / 60)}h</strong> de reabilitação</div>
+          </div>
+        </div>
+
+        {/* Grade 7 Colunas para Impressão */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: '#94a3b8', border: '1px solid #64748b' }}>
+          {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((dayName) => (
+            <div
+              key={dayName}
+              style={{
+                background: '#0284c7',
+                color: '#ffffff',
+                padding: '5px 2px',
+                textAlign: 'center',
+                fontSize: '11px',
+                fontWeight: 800,
+                textTransform: 'uppercase'
+              }}
+            >
+              {dayName}
+            </div>
+          ))}
+
+          {calendarMonthData.weeks.map((week, wIdx) => (
+            <React.Fragment key={wIdx}>
+              {week.map((cell, cIdx) => {
+                const sessionsInCell = cell.dateStr ? pdfSessions.filter((s) => s.date === cell.dateStr) : [];
+                return (
+                  <div
+                    key={cIdx}
+                    style={{
+                      background: cell.isCurrentMonth ? '#ffffff' : '#f1f5f9',
+                      minHeight: '90px',
+                      padding: '4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      border: '1px solid #cbd5e1'
+                    }}
+                  >
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: cell.isCurrentMonth ? '#000000' : '#94a3b8', marginBottom: '2px' }}>
+                      {cell.dayNumber || ''}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                      {sessionsInCell.map((sess) => (
+                        <div
+                          key={sess.id}
+                          style={{
+                            background: '#f8fafc',
+                            border: '1px solid #94a3b8',
+                            borderRadius: '2px',
+                            padding: '2px 4px',
+                            fontSize: '9px',
+                            lineHeight: 1.2
+                          }}
+                        >
+                          <div style={{ fontWeight: 800 }}>⏰ {sess.time} ({sess.durationMinutes || 45}m)</div>
+                          <div style={{ fontWeight: 700 }}>
+                            {pdfTargetType === 'patient' ? `🧑‍⚕️ ${sess.professionalName}` : `👤 ${sess.patientName}`}
+                          </div>
+                          <div style={{ fontSize: '8px', color: '#475569' }}>
+                            🏥 {sess.therapyType}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div style={{ marginTop: '15px', paddingTop: '8px', borderTop: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#475569' }}>
+          <span>Projeto Saúde • Sistema de Gestão Clínica</span>
+          <span>Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</span>
+        </div>
+      </div>
     </div>
   );
 }

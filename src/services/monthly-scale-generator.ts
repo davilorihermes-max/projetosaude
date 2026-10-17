@@ -31,12 +31,14 @@ export interface PatientTherapyDemand {
   id?: string;
   patientId: string;
   patientName: string;
-  therapyType: string; // Ex: 'Fisioterapia Cardiorrespiratória & Motora', 'Fisioterapia Motora', 'Fonoaudiologia'
+  therapyType: string; // Ex: 'Fisioterapia Motora', 'Fisioterapia Respiratória', 'Terapia Ocupacional', 'Fonoaudiologia'
   sessionsPerWeek: number; // Ex: 1 a 5 vezes por semana
   durationMinutes: number; // Ex: 45 ou 60 minutos
   preferredShift: 'morning' | 'afternoon' | 'any';
   location: Coordinates;
   address: string;
+  // Dias da semana e horários específicos disponíveis para esta terapia
+  availableWindows?: { [dayOfWeek: number]: DayTimeWindow };
   // Bloqueios de indisponibilidade do paciente (consultas externas, diálise, compromissos familiares)
   unavailabilityBlocks?: TimeBlock[];
 }
@@ -51,6 +53,7 @@ export interface ProfessionalAvailability {
   professionalId: string;
   professionalName: string;
   specialty: string;
+  specialties?: string[]; // Suporte a até 3 especialidades padronizadas
   baseLocation: Coordinates;
   // Disponibilidade por horário em cada dia da semana (1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex)
   weekdayWindows?: { [dayOfWeek: number]: DayTimeWindow };
@@ -440,8 +443,11 @@ export class MonthlyScaleGenerator {
         if (!allowedProfessionals.has(prof.professionalId)) {
           return false;
         }
-        // Regra 2: Especialidade compatível
-        return this.isSpecialtyCompatible(prof.specialty, demand.therapyType);
+        // Regra 2: Especialidade compatível (avalia array ou string)
+        const profSpecs = (prof.specialties && Array.isArray(prof.specialties) && prof.specialties.length > 0)
+          ? prof.specialties
+          : prof.specialty;
+        return this.isSpecialtyCompatible(profSpecs, demand.therapyType);
       });
 
       if (eligibleProfessionals.length === 0) {
@@ -482,6 +488,14 @@ export class MonthlyScaleGenerator {
 
         for (const day of candidateDays) {
           if (sessionsAllocatedInWeek >= demand.sessionsPerWeek) break;
+
+          // Checa se o paciente disponibilizou este dia da semana para esta necessidade terapêutica
+          if (demand.availableWindows && demand.availableWindows[day.dayOfWeek]) {
+            const patDayWindow = demand.availableWindows[day.dayOfWeek];
+            if (!patDayWindow.enabled) {
+              continue; // O paciente não pode receber atendimento nesta terapia neste dia
+            }
+          }
 
           // Já possui sessão desta MESMA terapia neste mesmo dia?
           const alreadyHasSameTherapyToday = plannedSessions.some(
@@ -525,7 +539,6 @@ export class MonthlyScaleGenerator {
             const patientDaySessions = dayPatMap.get(demand.patientId)!;
 
             // 2. Gera horários candidatos dentro da jornada diária do profissional
-            // Sem limite artificial de sessões: testa slots ao longo da janela [windowStartMin, windowEndMin]
             const candidateStartMinutes: number[] = [];
 
             // Adiciona horários a cada 30 minutos dentro da janela
@@ -573,26 +586,53 @@ export class MonthlyScaleGenerator {
 
             candidateStartMinutes.sort((a, b) => a - b);
 
-            // Filtra conforme o turno preferencial do paciente (se aplicável)
+            // Janela específica de horários disponibilizada pelo paciente para esta terapia
+            let patientSlotStart = 8 * 60;
+            let patientSlotEnd = 18 * 60;
+            const hasExplicitPatientWindow = Boolean(
+              demand.availableWindows &&
+              demand.availableWindows[day.dayOfWeek] &&
+              demand.availableWindows[day.dayOfWeek].enabled
+            );
+
+            if (hasExplicitPatientWindow) {
+              patientSlotStart = timeStringToMinutes(demand.availableWindows![day.dayOfWeek].startTime);
+              patientSlotEnd = timeStringToMinutes(demand.availableWindows![day.dayOfWeek].endTime);
+            }
+
+            // Filtra conforme os horários disponíveis do paciente
             const filteredSlots = candidateStartMinutes.filter((slotMin) => {
+              const slotEnd = slotMin + demand.durationMinutes;
+              if (hasExplicitPatientWindow) {
+                return slotMin >= patientSlotStart && slotEnd <= patientSlotEnd;
+              }
               if (demand.preferredShift === 'morning') {
-                return slotMin < 12 * 60; // Inicia antes do meio-dia
+                return slotMin < 12 * 60;
               }
               if (demand.preferredShift === 'afternoon') {
-                return slotMin >= 12 * 60; // Inicia a partir do meio-dia
+                return slotMin >= 12 * 60;
               }
-              return true; // 'any'
+              return true;
             });
 
-            // Se nenhum slot coincidir com o turno preferido, tenta os demais slots dentro da jornada do terapeuta
-            const slotsToTest = filteredSlots.length > 0 ? filteredSlots : candidateStartMinutes;
+            // Se o paciente definiu janela explícita, NÃO relaxa para fora dos horários dele!
+            const slotsToTest = hasExplicitPatientWindow
+              ? filteredSlots
+              : (filteredSlots.length > 0 ? filteredSlots : candidateStartMinutes);
 
             for (const sessionStartMin of slotsToTest) {
               const sessionEndMin = sessionStartMin + demand.durationMinutes;
 
-              // A sessão precisa caber estritamente dentro da janela de jornada diária do profissional
+              // A sessão precisa caber estritamente dentro da janela de jornada do profissional
               if (sessionStartMin < windowStartMin || sessionEndMin > windowEndMin) {
                 continue;
+              }
+
+              // A sessão precisa caber estritamente dentro da disponibilidade do paciente
+              if (hasExplicitPatientWindow) {
+                if (sessionStartMin < patientSlotStart || sessionEndMin > patientSlotEnd) {
+                  continue;
+                }
               }
 
               // Checagem A: Conflito de horário com outras sessões já marcadas do profissional

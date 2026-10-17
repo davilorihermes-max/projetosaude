@@ -1,6 +1,6 @@
 // src/components/NewPatientModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, MapPin, Stethoscope, Plus, Trash2, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { X, UserPlus, MapPin, Stethoscope, Plus, Trash2, CheckCircle2, ShieldCheck, Clock, Calendar, Zap } from 'lucide-react';
 import { resolveAddressCoordinates } from '../services/geocodingService';
 
 export const CLINICAL_SPECIALTY_OPTIONS = [
@@ -11,6 +11,28 @@ export const CLINICAL_SPECIALTY_OPTIONS = [
 ];
 
 export const THERAPY_OPTIONS = CLINICAL_SPECIALTY_OPTIONS;
+
+const WEEKDAYS = [
+  { num: 1, label: 'Seg', full: 'Segunda-feira' },
+  { num: 2, label: 'Ter', full: 'Terça-feira' },
+  { num: 3, label: 'Qua', full: 'Quarta-feira' },
+  { num: 4, label: 'Qui', full: 'Quinta-feira' },
+  { num: 5, label: 'Sex', full: 'Sexta-feira' },
+  { num: 6, label: 'Sáb', full: 'Sábado' }
+];
+
+const createDefaultWindows = (shift = 'any') => {
+  const start = shift === 'afternoon' ? '13:00' : '08:00';
+  const end = shift === 'morning' ? '12:00' : '18:00';
+  return {
+    1: { enabled: true, startTime: start, endTime: end },
+    2: { enabled: true, startTime: start, endTime: end },
+    3: { enabled: true, startTime: start, endTime: end },
+    4: { enabled: true, startTime: start, endTime: end },
+    5: { enabled: true, startTime: start, endTime: end },
+    6: { enabled: false, startTime: '08:00', endTime: '12:00' }
+  };
+};
 
 export default function NewPatientModal({
   isOpen,
@@ -37,7 +59,8 @@ export default function NewPatientModal({
       therapyType: 'Fisioterapia Motora',
       sessionsPerWeek: 2,
       durationMinutes: 45,
-      preferredShift: 'morning'
+      preferredShift: 'morning',
+      availableWindows: createDefaultWindows('morning')
     }
   ]);
 
@@ -64,7 +87,13 @@ export default function NewPatientModal({
       }
       setCaregiver(initialPatientData.caregiver || '');
       if (initialPatientData.demands && initialPatientData.demands.length > 0) {
-        setDemands(initialPatientData.demands);
+        const normalized = initialPatientData.demands.map((d) => ({
+          ...d,
+          availableWindows: (d.availableWindows && Object.keys(d.availableWindows).length > 0)
+            ? d.availableWindows
+            : createDefaultWindows(d.preferredShift || 'any')
+        }));
+        setDemands(normalized);
       }
       const initialTeam = initialPatientData.careTeamProfessionalIds ||
         initialPatientData.careTeamMembers?.map((m) => m.professionalId || m) || [];
@@ -86,7 +115,8 @@ export default function NewPatientModal({
           therapyType: 'Fisioterapia Motora',
           sessionsPerWeek: 2,
           durationMinutes: 45,
-          preferredShift: 'morning'
+          preferredShift: 'morning',
+          availableWindows: createDefaultWindows('morning')
         }
       ]);
       setSelectedCareTeamIds([]);
@@ -124,7 +154,8 @@ export default function NewPatientModal({
       therapyType: THERAPY_OPTIONS[demands.length % THERAPY_OPTIONS.length],
       sessionsPerWeek: 2,
       durationMinutes: 45,
-      preferredShift: 'morning'
+      preferredShift: 'morning',
+      availableWindows: createDefaultWindows('morning')
     };
     setDemands([...demands, newDemand]);
   };
@@ -134,6 +165,87 @@ export default function NewPatientModal({
     updated[index] = {
       ...updated[index],
       [field]: field === 'sessionsPerWeek' || field === 'durationMinutes' ? Number(value) : value
+    };
+    setDemands(updated);
+  };
+
+  const handleToggleDemandDay = (demandIndex, dayNum) => {
+    const updated = [...demands];
+    const target = updated[demandIndex];
+    const windows = target.availableWindows || createDefaultWindows(target.preferredShift);
+    const curDay = windows[dayNum] || { enabled: false, startTime: '08:00', endTime: '18:00' };
+
+    updated[demandIndex] = {
+      ...target,
+      availableWindows: {
+        ...windows,
+        [dayNum]: {
+          ...curDay,
+          enabled: !curDay.enabled
+        }
+      }
+    };
+    setDemands(updated);
+  };
+
+  const handleUpdateDemandDayTime = (demandIndex, dayNum, field, val) => {
+    const updated = [...demands];
+    const target = updated[demandIndex];
+    const windows = target.availableWindows || createDefaultWindows(target.preferredShift);
+    const curDay = windows[dayNum] || { enabled: true, startTime: '08:00', endTime: '18:00' };
+
+    updated[demandIndex] = {
+      ...target,
+      availableWindows: {
+        ...windows,
+        [dayNum]: {
+          ...curDay,
+          [field]: val
+        }
+      }
+    };
+    setDemands(updated);
+  };
+
+  const handleApplyPresetToDemand = (demandIndex, preset) => {
+    const updated = [...demands];
+    const target = updated[demandIndex];
+    let nextWindows = { ...(target.availableWindows || createDefaultWindows(target.preferredShift)) };
+
+    if (preset === 'morning') {
+      [1, 2, 3, 4, 5].forEach((d) => {
+        nextWindows[d] = { enabled: true, startTime: '08:00', endTime: '12:00' };
+      });
+      nextWindows[6] = { enabled: false, startTime: '08:00', endTime: '12:00' };
+    } else if (preset === 'afternoon') {
+      [1, 2, 3, 4, 5].forEach((d) => {
+        nextWindows[d] = { enabled: true, startTime: '13:00', endTime: '18:00' };
+      });
+      nextWindows[6] = { enabled: false, startTime: '08:00', endTime: '12:00' };
+    } else if (preset === 'all_day') {
+      [1, 2, 3, 4, 5].forEach((d) => {
+        nextWindows[d] = { enabled: true, startTime: '08:00', endTime: '18:00' };
+      });
+      nextWindows[6] = { enabled: false, startTime: '08:00', endTime: '12:00' };
+    } else if (preset === 'mwf') {
+      [1, 3, 5].forEach((d) => {
+        nextWindows[d] = { enabled: true, startTime: '08:00', endTime: '18:00' };
+      });
+      [2, 4, 6].forEach((d) => {
+        nextWindows[d] = { enabled: false, startTime: '08:00', endTime: '18:00' };
+      });
+    } else if (preset === 'tth') {
+      [2, 4].forEach((d) => {
+        nextWindows[d] = { enabled: true, startTime: '08:00', endTime: '18:00' };
+      });
+      [1, 3, 5, 6].forEach((d) => {
+        nextWindows[d] = { enabled: false, startTime: '08:00', endTime: '18:00' };
+      });
+    }
+
+    updated[demandIndex] = {
+      ...target,
+      availableWindows: nextWindows
     };
     setDemands(updated);
   };
@@ -508,17 +620,145 @@ export default function NewPatientModal({
                       </div>
 
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label className="form-label" style={{ fontSize: '0.72rem' }}>Turno Preferencial</label>
+                        <label className="form-label" style={{ fontSize: '0.72rem' }}>Duração por Sessão</label>
                         <select
                           className="form-select"
                           style={{ fontSize: '0.8rem' }}
-                          value={demand.preferredShift}
-                          onChange={(e) => handleUpdateDemand(idx, 'preferredShift', e.target.value)}
+                          value={demand.durationMinutes || 45}
+                          onChange={(e) => handleUpdateDemand(idx, 'durationMinutes', e.target.value)}
                         >
-                          <option value="morning">Manhã</option>
-                          <option value="afternoon">Tarde</option>
-                          <option value="any">Qualquer horário</option>
+                          <option value={30}>30 minutos</option>
+                          <option value={45}>45 minutos</option>
+                          <option value={60}>60 minutos (1 hora)</option>
+                          <option value={90}>90 minutos (1h30)</option>
                         </select>
+                      </div>
+                    </div>
+
+                    {/* DIAS E HORÁRIOS DISPONÍVEIS PARA ESTA TERAPIA */}
+                    <div style={{
+                      marginTop: '0.4rem',
+                      padding: '0.65rem',
+                      borderRadius: '8px',
+                      background: 'var(--bg-surface-hover)',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-headline)', display: 'flex', alignItems: 'center', gap: '0.3rem', margin: 0 }}>
+                          <Clock size={13} color="var(--primary)" />
+                          Dias e Horários Disponíveis do Paciente:
+                        </label>
+                        {/* Atalhos Rápidos */}
+                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '0.2rem 0.45rem', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+                            onClick={() => handleApplyPresetToDemand(idx, 'morning')}
+                            title="Seg a Sex: 08:00 às 12:00"
+                          >
+                            ⚡ Manhã
+                          </button>
+                          <button
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '0.2rem 0.45rem', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+                            onClick={() => handleApplyPresetToDemand(idx, 'afternoon')}
+                            title="Seg a Sex: 13:00 às 18:00"
+                          >
+                            ⚡ Tarde
+                          </button>
+                          <button
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '0.2rem 0.45rem', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+                            onClick={() => handleApplyPresetToDemand(idx, 'all_day')}
+                            title="Seg a Sex: 08:00 às 18:00"
+                          >
+                            ⚡ Dia Todo
+                          </button>
+                          <button
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '0.2rem 0.45rem', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+                            onClick={() => handleApplyPresetToDemand(idx, 'mwf')}
+                            title="Segunda, Quarta e Sexta: 08:00 às 18:00"
+                          >
+                            ⚡ Seg/Qua/Sex
+                          </button>
+                          <button
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '0.2rem 0.45rem', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}
+                            onClick={() => handleApplyPresetToDemand(idx, 'tth')}
+                            title="Terça e Quinta: 08:00 às 18:00"
+                          >
+                            ⚡ Ter/Qui
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.4rem' }}>
+                        {WEEKDAYS.map((wd) => {
+                          const win = demand.availableWindows?.[wd.num] || { enabled: false, startTime: '08:00', endTime: '18:00' };
+                          const isEnabled = win.enabled;
+
+                          return (
+                            <div
+                              key={wd.num}
+                              style={{
+                                padding: '0.45rem 0.55rem',
+                                borderRadius: '6px',
+                                border: `1px solid ${isEnabled ? 'var(--primary)' : 'var(--border-light)'}`,
+                                background: isEnabled ? 'var(--primary-subtle)' : 'var(--bg-card)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.35rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                                onClick={() => handleToggleDemandDay(idx, wd.num)}
+                              >
+                                <span style={{ fontSize: '0.75rem', fontWeight: isEnabled ? 700 : 500, color: isEnabled ? 'var(--primary)' : 'var(--text-muted)' }}>
+                                  {wd.full}
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={() => handleToggleDemandDay(idx, wd.num)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </div>
+
+                              {isEnabled ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
+                                  <input
+                                    type="time"
+                                    className="form-control"
+                                    style={{ padding: '0.15rem 0.25rem', fontSize: '0.72rem', height: '26px' }}
+                                    value={win.startTime || '08:00'}
+                                    onChange={(e) => handleUpdateDemandDayTime(idx, wd.num, 'startTime', e.target.value)}
+                                  />
+                                  <span style={{ color: 'var(--text-muted)' }}>às</span>
+                                  <input
+                                    type="time"
+                                    className="form-control"
+                                    style={{ padding: '0.15rem 0.25rem', fontSize: '0.72rem', height: '26px' }}
+                                    value={win.endTime || '18:00'}
+                                    onChange={(e) => handleUpdateDemandDayTime(idx, wd.num, 'endTime', e.target.value)}
+                                  />
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                  Indisponível neste dia
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
