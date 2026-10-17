@@ -53,7 +53,7 @@ export default function Header({
             <KeyRound size={15} color="var(--primary)" />
           )}
           <span className="auth-btn-label">
-            {currentUser ? currentUser.name.split(' ')[0] : 'Entrar'}
+            {currentUser ? (currentUser.name || 'Perfil').split(' ')[0] : 'Entrar'}
           </span>
         </button>
 

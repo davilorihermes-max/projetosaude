@@ -88,6 +88,30 @@ export default function LoginModal({
     }
   }, [isOpen, initialTab]);
 
+  const triggerBaseGeocode = async (val) => {
+    if (!val || val.trim().length < 3) return;
+    setIsGeocoding(true);
+    try {
+      const res = await resolveAddressCoordinates(val);
+      if (res && res.latitude && res.longitude) {
+        setRegCoordinates({ latitude: res.latitude, longitude: res.longitude });
+        setResolvedLocationName(res.matched || res.city || res.formattedAddress || 'Localização identificada');
+      }
+    } catch {
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  // Debounce automático para o endereço base (sempre antes do early return para respeitar Rules of Hooks)
+  useEffect(() => {
+    if (!isOpen || !regBaseAddress || regBaseAddress.trim().length < 4) return;
+    const timer = setTimeout(() => {
+      triggerBaseGeocode(regBaseAddress);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [isOpen, regBaseAddress]);
+
   if (!isOpen) return null;
 
   // Formatters
@@ -134,30 +158,6 @@ export default function LoginModal({
       }
     }
   };
-
-  const triggerBaseGeocode = async (val) => {
-    if (!val || val.trim().length < 3) return;
-    setIsGeocoding(true);
-    try {
-      const res = await resolveAddressCoordinates(val);
-      if (res && res.latitude && res.longitude) {
-        setRegCoordinates({ latitude: res.latitude, longitude: res.longitude });
-        setResolvedLocationName(res.matched || res.city || res.formattedAddress || 'Localização identificada');
-      }
-    } catch {
-    } finally {
-      setIsGeocoding(false);
-    }
-  };
-
-  // Debounce automático para o endereço base
-  useEffect(() => {
-    if (!regBaseAddress || regBaseAddress.trim().length < 4) return;
-    const timer = setTimeout(() => {
-      triggerBaseGeocode(regBaseAddress);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [regBaseAddress]);
 
   const handleProfessionChange = (prof) => {
     setRegProfession(prof);

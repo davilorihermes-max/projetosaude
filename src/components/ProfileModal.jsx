@@ -61,17 +61,21 @@ export default function ProfileModal({
     return ['Fisioterapia Motora'];
   });
 
+  const getSafeCoords = (docObj, userObj) => {
+    const rawLat = Number(docObj?.baseCoordinates?.latitude ?? docObj?.latitude ?? userObj?.professional?.latitude);
+    const rawLon = Number(docObj?.baseCoordinates?.longitude ?? docObj?.longitude ?? userObj?.professional?.longitude);
+    return {
+      latitude: Number.isFinite(rawLat) && rawLat !== 0 ? rawLat : -20.3012,
+      longitude: Number.isFinite(rawLon) && rawLon !== 0 ? rawLon : -40.2925
+    };
+  };
+
   const [councilNumber, setCouncilNumber] = useState(
     currentDoctor?.councilNumber || currentDoctor?.crm || currentUser?.professional?.crm || ''
   );
   const [profession, setProfession] = useState(currentDoctor?.profession || 'Fisioterapia');
   const [baseAddress, setBaseAddress] = useState(currentDoctor?.baseAddress || 'Praia do Canto, Vitória - ES');
-  const [baseCoordinates, setBaseCoordinates] = useState(
-    currentDoctor?.baseCoordinates || {
-      latitude: currentDoctor?.latitude ?? currentUser?.professional?.latitude ?? -20.3012,
-      longitude: currentDoctor?.longitude ?? currentUser?.professional?.longitude ?? -40.2925
-    }
-  );
+  const [baseCoordinates, setBaseCoordinates] = useState(() => getSafeCoords(currentDoctor, currentUser));
   const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [color, setColor] = useState(currentDoctor?.color || '#0d9488');
@@ -106,12 +110,7 @@ export default function ProfileModal({
     setCouncilNumber(doc?.councilNumber || doc?.crm || currentUser?.professional?.crm || '');
     setProfession(doc?.profession || 'Fisioterapia');
     setBaseAddress(doc?.baseAddress || 'Praia do Canto, Vitória - ES');
-    setBaseCoordinates(
-      doc?.baseCoordinates || {
-        latitude: doc?.latitude ?? currentUser?.professional?.latitude ?? -20.3012,
-        longitude: doc?.longitude ?? currentUser?.professional?.longitude ?? -40.2925
-      }
-    );
+    setBaseCoordinates(getSafeCoords(doc, currentUser));
     setResolvedLocationName(doc?.baseAddress || 'Localização definida');
     setColor(doc?.color || '#0d9488');
     setAvatar(doc?.avatar || '');

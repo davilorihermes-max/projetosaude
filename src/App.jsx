@@ -453,11 +453,35 @@ export default function App() {
     }
   }, [currentUser, doctors]);
 
-  // Active professional object
+  // Active professional object (never null so child views never crash when doctors list is empty)
   const activeDoctor =
     selectedDoctorId === 'all'
       ? { id: 'all', name: 'Toda a Equipe Multidisciplinar', profession: 'Central Operacional' }
-      : (doctors.find((d) => d.id === selectedDoctorId) || doctors[0] || null);
+      : (doctors.find((d) => d.id === selectedDoctorId) ||
+          doctors[0] ||
+          (currentUser
+            ? {
+                id: currentUser.professional?.id || currentUser.professionalId || 'all',
+                name: currentUser.name || 'Profissional',
+                profession: 'Fisioterapia',
+                specialty: currentUser.professional?.specialty || 'Fisioterapia Motora',
+                councilNumber: currentUser.professional?.crm || 'Registro Ativo',
+                crm: currentUser.professional?.crm || 'Registro Ativo',
+                color: '#0d9488'
+              }
+            : { id: 'all', name: 'Toda a Equipe Multidisciplinar', profession: 'Central Operacional' }));
+
+  // Profissional correspondente ao usuário logado (mesmo quando o filtro da agenda está em 'all')
+  const currentUserDoctor =
+    (currentUser &&
+      doctors.find(
+        (d) =>
+          (currentUser.professionalId && d.id === currentUser.professionalId) ||
+          (currentUser.professional?.id && d.id === currentUser.professional.id) ||
+          (d.userId && d.userId === currentUser.id) ||
+          (d.email && currentUser.email && d.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+      )) ||
+    (activeDoctor && activeDoctor.id !== 'all' ? activeDoctor : null);
 
   // Actions
   const handleOpenNewProfessional = () => {
@@ -492,7 +516,10 @@ export default function App() {
   const handleUpdateProfile = (updatedDoctorData, updatedUserData) => {
     if (updatedDoctorData) {
       setDoctors((prev) => {
-        const updated = prev.map((d) => (d.id === updatedDoctorData.id ? { ...d, ...updatedDoctorData } : d));
+        const exists = prev.some((d) => d.id === updatedDoctorData.id);
+        const updated = exists
+          ? prev.map((d) => (d.id === updatedDoctorData.id ? { ...d, ...updatedDoctorData } : d))
+          : [updatedDoctorData, ...prev];
         localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
         return updated;
       });
@@ -501,6 +528,7 @@ export default function App() {
       setCurrentUser((prev) => {
         const merged = { ...prev, ...updatedUserData };
         localStorage.setItem('omnihome_user_v3', JSON.stringify(merged));
+        localStorage.setItem('omnihome_user', JSON.stringify(merged));
         return merged;
       });
     }
@@ -731,7 +759,7 @@ export default function App() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         waitingCount={waitingCount}
-        doctor={activeDoctor}
+        doctor={currentUserDoctor || activeDoctor}
         currentUser={currentUser}
         onOpenLoginModal={() => {
           setLoginModalTab('login');
@@ -948,7 +976,7 @@ export default function App() {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
         currentUser={currentUser}
-        currentDoctor={activeDoctor}
+        currentDoctor={currentUserDoctor || activeDoctor}
         onUpdateProfile={handleUpdateProfile}
         onLogout={handleLogout}
       />
