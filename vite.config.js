@@ -6,9 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      // Backend roda somente em nuvem (Vercel + Neon)
       '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true
+        target: 'https://omnihomecare.vercel.app',
+        changeOrigin: true,
+        secure: true
       }
     }
   }
