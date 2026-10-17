@@ -101,3 +101,22 @@ npm run dev
    git push origin feat/...
    ```
 3. O CI do GitHub Actions validará automaticamente o schema do Prisma, tipos TypeScript e testes unitários.
+
+---
+
+## 🚀 Como Fazer o Deploy (Vercel)
+
+Tanto o **Sérgio** quanto o **Davi** podem realizar o deploy para produção:
+
+### 1. Pelo Terminal Local:
+```bash
+npm run deploy
+```
+Este comando executa o script unificado `scripts/deploy.js`, que faz o build, sobe para o Vercel e atualiza automaticamente os dois domínios:
+- **Staging / Dev:** [https://projetosaude-gamma.vercel.app](https://projetosaude-gamma.vercel.app)
+- **Produção Oficial:** [https://omnihomecare.vercel.app](https://omnihomecare.vercel.app)
+
+### 2. Pelo GitHub Actions (Automático):
+- Ao fazer o merge de um Pull Request na branch `main`, o deploy para a Vercel é disparado automaticamente.
+- É possível também disparar manualmente na aba **Actions** do GitHub, selecionando o workflow **CD - Deploy Vercel Produção** e clicando em **Run workflow**.
+

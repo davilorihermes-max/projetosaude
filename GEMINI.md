@@ -78,7 +78,26 @@ Bem-vindo ao **Projeto Saúde**, um sistema robusto de gestão clínica, escalas
 
 ## 🚀 5. Deploy na Vercel (Desenvolvimento & Produção)
 
-- **SEMPRE atualizar ambos os domínios ao fazer deploy:**
-  1. **Development / Staging:** `https://projetosaude-gamma.vercel.app` (`npx vercel --prod --yes`)
-  2. **Production Oficial:** `https://omnihomecare.vercel.app` (`npx vercel alias set <deployment-url> omnihomecare.vercel.app`)
+O processo de deploy está unificado para **Sérgio** e **Davi**, garantindo que ambos possam atualizar a aplicação facilmente:
+
+### Opção 1: Comando Unificado via Terminal
+Basta executar na raiz do projeto:
+```bash
+npm run deploy
+```
+*O script `scripts/deploy.js` inicializa automaticamente o arquivo `.vercel/project.json` (se necessário), compila a aplicação, sobe para o Vercel e atualiza ambos os domínios de uma só vez:*
+1. **Development / Staging:** `https://projetosaude-gamma.vercel.app`
+2. **Production Oficial:** `https://omnihomecare.vercel.app`
+
+### Opção 2: Deploy Automático via GitHub Actions (Recomendado para o Sérgio)
+- Ao fazer merge de qualquer Pull Request para a branch `main`, o GitHub Actions roda os testes e faz o deploy de produção automaticamente.
+- Também é possível disparar manualmente: acesse a aba **Actions** no GitHub ➔ selecione **CD - Deploy Vercel Produção** ➔ clique em **Run workflow**.
+- *Requisito:* configurar o secret `VERCEL_TOKEN` no repositório GitHub (`Settings ➔ Secrets and variables ➔ Actions`).
+
+### Autenticação Local do Sérgio (`@sergiohermesmeyer`):
+- O Sérgio pode se autenticar no terminal com `npx vercel login` ou simplesmente adicionar no `.env.local`:
+  ```env
+  VERCEL_TOKEN=seu_token_aqui
+  ```
+
 
