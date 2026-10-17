@@ -915,6 +915,7 @@ export default function App() {
             <MonthlyFinancialSettlementView
               doctors={doctors}
               patients={patients}
+              appointments={appointments}
               currentUser={currentUser}
             />
           )}
