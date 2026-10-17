@@ -7,6 +7,7 @@ import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
 import MonthlyScalePlannerView from './components/MonthlyScalePlannerView';
+import MonthlyFinancialSettlementView from './components/MonthlyFinancialSettlementView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
 import NotificationsModal from './components/NotificationsModal';
@@ -863,6 +864,14 @@ export default function App() {
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
               onDeletePatient={handleDeletePatient}
+            />
+          )}
+
+          {activeTab === 'financial' && (
+            <MonthlyFinancialSettlementView
+              doctors={doctors}
+              patients={patients}
+              currentUser={currentUser}
             />
           )}
 

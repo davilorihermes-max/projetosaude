@@ -10,7 +10,8 @@ import {
   Activity,
   Settings,
   ShieldCheck,
-  LogIn
+  LogIn,
+  Wallet
 } from 'lucide-react';
 import './Sidebar.css';
 import Avatar from './Avatar';
@@ -31,6 +32,7 @@ export default function Sidebar({
     { id: 'schedule', label: 'Agenda & Deslocamento', icon: CalendarDays, badge: waitingCount > 0 ? `${waitingCount} a realizar` : null },
     { id: 'monthly-planner', label: 'Planejador Mensal', icon: CalendarCheck },
     { id: 'patients', label: 'Pacientes & Domicílios', icon: Users },
+    { id: 'financial', label: 'Fechamento Mensal', icon: Wallet },
     { id: 'clinic', label: 'Central Operacional', icon: Settings }
   ];
 
