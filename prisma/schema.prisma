@@ -101,7 +101,6 @@ model ContextualPrice {
   @@index([professionalId, patientId])
 }
 
-<<<<<<< HEAD
 // Fechamento Financeiro Consolidado (Mensal, Decendial, Semanal)
 model FinancialSettlement {
   id               String           @id @default(cuid())
