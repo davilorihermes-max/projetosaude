@@ -78,6 +78,15 @@ Bem-vindo ao **Projeto Saúde**, um sistema robusto de gestão clínica, escalas
 
 ## 🚀 5. Deploy na Vercel (Desenvolvimento & Produção)
 
+### 🛑 Regra de Ouro Obrigatória: Deploy SEMPRE da branch `main` do GitHub
+- **Todo deploy DEVE ser feito SEMPRE e EXCLUSIVAMENTE a partir da branch `main` do GitHub.**
+- **Nunca executar deploy a partir de branches de feature (`feat/...`) ou com alterações locais não integradas.**
+- O comando `npm run deploy` possui trava de segurança automatizada (`scripts/deploy.js`) que:
+  1. Bloqueia imediatamente o deploy caso você esteja em qualquer branch diferente de `main`.
+  2. Bloqueia o deploy se houver alterações de código locais não commitadas.
+  3. Atualiza automaticamente a `main` local com o GitHub (`git pull --ff-only origin main`), garantindo que alterações e PRs recém-aprovados do Sérgio ou do Davi sempre entrem em produção.
+  4. Bloqueia o deploy se houver commits locais ainda não enviados ao GitHub (`git push origin main`).
+
 O processo de deploy está unificado para **Sérgio** e **Davi**, garantindo que ambos possam atualizar a aplicação facilmente:
 
 ### Opção 1: Comando Unificado via Terminal

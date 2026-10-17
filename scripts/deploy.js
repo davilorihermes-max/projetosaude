@@ -30,7 +30,82 @@ console.log('\n==================================================');
 console.log('🚀 OmniSaúde - Deploy Automatizado (Sérgio & Davi)');
 console.log('==================================================\n');
 
-// 1. Garantir que .vercel/project.json existe para que o Sérgio não precise vincular manualmente
+// 1. TRAVA DE SEGURANÇA OBRIGATÓRIA: Todo deploy DEVE ser da 'main' do GitHub
+if (!process.env.GITHUB_ACTIONS) {
+  console.log('🔒 Verificando integridade da branch e sincronização com o GitHub...');
+
+  try {
+    // Restaurar prisma/schema.prisma caso tenha sido modificado dinamicamente pelo script de provider
+    try {
+      execSync('git checkout prisma/schema.prisma', { cwd: rootDir, stdio: 'ignore' });
+    } catch {}
+
+    // Buscar estado mais recente do GitHub
+    execSync('git fetch origin main', { cwd: rootDir, stdio: 'pipe' });
+
+    // Verificar se está na branch main
+    const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+    if (currentBranch !== 'main') {
+      console.error(`\n❌ BLOQUEIO DE SEGURANÇA: Todo deploy DEVE ser feito exclusivamente a partir da branch 'main' do GitHub.`);
+      console.error(`Você está atualmente na branch de trabalho: "${currentBranch}".\n`);
+      console.error(`Para garantir que as alterações de todos estejam integradas e o deploy seja seguro:`);
+      console.error(`  1. Suba suas alterações para a sua branch e faça merge na 'main' via GitHub (Pull Request).`);
+      console.error(`  2. Mude para a branch main: git checkout main`);
+      console.error(`  3. Execute o deploy: npm run deploy (ele sincronizará automaticamente com o GitHub!)\n`);
+      process.exit(1);
+    }
+
+    // Verificar se há alterações locais não commitadas em arquivos de código
+    const gitStatus = execSync('git status --porcelain', { cwd: rootDir, encoding: 'utf8' }).trim();
+    const modifiedFiles = gitStatus
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.includes('prisma/schema.prisma') && !line.includes('.vercel/'));
+
+    if (modifiedFiles.length > 0) {
+      console.error(`\n❌ BLOQUEIO DE SEGURANÇA: Existem arquivos com alterações locais não commitadas:`);
+      modifiedFiles.forEach(f => console.error(`   ${f}`));
+      console.error(`\nTodo deploy deve refletir exatamente o código da 'main' no GitHub.`);
+      console.error(`Faça commit ou stash de suas alterações e envie ao GitHub antes de realizar o deploy.\n`);
+      process.exit(1);
+    }
+
+    // Verificar se a branch main local é idêntica à origin/main
+    const localCommit = execSync('git rev-parse HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+    const remoteCommit = execSync('git rev-parse origin/main', { cwd: rootDir, encoding: 'utf8' }).trim();
+
+    if (localCommit !== remoteCommit) {
+      const behindCount = parseInt(execSync('git rev-list --count HEAD..origin/main', { cwd: rootDir, encoding: 'utf8' }).trim(), 10);
+      const aheadCount = parseInt(execSync('git rev-list --count origin/main..HEAD', { cwd: rootDir, encoding: 'utf8' }).trim(), 10);
+
+      if (behindCount > 0 && aheadCount === 0) {
+        console.log(`⬇️ A 'main' local estava ${behindCount} commit(s) atrás de 'origin/main'. Sincronizando automaticamente...`);
+        execSync('git pull --ff-only origin main', { cwd: rootDir, stdio: 'inherit' });
+        console.log('✅ Sincronização automática com origin/main concluída com sucesso!');
+      } else if (aheadCount > 0) {
+        console.error(`\n❌ BLOQUEIO DE SEGURANÇA: Existem ${aheadCount} commit(s) locais na 'main' que ainda não estão no GitHub.`);
+        console.error(`Todo deploy deve vir obrigatoriamente da 'main' do GitHub.`);
+        console.error(`Envie suas alterações para o GitHub com: git push origin main\n`);
+        process.exit(1);
+      } else {
+        console.error(`\n❌ BLOQUEIO DE SEGURANÇA: A branch 'main' local divergiu de 'origin/main'.`);
+        console.error(`Sincronize a 'main' com o GitHub antes de prosseguir com o deploy.\n`);
+        process.exit(1);
+      }
+    }
+
+    const verifiedCommit = execSync('git rev-parse --short HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+    const commitMsg = execSync('git log -1 --pretty=%B', { cwd: rootDir, encoding: 'utf8' }).trim().split('\n')[0];
+    console.log(`✅ Origem verificada: GitHub origin/main [${verifiedCommit}] - "${commitMsg}"\n`);
+  } catch (err) {
+    if (err.status !== undefined && err.status !== 0) {
+      process.exit(err.status);
+    }
+    console.error('⚠️ Falha ao verificar sincronização com Git:', err.message);
+  }
+}
+
+// 2. Garantir que .vercel/project.json existe para que o Sérgio não precise vincular manualmente
 const vercelDir = path.join(rootDir, '.vercel');
 const projectJsonPath = path.join(vercelDir, 'project.json');
 
