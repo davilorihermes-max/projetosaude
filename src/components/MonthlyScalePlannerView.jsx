@@ -153,28 +153,6 @@ export default function MonthlyScalePlannerView({
   // 3. Vínculos de Care Team (Restrição de Ouro)
   const [careTeams, setCareTeams] = useState(initialSaved?.careTeams || []);
 
-  // Salva no localStorage para não perder a escala ao sair da tela
-  useEffect(() => {
-    if (patientsWithDemands.length > 0 || professionalAvailabilities.length > 0) {
-      try {
-        localStorage.setItem(
-          SCALE_STORAGE_KEY,
-          JSON.stringify({
-            selectedMonth,
-            patientsWithDemands,
-            professionalAvailabilities,
-            careTeams,
-            fixedAppointments,
-            scaleResult,
-            savedAt: new Date().toISOString()
-          })
-        );
-      } catch (err) {
-        console.warn('Erro ao salvar escala no localStorage:', err);
-      }
-    }
-  }, [selectedMonth, patientsWithDemands, professionalAvailabilities, careTeams, fixedAppointments, scaleResult]);
-
   // Sincroniza pacientes cadastrados com demandas caso o planejador esteja vazio
   useEffect(() => {
     if (patientsWithDemands.length === 0 && patients && patients.length > 0) {
@@ -266,17 +244,46 @@ export default function MonthlyScalePlannerView({
 
   // Estado da escala gerada
   const [scaleResult, setScaleResult] = useState(() => {
-    if (initialSaved?.scaleResult) return initialSaved.scaleResult;
-    const generator = new MonthlyScaleGenerator(28, 12);
-    return generator.generateMonthlyScale({
-      year: 2026,
-      month: 10,
-      demands: flatDemands,
-      availabilities: professionalAvailabilities,
-      careTeams,
-      fixedAppointments
-    });
+    try {
+      if (initialSaved?.scaleResult && initialSaved.scaleResult.plannedSessions && initialSaved.scaleResult.summary) {
+        return initialSaved.scaleResult;
+      }
+      const generator = new MonthlyScaleGenerator(28, 12);
+      return generator.generateMonthlyScale({
+        year: 2026,
+        month: 10,
+        demands: flatDemands,
+        availabilities: professionalAvailabilities,
+        careTeams,
+        fixedAppointments
+      });
+    } catch (err) {
+      console.warn('Erro ao inicializar escala mensal:', err);
+      return null;
+    }
   });
+
+  // Salva no localStorage para não perder a escala ao sair da tela (executado com segurança após declarações)
+  useEffect(() => {
+    if (patientsWithDemands.length > 0 || professionalAvailabilities.length > 0 || scaleResult) {
+      try {
+        localStorage.setItem(
+          SCALE_STORAGE_KEY,
+          JSON.stringify({
+            selectedMonth,
+            patientsWithDemands,
+            professionalAvailabilities,
+            careTeams,
+            fixedAppointments,
+            scaleResult,
+            savedAt: new Date().toISOString()
+          })
+        );
+      } catch (err) {
+        console.warn('Erro ao salvar escala no localStorage:', err);
+      }
+    }
+  }, [selectedMonth, patientsWithDemands, professionalAvailabilities, careTeams, fixedAppointments, scaleResult]);
 
   // Executa o cálculo da escala mensal
   const runGeneration = (
@@ -1066,7 +1073,7 @@ export default function MonthlyScalePlannerView({
       )}
 
       {/* KPI Cards do Mês */}
-      {scaleResult && (
+      {scaleResult && scaleResult.summary && (
         <div className="planner-kpis">
           <div className="kpi-card">
             <div className="kpi-icon-box kpi-icon-blue">
@@ -1074,9 +1081,9 @@ export default function MonthlyScalePlannerView({
             </div>
             <div className="kpi-data">
               <div className="kpi-label">Taxa de Cobertura Global</div>
-              <div className="kpi-value">{scaleResult.summary.globalCoveragePercent}%</div>
+              <div className="kpi-value">{scaleResult.summary.globalCoveragePercent ?? 0}%</div>
               <div className="kpi-subtext">
-                {scaleResult.summary.totalAllocatedSessions} de {scaleResult.summary.totalDemandedSessions} sessões atendidas
+                {scaleResult.summary.totalAllocatedSessions ?? 0} de {scaleResult.summary.totalDemandedSessions ?? 0} sessões atendidas
               </div>
             </div>
           </div>
@@ -1087,7 +1094,7 @@ export default function MonthlyScalePlannerView({
             </div>
             <div className="kpi-data">
               <div className="kpi-label">Sessões Domiciliares Alocadas</div>
-              <div className="kpi-value">{scaleResult.plannedSessions.length}</div>
+              <div className="kpi-value">{scaleResult.plannedSessions?.length ?? 0}</div>
               <div className="kpi-subtext">Distribuídas ao longo das semanas úteis</div>
             </div>
           </div>
@@ -1098,8 +1105,8 @@ export default function MonthlyScalePlannerView({
             </div>
             <div className="kpi-data">
               <div className="kpi-label">Deslocamento Urbano em Rota</div>
-              <div className="kpi-value">{scaleResult.summary.totalEstimatedTransitKm} km</div>
-              <div className="kpi-subtext">~{scaleResult.summary.totalEstimatedTransitHours}h de trânsito otimizado</div>
+              <div className="kpi-value">{scaleResult.summary.totalEstimatedTransitKm ?? 0} km</div>
+              <div className="kpi-subtext">~{scaleResult.summary.totalEstimatedTransitHours ?? 0}h de trânsito otimizado</div>
             </div>
           </div>
 
