@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "deploy": "node scripts/deploy.js",
     "build": "node scripts/sync-prisma-provider.js && prisma generate && vite build",
     "vercel-build": "node scripts/sync-prisma-provider.js && prisma generate && vite build",
     "lint": "oxlint",
