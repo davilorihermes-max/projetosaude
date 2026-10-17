@@ -13,6 +13,7 @@ import NewPatientModal from './components/NewPatientModal';
 import NotificationsModal from './components/NotificationsModal';
 import LoginModal from './components/LoginModal';
 import ProfileModal from './components/ProfileModal';
+import MobileAppView from './components/MobileAppView';
 
 import {
   DOCTORS,
@@ -39,6 +40,27 @@ export default function App() {
 
   // Main navigation tab
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Mobile-first simplified view mode (detects mobile screen or URL flag or user preference)
+  const [forceDesktopMode, setForceDesktopMode] = useState(() => {
+    return localStorage.getItem('omnihome_prefer_desktop') === 'true';
+  });
+  const [isMobileScreen, setIsMobileScreen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const isSmall = window.innerWidth <= 768;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    return isSmall || isMobileUA;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const isSmall = window.innerWidth <= 768;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobileScreen(isSmall || isMobileUA);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Helper filters to prevent mock/test data contamination from old caches
   const isMockPatient = (p) => {
@@ -756,16 +778,38 @@ export default function App() {
     (a) => a.date === todayStr && a.status === 'waiting'
   ).length;
 
+  const isMobileAppActive = isMobileScreen && !forceDesktopMode;
+
   return (
     <div className="app-container">
-      {/* Sidebar Navigation */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        waitingCount={waitingCount}
-        doctor={currentUserDoctor || activeDoctor}
+      {isMobileAppActive ? (
+        <MobileAppView
+          appointments={appointments}
+          patients={patients}
+          doctors={doctors}
+          currentUser={currentUser}
+          activeDoctor={currentUserDoctor || activeDoctor}
+          onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+          onOpenNewAppointment={handleOpenNewAppointment}
+          onOpenLoginModal={() => {
+            setLoginModalTab('login');
+            setIsLoginModalOpen(true);
+          }}
+          onSwitchToDesktop={() => {
+            setForceDesktopMode(true);
+            localStorage.setItem('omnihome_prefer_desktop', 'true');
+          }}
+        />
+      ) : (
+        <>
+          {/* Sidebar Navigation */}
+          <Sidebar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            waitingCount={waitingCount}
+            doctor={currentUserDoctor || activeDoctor}
         currentUser={currentUser}
         onOpenLoginModal={() => {
           setLoginModalTab('login');
@@ -884,6 +928,8 @@ export default function App() {
           )}
         </div>
       </main>
+      </>
+      )}
 
       {/* Modals */}
       <NewAppointmentModal
