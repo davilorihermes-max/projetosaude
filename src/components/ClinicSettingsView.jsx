@@ -6,7 +6,8 @@ import Avatar from './Avatar';
 export default function ClinicSettingsView({
   doctors = [],
   onResetData,
-  onOpenNewProfessional
+  onOpenNewProfessional,
+  onNavigateToProfessionals
 }) {
   const [clinicData, setClinicData] = useState(CLINIC_INFO);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -165,17 +166,30 @@ export default function ClinicSettingsView({
               Fisioterapeutas, Enfermeiros, Fonoaudiólogos e Nutricionistas habilitados
             </span>
           </div>
-          {onOpenNewProfessional && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              onClick={onOpenNewProfessional}
-            >
-              <UserPlus size={15} color="var(--primary)" />
-              <span>Credenciar Novo Profissional</span>
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {onNavigateToProfessionals && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={onNavigateToProfessionals}
+              >
+                <Users size={15} />
+                <span>Ver Equipe Completa</span>
+              </button>
+            )}
+            {onOpenNewProfessional && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={onOpenNewProfessional}
+              >
+                <UserPlus size={15} />
+                <span>Credenciar Novo Profissional</span>
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
           {doctors.map((doc) => (

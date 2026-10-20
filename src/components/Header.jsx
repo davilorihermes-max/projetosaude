@@ -89,6 +89,13 @@ export default function Header({
         </button>
 
         <div className="action-buttons">
+          {onOpenNewProfessional && (
+            <button className="btn btn-secondary action-btn-compact" onClick={onOpenNewProfessional} title="Cadastrar Novo Profissional de Saúde">
+              <UserCheck size={16} color="var(--primary)" />
+              <span className="btn-label-desktop">Novo Profissional</span>
+              <span className="btn-label-mobile">Profissional</span>
+            </button>
+          )}
           <button className="btn btn-secondary action-btn-compact" onClick={onOpenNewPatient} title="Cadastrar Novo Paciente">
             <UserPlus size={16} />
             <span className="btn-label-desktop">Novo Paciente</span>

@@ -326,5 +326,52 @@ describe('HTTP API - Autenticação & Route Guards', () => {
       expect(data.professional.crm).toBe('CRFa/SP 14.520');
       expect(data.professional.specialty).toBe('Reabilitação de Deglutição (Disfagia)');
     });
+
+    it('deve cadastrar profissional sem perfil prévio gerando login e senha corporativos automaticamente', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/scheduler/professionals',
+        payload: {
+          name: 'Dra. Carolina Mendes Teste',
+          profession: 'Fisioterapia',
+          specialty: 'Fisioterapia Cardiorrespiratória',
+          councilNumber: '28.990-F'
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      const data = response.json();
+      expect(data.success).toBe(true);
+      expect(data.generatedCredentials).toBeDefined();
+      expect(data.generatedCredentials.login).toContain('@omnihome.med.br');
+      expect(data.generatedCredentials.password).toBeDefined();
+      expect(data.generatedCredentials.wasGenerated).toBe(true);
+      expect(data.professional.crm).toContain('CREFITO');
+
+      createdTestEmails.push(data.generatedCredentials.login);
+
+      // Testa se o login recém-gerado consegue se autenticar com a senha gerada
+      const loginRes = await server.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: data.generatedCredentials.login,
+          password: data.generatedCredentials.password
+        }
+      });
+
+      expect(loginRes.statusCode).toBe(200);
+      const loginData = loginRes.json();
+      expect(loginData.token).toBeDefined();
+      expect(loginData.user.role).toBe('PROFESSIONAL');
+
+      // Testa remoção via DELETE /api/scheduler/professionals/:id
+      const deleteRes = await server.inject({
+        method: 'DELETE',
+        url: `/api/scheduler/professionals/${data.professional.id}`
+      });
+      expect(deleteRes.statusCode).toBe(200);
+      expect(deleteRes.json().success).toBe(true);
+    }, 20000);
   });
 });

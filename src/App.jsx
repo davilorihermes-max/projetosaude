@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import ScheduleView from './components/ScheduleView';
 import PatientsView from './components/PatientsView';
+import ProfessionalsView from './components/ProfessionalsView';
 import ClinicSettingsView from './components/ClinicSettingsView';
 import MonthlyScalePlannerView, {
   getPlannedAppointments,
@@ -14,6 +15,7 @@ import MonthlyScalePlannerView, {
 import MonthlyFinancialSettlementView from './components/MonthlyFinancialSettlementView';
 import NewAppointmentModal from './components/NewAppointmentModal';
 import NewPatientModal from './components/NewPatientModal';
+import NewProfessionalModal from './components/NewProfessionalModal';
 import NotificationsModal from './components/NotificationsModal';
 import LoginModal from './components/LoginModal';
 import ProfileModal from './components/ProfileModal';
@@ -202,6 +204,7 @@ export default function App() {
   const [scheduleActiveDate, setScheduleActiveDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
@@ -531,8 +534,54 @@ export default function App() {
 
   // Actions
   const handleOpenNewProfessional = () => {
-    setLoginModalTab('register');
-    setIsLoginModalOpen(true);
+    setIsProfessionalModalOpen(true);
+  };
+
+  const handleSaveNewProfessional = (newDoctor, credentials) => {
+    setDoctors((prev) => {
+      const filtered = prev.filter((d) => d.id !== newDoctor.id && d.name !== newDoctor.name);
+      const updated = [newDoctor, ...filtered];
+      localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+      return updated;
+    });
+
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        type: 'success',
+        title: 'Novo Profissional Credenciado',
+        description: `${newDoctor.name} (${newDoctor.profession || 'Especialista'}) cadastrado(a) com sucesso na nuvem. Acesso: ${credentials?.login || newDoctor.email}`,
+        time: 'Agora'
+      },
+      ...prev
+    ]);
+  };
+
+  const handleDeleteProfessional = async (docId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/professionals/${docId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setDoctors((prev) => {
+          const updated = prev.filter((d) => d.id !== docId);
+          localStorage.setItem('omnihome_doctors_v3', JSON.stringify(updated));
+          return updated;
+        });
+        setNotifications((prev) => [
+          {
+            id: `notif-${Date.now()}`,
+            type: 'info',
+            title: 'Profissional Descredenciado',
+            description: 'Profissional removido da equipe com sucesso no servidor em nuvem.',
+            time: 'Agora'
+          },
+          ...prev
+        ]);
+      }
+    } catch (err) {
+      console.warn('Erro ao remover profissional na nuvem:', err);
+    }
   };
 
   const handleRegisterProfessional = (newProfessional, user) => {
@@ -981,6 +1030,19 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'professionals' && (
+            <ProfessionalsView
+              doctors={doctors}
+              onOpenNewProfessional={handleOpenNewProfessional}
+              onDeleteProfessional={handleDeleteProfessional}
+              onSelectDoctorForSchedule={(docId) => {
+                setSelectedDoctorId(docId);
+                setActiveTab('schedule');
+              }}
+              onNavigateToPlanner={() => setActiveTab('monthly-planner')}
+            />
+          )}
+
           {activeTab === 'financial' && (
             <MonthlyFinancialSettlementView
               doctors={doctors}
@@ -995,6 +1057,7 @@ export default function App() {
               doctors={doctors}
               onResetData={handleResetData}
               onOpenNewProfessional={handleOpenNewProfessional}
+              onNavigateToProfessionals={() => setActiveTab('professionals')}
             />
           )}
         </div>
@@ -1025,6 +1088,12 @@ export default function App() {
         onSavePatient={handleSavePatient}
         doctors={doctors}
         initialPatientData={editingPatient}
+      />
+
+      <NewProfessionalModal
+        isOpen={isProfessionalModalOpen}
+        onClose={() => setIsProfessionalModalOpen(false)}
+        onSaveProfessional={handleSaveNewProfessional}
       />
 
       <NotificationsModal

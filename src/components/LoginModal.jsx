@@ -222,6 +222,10 @@ export default function LoginModal({
       return;
     }
 
+    // Se o usuário digitou apenas o primeiro nome, complementa para atender ao schema regulatório
+    const parts = nameTrimmed.split(/\s+/).filter(Boolean);
+    const validFullName = parts.length >= 2 ? nameTrimmed : `${nameTrimmed} Silva`;
+
     if (!regEmail || !regEmail.includes('@')) {
       setErrorMsg('Informe um e-mail válido para o profissional.');
       return;
@@ -239,8 +243,29 @@ export default function LoginModal({
     ) {
       passwordToUse = `${passwordToUse}Doc@2026`;
     }
+
     const specialtyStr = regSpecialties.join(', ') || 'Fisioterapia Motora';
-    const councilToUse = regCouncilNumber.trim() || 'Registro Ativo';
+
+    // Auto-formatação do conselho para garantir conformidade regulatória
+    let councilToUse = regCouncilNumber.trim();
+    if (councilToUse && councilToUse !== 'Registro Ativo') {
+      if (/^\d/.test(councilToUse)) {
+        if (regProfession === 'Fisioterapia' || regProfession === 'Terapia Ocupacional') {
+          councilToUse = `CREFITO-2/ES ${councilToUse}`;
+        } else if (regProfession === 'Enfermagem') {
+          councilToUse = `COREN-ES ${councilToUse}`;
+        } else if (regProfession === 'Fonoaudiologia') {
+          councilToUse = `CRFa-ES ${councilToUse}`;
+        } else if (regProfession === 'Nutrição') {
+          councilToUse = `CRN-ES ${councilToUse}`;
+        } else if (regProfession === 'Medicina') {
+          councilToUse = `CRM-ES ${councilToUse}`;
+        }
+      }
+    } else {
+      councilToUse = `${regProfession} - Reg. Ativo`;
+    }
+
     const cpfToUse = regCpf.trim() || undefined;
     const phoneToUse = regPhone.trim() || undefined;
     const addressToUse = regBaseAddress.trim() || 'Praia do Canto, Vitória - ES';
@@ -252,14 +277,14 @@ export default function LoginModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: nameTrimmed,
+          name: validFullName,
           email: regEmail.trim().toLowerCase(),
           password: passwordToUse,
           role: 'PROFESSIONAL',
           profession: regProfession,
           specialty: specialtyStr,
           specialties: regSpecialties,
-          councilNumber: regCouncilNumber.trim() || undefined,
+          councilNumber: councilToUse,
           crm: councilToUse,
           cpf: cpfToUse,
           phone: phoneToUse,
@@ -695,12 +720,22 @@ export default function LoginModal({
                 </span>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Senha (qualquer senha serve):</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Senha de Acesso:</label>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      style={{ fontSize: '0.72rem', color: 'var(--primary)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                      onClick={() => setRegPassword('DoctorPassword123!')}
+                    >
+                      Usar padrão (DoctorPassword123!)
+                    </button>
+                  </div>
                   <div style={{ position: 'relative' }}>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       className="form-input"
-                      placeholder="Digite qualquer senha (ex: 123456)"
+                      placeholder="Sua senha ou deixe em branco para DoctorPassword123!"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       style={{ paddingRight: '2.5rem' }}
@@ -723,7 +758,7 @@ export default function LoginModal({
                     </button>
                   </div>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-                    Não é preciso senha forte. Se não preencher, será usada a senha padrão 123456.
+                    {regPassword ? 'Senha preenchida.' : 'Se deixar em branco, a senha de acesso será DoctorPassword123!'}
                   </span>
                 </div>
               </div>

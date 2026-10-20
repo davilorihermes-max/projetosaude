@@ -156,11 +156,12 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
   /**
    * POST /api/scheduler/professionals
    * Cadastra novo profissional diretamente na equipe da clínica e associa ao Care Team
+   * Se o profissional não tiver perfil/login/senha, gera credenciais corporativas automaticamente
    */
   app.post<{
     Body: {
       name: string;
-      email: string;
+      email?: string;
       password?: string;
       profession?: string;
       specialty?: string;
@@ -173,7 +174,7 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     const {
       name,
       email,
-      password = 'DoctorPassword123!',
+      password,
       profession,
       specialty,
       councilNumber,
@@ -182,15 +183,55 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       longitude
     } = request.body || {};
 
-    if (!name || !email) {
+    if (!name || !name.trim()) {
       return reply.status(400).send({
         statusCode: 400,
         error: 'Bad Request',
-        message: 'Nome e e-mail são obrigatórios.'
+        message: 'Nome do profissional é obrigatório.'
       });
     }
 
-    const emailClean = email.toLowerCase().trim();
+    const trimmedName = name.trim();
+    let emailClean = (email || '').toLowerCase().trim();
+    let effectivePassword = (password || '').trim();
+    let wasGenerated = false;
+
+    // Se não forneceu e-mail/login, gera automaticamente a partir do nome
+    if (!emailClean) {
+      wasGenerated = true;
+      const cleanForEmail = trimmedName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/^(dr|dra|enf|ft|fono|nutri|prof)\.?\s+/i, '')
+        .replace(/[^a-z0-9\s]/g, '')
+        .trim();
+      const parts = cleanForEmail.split(/\s+/).filter(Boolean);
+      const first = parts[0] || 'profissional';
+      const last = parts.length > 1 ? parts[parts.length - 1] : 'saude';
+      let candidate = `${first}.${last}@omnihome.med.br`;
+
+      const checkExists = await prisma.user.findUnique({ where: { email: candidate } });
+      if (checkExists) {
+        candidate = `${first}.${last}.${Math.floor(10 + Math.random() * 90)}@omnihome.med.br`;
+      }
+      emailClean = candidate;
+    }
+
+    // Se não forneceu senha, gera senha segura e amigável automaticamente
+    if (!effectivePassword) {
+      wasGenerated = true;
+      const cleanForPass = trimmedName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/^(dr|dra|enf|ft|fono|nutri|prof)\.?\s+/i, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim();
+      const parts = cleanForPass.split(/\s+/).filter(Boolean);
+      const word = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase() : 'Omni';
+      effectivePassword = `Omni@${word}${Math.floor(100 + Math.random() * 900)}`;
+    }
+
     const existing = await prisma.user.findUnique({
       where: { email: emailClean }
     });
@@ -203,13 +244,35 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const crmVal = councilNumber || crm || (profession ? `${profession} - Reg. Ativo` : 'CREFITO/SP 00.000');
+    const passwordHash = await bcrypt.hash(effectivePassword, 10);
+
+    // Formatação inteligente do conselho profissional se o usuário digitou apenas números
+    let crmVal = councilNumber || crm;
+    const cleanProf = profession || 'Fisioterapia';
+    if (crmVal && crmVal.trim() && crmVal !== 'Registro Ativo') {
+      const trimmedCrm = crmVal.trim();
+      if (/^\d/.test(trimmedCrm)) {
+        if (cleanProf === 'Fisioterapia' || cleanProf === 'Terapia Ocupacional') {
+          crmVal = `CREFITO-2/ES ${trimmedCrm}`;
+        } else if (cleanProf === 'Enfermagem') {
+          crmVal = `COREN-ES ${trimmedCrm}`;
+        } else if (cleanProf === 'Fonoaudiologia') {
+          crmVal = `CRFa-ES ${trimmedCrm}`;
+        } else if (cleanProf === 'Nutrição') {
+          crmVal = `CRN-ES ${trimmedCrm}`;
+        } else if (cleanProf === 'Medicina') {
+          crmVal = `CRM-ES ${trimmedCrm}`;
+        }
+      }
+    } else {
+      crmVal = `${cleanProf} - Reg. Ativo`;
+    }
+
     const specialtyVal = specialty || profession || 'Fisioterapia Domiciliar';
 
     const user = await prisma.user.create({
       data: {
-        name,
+        name: trimmedName,
         email: emailClean,
         passwordHash,
         role: 'PROFESSIONAL',
@@ -217,8 +280,8 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
           create: {
             crm: crmVal,
             specialty: specialtyVal,
-            latitude: latitude ?? -23.585000,
-            longitude: longitude ?? -46.638000
+            latitude: latitude ?? -20.3012,
+            longitude: longitude ?? -40.2925
           }
         }
       },
@@ -230,22 +293,36 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     // Vincula aos pacientes para compor o Care Team
     const existingPatients = await prisma.patient.findMany({ select: { id: true } });
     if (existingPatients.length > 0 && user.professional) {
-      await Promise.all(
-        existingPatients.map((p) =>
-          prisma.careTeamMember.create({
-            data: {
+      for (const p of existingPatients) {
+        try {
+          await prisma.careTeamMember.upsert({
+            where: {
+              patientId_professionalId: {
+                patientId: p.id,
+                professionalId: user.professional.id
+              }
+            },
+            update: { active: true },
+            create: {
               patientId: p.id,
-              professionalId: user.professional!.id,
+              professionalId: user.professional.id,
               role: 'SPECIALIST',
               active: true
             }
-          }).catch(() => null)
-        )
-      );
+          });
+        } catch {
+          // Ignora caso paciente de teste tenha sido excluído concorrentemente
+        }
+      }
     }
 
     return reply.status(201).send({
       success: true,
+      generatedCredentials: {
+        login: emailClean,
+        password: effectivePassword,
+        wasGenerated
+      },
       professional: {
         id: user.professional!.id,
         userId: user.id,
@@ -256,6 +333,56 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         latitude: user.professional!.latitude,
         longitude: user.professional!.longitude
       }
+    });
+  });
+
+  /**
+   * DELETE /api/scheduler/professionals/:id
+   * Remove profissional credenciado e seus vínculos na clínica
+   */
+  app.delete<{ Params: { id: string } }>('/professionals/:id', async (request, reply) => {
+    const { id } = request.params;
+    if (!id) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'ID do profissional é obrigatório.'
+      });
+    }
+
+    const prof = await prisma.professional.findUnique({
+      where: { id }
+    });
+
+    if (!prof) {
+      return reply.status(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: 'Profissional não encontrado.'
+      });
+    }
+
+    // Remove appointments e careTeamMembers antes para manter integridade
+    await prisma.careTeamMember.deleteMany({ where: { professionalId: id } }).catch(() => null);
+    await prisma.appointment.deleteMany({ where: { professionalId: id } }).catch(() => null);
+    await prisma.contextualPrice.deleteMany({ where: { professionalId: id } }).catch(() => null);
+
+    // Se houver usuário vinculado, deleta o User (que deleta Professional em cascata). Caso contrário, deleta Professional.
+    if (prof.userId) {
+      await prisma.user.delete({
+        where: { id: prof.userId }
+      }).catch(async () => {
+        await prisma.professional.delete({ where: { id } }).catch(() => null);
+      });
+    } else {
+      await prisma.professional.delete({
+        where: { id }
+      }).catch(() => null);
+    }
+
+    return reply.status(200).send({
+      success: true,
+      message: 'Profissional removido com sucesso.'
     });
   });
 

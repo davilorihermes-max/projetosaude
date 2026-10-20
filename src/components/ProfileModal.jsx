@@ -161,6 +161,21 @@ export default function ProfileModal({
       const targetUserId = currentUser?.id || currentDoctor?.userId;
       const targetProfId = (currentDoctor?.id && currentDoctor.id !== 'all') ? currentDoctor.id : currentUser?.professionalId;
 
+      let formattedCouncil = councilNumber.trim() || 'Registro Ativo';
+      if (/^\d/.test(formattedCouncil) && profession) {
+        if (profession === 'Fisioterapia' || profession === 'Terapia Ocupacional') {
+          formattedCouncil = `CREFITO-2/ES ${formattedCouncil}`;
+        } else if (profession === 'Enfermagem') {
+          formattedCouncil = `COREN-ES ${formattedCouncil}`;
+        } else if (profession === 'Fonoaudiologia') {
+          formattedCouncil = `CRFa-ES ${formattedCouncil}`;
+        } else if (profession === 'Nutrição') {
+          formattedCouncil = `CRN-ES ${formattedCouncil}`;
+        } else if (profession === 'Medicina') {
+          formattedCouncil = `CRM-ES ${formattedCouncil}`;
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: {
@@ -170,8 +185,8 @@ export default function ProfileModal({
         body: JSON.stringify({
           name: name.trim(),
           specialty: selectedSpecialties.join(', '),
-          councilNumber: councilNumber.trim() || 'Registro Ativo',
-          crm: councilNumber.trim() || 'Registro Ativo',
+          councilNumber: formattedCouncil,
+          crm: formattedCouncil,
           latitude: baseCoordinates.latitude,
           longitude: baseCoordinates.longitude,
           userId: targetUserId,
