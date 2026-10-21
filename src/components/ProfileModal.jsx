@@ -79,7 +79,15 @@ export default function ProfileModal({
   const [resolvedLocationName, setResolvedLocationName] = useState(currentDoctor?.baseAddress || 'Localização definida');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [color, setColor] = useState(currentDoctor?.color || '#0d9488');
-  const [avatar, setAvatar] = useState(currentDoctor?.avatar || '');
+  const resolveProfileAvatar = (doc, user) => {
+    if (doc?.avatar) return doc.avatar;
+    if (user?.avatar) return user.avatar;
+    const email = (user?.email || doc?.email || '').toLowerCase().trim();
+    if (email === 'sabrinapradolucas@elohabilitar.com.br') return '/avatars/sabrina-prado-lucas.png';
+    return '';
+  };
+
+  const [avatar, setAvatar] = useState(() => resolveProfileAvatar(currentDoctor, currentUser));
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -113,7 +121,7 @@ export default function ProfileModal({
     setBaseCoordinates(getSafeCoords(doc, currentUser));
     setResolvedLocationName(doc?.baseAddress || 'Localização definida');
     setColor(doc?.color || '#0d9488');
-    setAvatar(doc?.avatar || '');
+    setAvatar(resolveProfileAvatar(doc, currentUser));
   }, [isOpen, currentUser, currentDoctor]);
 
   if (!isOpen) return null;
@@ -226,6 +234,7 @@ export default function ProfileModal({
       const updatedUserData = {
         ...(currentUser || {}),
         ...cloudUser,
+        avatar,
         professionalId: profId
       };
 

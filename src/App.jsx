@@ -248,8 +248,10 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
+            const emailClean = (data.user.email || '').toLowerCase().trim();
             const enriched = {
               ...data.user,
+              avatar: data.user.avatar || (emailClean === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null),
               professionalId: data.user.professional?.id || data.user.professionalId || null
             };
             setCurrentUser(enriched);
@@ -298,6 +300,9 @@ export default function App() {
                   profName = p.profession;
                 }
 
+                const emailClean = (p.user?.email || '').toLowerCase().trim();
+                const defaultAvatar = emailClean === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null;
+
                 return {
                   id: p.id,
                   userId: p.userId,
@@ -307,7 +312,7 @@ export default function App() {
                   specialty: p.specialty || 'Atendimento Multidisciplinar',
                   councilNumber: p.crm || 'Registro Ativo',
                   crm: p.crm || 'Registro Ativo',
-                  avatar: p.user?.avatar || null,
+                  avatar: p.user?.avatar || defaultAvatar,
                   color: '#0d9488',
                   baseAddress: 'Praia do Canto, Vitória - ES',
                   baseCoordinates: {
@@ -329,11 +334,21 @@ export default function App() {
             }
 
             setDoctors((prev) => {
-              const backendIds = new Set(uniqueDocs.map((d) => d.id));
+              const prevMap = new Map(prev.map((d) => [d.id, d]));
+              const mergedDocs = uniqueDocs.map((doc) => {
+                const old = prevMap.get(doc.id) || prev.find((d) => d.email && d.email.toLowerCase() === doc.email?.toLowerCase());
+                return {
+                  ...doc,
+                  avatar: doc.avatar || old?.avatar || null,
+                  color: old?.color || doc.color
+                };
+              });
+
+              const backendIds = new Set(mergedDocs.map((d) => d.id));
               const localWithoutAccount = prev.filter(
                 (d) => d.hasAccount === false && !backendIds.has(d.id) && !isMockDoctor(d)
               );
-              const combined = [...uniqueDocs, ...localWithoutAccount];
+              const combined = [...mergedDocs, ...localWithoutAccount];
               localStorage.setItem('omnihome_doctors_v3', JSON.stringify(combined));
               return combined;
             });
@@ -1117,13 +1132,25 @@ export default function App() {
         initialTab={loginModalTab}
         onRegisterSuccess={handleRegisterProfessional}
         onLoginSuccess={(user, token) => {
-          setCurrentUser(user);
-          localStorage.setItem('omnihome_user_v3', JSON.stringify(user));
-          localStorage.setItem('omnihome_user', JSON.stringify(user));
+          const userEmail = (user.email || '').toLowerCase().trim();
+          const userAvatar = user.avatar || (userEmail === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null);
+          const enrichedUser = {
+            ...user,
+            avatar: userAvatar
+          };
+          setCurrentUser(enrichedUser);
+          localStorage.setItem('omnihome_user_v3', JSON.stringify(enrichedUser));
+          localStorage.setItem('omnihome_user', JSON.stringify(enrichedUser));
 
           if (user.professional) {
             setDoctors((prev) => {
-              if (prev.some((d) => d.id === user.professional.id)) return prev;
+              if (prev.some((d) => d.id === user.professional.id)) {
+                return prev.map((d) =>
+                  d.id === user.professional.id
+                    ? { ...d, avatar: d.avatar || userAvatar }
+                    : d
+                );
+              }
               const prof = {
                 id: user.professional.id,
                 userId: user.id,
@@ -1139,7 +1166,7 @@ export default function App() {
                 specialty: user.professional.specialty || 'Atendimento Multidisciplinar',
                 councilNumber: user.professional.crm || 'Registro Ativo',
                 crm: user.professional.crm || 'Registro Ativo',
-                avatar: user.avatar || null,
+                avatar: userAvatar,
                 color: '#0d9488',
                 baseAddress: 'Praia do Canto, Vitória - ES',
                 baseCoordinates: {

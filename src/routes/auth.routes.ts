@@ -98,6 +98,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       { expiresIn: '7d' }
     );
 
+    const emailLower = (user.email || '').toLowerCase().trim();
     return reply.status(200).send({
       message: 'Login realizado com sucesso',
       token,
@@ -106,6 +107,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        avatar: emailLower === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null,
         professionalId: user.professional?.id || null,
         professional: user.professional || null
       }
@@ -252,7 +254,12 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       });
     }
 
-    return reply.send({ user });
+    const emailLower = (user.email || '').toLowerCase().trim();
+    const enrichedUser = {
+      ...user,
+      avatar: emailLower === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null
+    };
+    return reply.send({ user: enrichedUser });
   });
 
   /**
@@ -347,9 +354,14 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         }
       });
 
+      const emailLower = (updatedUser.email || '').toLowerCase().trim();
+      const enrichedUser = {
+        ...updatedUser,
+        avatar: emailLower === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null
+      };
       return reply.status(200).send({
         message: 'Perfil atualizado com sucesso',
-        user: updatedUser
+        user: enrichedUser
       });
     }
   );

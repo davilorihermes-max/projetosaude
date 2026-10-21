@@ -150,7 +150,17 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         user: { select: { id: true, name: true, email: true, role: true } }
       }
     });
-    return reply.status(200).send({ success: true, professionals: list });
+    const enrichedList = list.map((p) => {
+      const emailLower = (p.user?.email || '').toLowerCase().trim();
+      return {
+        ...p,
+        user: {
+          ...p.user,
+          avatar: emailLower === 'sabrinapradolucas@elohabilitar.com.br' ? '/avatars/sabrina-prado-lucas.png' : null
+        }
+      };
+    });
+    return reply.status(200).send({ success: true, professionals: enrichedList });
   });
 
   /**
