@@ -1,6 +1,6 @@
 // src/components/Header.jsx
 import React from 'react';
-import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck } from 'lucide-react';
+import { Search, Bell, Plus, UserPlus, CalendarPlus, UserCheck, KeyRound, ShieldCheck, X } from 'lucide-react';
 import './Header.css';
 import Avatar from './Avatar';
 
@@ -31,6 +31,25 @@ export default function Header({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => setSearchQuery('')}
+              title="Limpar busca"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 6px',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </div>
 

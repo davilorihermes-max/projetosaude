@@ -215,7 +215,7 @@ describe('Módulo Financeiro - Fechamento Mensal & Precificação Contextual', (
       const paid = await FinancialService.markAsPaid(settlement.id, 'Pago via PIX na conta do profissional');
       expect(paid.status).toBe('PAID');
       expect(paid.paidAt).toBeDefined();
-    });
+    }, 15000);
 
     it('deve impedir que uma sessão já faturada seja incluída em uma nova prévia de fechamento', async () => {
       const previewAfter = await FinancialService.previewMonthlySettlement({

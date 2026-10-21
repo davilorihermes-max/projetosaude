@@ -108,7 +108,7 @@ export default function NewPatientModal({
       setPhone('');
       setEmail('');
       setAddress('');
-      setPatientCoordinates({ latitude: -23.585, longitude: -46.638 });
+      setPatientCoordinates({ latitude: -20.3155, longitude: -40.2925 });
       setResolvedLocationName('');
       setCaregiver('');
       setDemands([

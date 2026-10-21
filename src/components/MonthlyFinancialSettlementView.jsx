@@ -59,12 +59,26 @@ export default function MonthlyFinancialSettlementView({
   doctors = [],
   patients = [],
   appointments = [],
-  currentUser
+  currentUser,
+  selectedDoctorId,
+  setSelectedDoctorId
 }) {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
   const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing'
   const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [includeScheduled, setIncludeScheduled] = useState(false);
+  const [internalDoctorId, setInternalDoctorId] = useState(() => {
+    if (selectedDoctorId && selectedDoctorId !== 'all') return selectedDoctorId;
+    if (currentUser?.professionalId) return currentUser.professionalId;
+    const match = (doctors || []).find(
+      (d) => d.id === currentUser?.id || d.userId === currentUser?.id || d.email === currentUser?.email
+    );
+    if (match) return match.id;
+    return doctors[0]?.id || 'doc-1';
+  });
+
+  const effectiveDoctorId = selectedDoctorId && selectedDoctorId !== 'all' ? selectedDoctorId : internalDoctorId;
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -72,6 +86,8 @@ export default function MonthlyFinancialSettlementView({
 
   // Identifica o profissional estritamente logado
   const activeProfessional = useMemo(() => {
+    const docMatch = (doctors || []).find((d) => d.id === effectiveDoctorId);
+    if (docMatch) return docMatch;
     if (currentUser) {
       const match = (doctors || []).find(
         (d) => d.id === currentUser.id || d.userId === currentUser.id || d.email === currentUser.email
@@ -84,7 +100,7 @@ export default function MonthlyFinancialSettlementView({
       crm: 'CREFITO Ativo',
       specialty: 'Fisioterapia Domiciliar'
     };
-  }, [currentUser, doctors]);
+  }, [effectiveDoctorId, currentUser, doctors]);
 
   // Regras de precificação configuradas pelo profissional
   const [pricingRules, setPricingRules] = useState(() => {
@@ -191,7 +207,7 @@ export default function MonthlyFinancialSettlementView({
         apt.status === 'attended' ||
         Boolean(apt.checkInTime) ||
         Boolean(apt.checkedIn);
-      if (!isCheckedIn) return false;
+      if (!isCheckedIn && !includeScheduled) return false;
 
       const dateStr = apt.date || apt.scheduledTime;
       if (!dateStr) return false;
@@ -230,7 +246,7 @@ export default function MonthlyFinancialSettlementView({
     parsedSessions.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
 
     setSettlementSessions(parsedSessions);
-  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice]);
+  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice, includeScheduled]);
 
   // Agrupamento por Paciente
   const groupedByPatient = useMemo(() => {
@@ -677,6 +693,34 @@ export default function MonthlyFinancialSettlementView({
         <div className="financial-controls">
           <select
             className="select-control"
+            style={{ fontWeight: 600 }}
+            value={effectiveDoctorId}
+            onChange={(e) => {
+              setInternalDoctorId(e.target.value);
+              if (setSelectedDoctorId) setSelectedDoctorId(e.target.value);
+            }}
+            title="Selecionar profissional para apuração de honorários"
+          >
+            {doctors
+              .filter((d) => d.id !== 'all')
+              .map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.name} • {doc.profession || 'Especialista'}
+                </option>
+              ))}
+          </select>
+
+          <button
+            type="button"
+            className={`btn ${includeScheduled ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem', fontWeight: 600 }}
+            onClick={() => setIncludeScheduled(!includeScheduled)}
+            title="Alternar entre apurar apenas atendimentos já realizados (com check-in) ou exibir toda a escala mensal planejada"
+          >
+            {includeScheduled ? '✓ Prévia Escala Completa' : 'Apenas com Check-in'}
+          </button>
+          <select
+            className="select-control"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
           >
@@ -994,7 +1038,7 @@ export default function MonthlyFinancialSettlementView({
 
                     <div>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textAlign: 'right' }}>
-                        Subtotal a Receber de {group.patientName.split(' ')[0]}:
+                        Subtotal a Receber de {(group.patientName || 'Paciente').split(' ')[0]}:
                       </span>
                       <div className="patient-subtotal-total">
                         R$ {group.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

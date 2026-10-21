@@ -348,10 +348,25 @@ export default function MobileAppView({
                       >
                         <CheckCircle2 size={16} /> Fazer Check-in
                       </button>
+                    ) : apt.status === 'in_progress' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%' }}>
+                        <div className="mob-done-indicator">
+                          <CheckCircle2 size={16} color="#059669" />
+                          <span>Presença confirmada (Em atendimento)</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="mob-btn-action mob-btn-checkin"
+                          style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
+                          onClick={() => handleCompleteWithCelebration(apt.id)}
+                        >
+                          <CheckCircle2 size={16} /> Concluir Atendimento
+                        </button>
+                      </div>
                     ) : (
                       <div className="mob-done-indicator">
                         <CheckCircle2 size={16} color="#059669" />
-                        <span>Presença confirmada (Check-in realizado)</span>
+                        <span style={{ fontWeight: 700, color: '#047857' }}>Sessão Concluída</span>
                       </div>
                     )}
                   </div>

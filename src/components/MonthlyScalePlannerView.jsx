@@ -347,24 +347,29 @@ export default function MonthlyScalePlannerView({
     const saved = getInitialScaleSavedData()?.patientsWithDemands || [];
     if (!saved || saved.length === 0) return [];
     // Reconciliação imediata na montagem: se o paciente existe na base `patients`, atualiza endereço e coordenadas
-    if (patients && patients.length > 0) {
-      return saved.map((existing) => {
-        const matching = patients.find((p) => p.id === existing.patientId);
-        if (!matching) return existing;
-        const coords = (matching.latitude && matching.longitude)
-          ? { latitude: Number(matching.latitude), longitude: Number(matching.longitude) }
-          : existing.location;
+    return saved.map((existing) => {
+      const pId = existing.patientId || existing.id;
+      const matching = (patients && patients.length > 0) ? patients.find((p) => p.id === pId) : null;
+      if (!matching) {
         return {
           ...existing,
-          patientName: matching.name || existing.patientName,
-          address: matching.address || existing.address,
-          neighborhood: matching.address || existing.neighborhood,
-          location: coords || existing.location,
-          demands: (matching.demands && matching.demands.length > 0) ? matching.demands : existing.demands
+          patientId: pId,
+          patientName: existing.patientName || existing.name || 'Paciente'
         };
-      });
-    }
-    return saved;
+      }
+      const coords = (matching.latitude && matching.longitude)
+        ? { latitude: Number(matching.latitude), longitude: Number(matching.longitude) }
+        : existing.location;
+      return {
+        ...existing,
+        patientId: matching.id || pId,
+        patientName: matching.name || existing.patientName || existing.name || 'Paciente',
+        address: matching.address || existing.address,
+        neighborhood: matching.address || existing.neighborhood,
+        location: coords || existing.location,
+        demands: (matching.demands && matching.demands.length > 0) ? matching.demands : existing.demands
+      };
+    });
   });
 
   // 2. Estado Dinâmico: Profissionais com JANELAS DE HORÁRIO INDIVIDUAIS POR DIA E BLOQUEIOS
@@ -458,8 +463,15 @@ export default function MonthlyScalePlannerView({
       // Se já existem pacientes na escala, sincroniza alterações e inclui novos pacientes cadastrados
       let hasChanges = false;
       const updatedList = prevList.map((existing) => {
-        const matching = patients.find((p) => p.id === existing.patientId);
-        if (!matching) return existing;
+        const pId = existing.patientId || existing.id;
+        const matching = patients.find((p) => p.id === pId);
+        if (!matching) {
+          return {
+            ...existing,
+            patientId: pId,
+            patientName: existing.patientName || existing.name || 'Paciente'
+          };
+        }
 
         const newCoords = (matching.latitude && matching.longitude)
           ? { latitude: Number(matching.latitude), longitude: Number(matching.longitude) }
@@ -472,12 +484,14 @@ export default function MonthlyScalePlannerView({
         );
         const isNameChanged = matching.name && matching.name !== existing.patientName;
         const isDemandsChanged = matching.demands && JSON.stringify(matching.demands) !== JSON.stringify(existing.demands);
+        const isIdMissing = !existing.patientId;
 
-        if (isAddressChanged || isCoordsChanged || isNameChanged || isDemandsChanged) {
+        if (isAddressChanged || isCoordsChanged || isNameChanged || isDemandsChanged || isIdMissing) {
           hasChanges = true;
           return {
             ...existing,
-            patientName: matching.name || existing.patientName,
+            patientId: matching.id || pId,
+            patientName: matching.name || existing.patientName || existing.name,
             address: matching.address || existing.address,
             neighborhood: matching.address || existing.neighborhood,
             location: newCoords || existing.location,
@@ -489,7 +503,7 @@ export default function MonthlyScalePlannerView({
 
       // Inclui pacientes recém-cadastrados na base que ainda não estavam na escala
       patients.forEach((pat) => {
-        if (!updatedList.some((p) => p.patientId === pat.id)) {
+        if (!updatedList.some((p) => (p.patientId || p.id) === pat.id)) {
           hasChanges = true;
           const coords = (pat.latitude && pat.longitude)
             ? { latitude: Number(pat.latitude), longitude: Number(pat.longitude) }
@@ -1079,12 +1093,12 @@ export default function MonthlyScalePlannerView({
 
   const formatBlockLabel = (block) => {
     if (block.dateStr && block.endDateStr && block.dateStr !== block.endDateStr) {
-      const parts1 = block.dateStr.split('-');
-      const parts2 = block.endDateStr.split('-');
+      const parts1 = String(block.dateStr || '').split('-');
+      const parts2 = String(block.endDateStr || '').split('-');
       return `${parts1[2]}/${parts1[1]} a ${parts2[2]}/${parts2[1]}`;
     }
     if (block.dateStr) {
-      const parts = block.dateStr.split('-');
+      const parts = String(block.dateStr || '').split('-');
       return `${parts[2]}/${parts[1]}`;
     }
     return WEEKDAY_SHORT[block.dayOfWeek] || 'Dia';
@@ -1956,7 +1970,7 @@ export default function MonthlyScalePlannerView({
                 <option value="all">Todos os Profissionais</option>
                 {professionalAvailabilities.map((p) => (
                   <option key={p.professionalId} value={p.professionalId}>
-                    {p.professionalName} ({p.specialty.split(' ')[0]})
+                    {p.professionalName} ({p.specialty ? p.specialty.split(' ')[0] : 'Geral'})
                   </option>
                 ))}
               </select>
@@ -2291,7 +2305,7 @@ export default function MonthlyScalePlannerView({
                 </div>
               ) : (
                 professionalAvailabilities.map((prof) => (
-                <div key={prof.professionalId} style={{
+                <div key={prof.professionalId || prof.id} style={{
                   border: '1px solid var(--border-light)',
                   borderRadius: '12px',
                   padding: '1.25rem',
@@ -2547,7 +2561,7 @@ export default function MonthlyScalePlannerView({
                       <span className="fixed-time-badge">
                         <Lock size={12} />
                         {fix.recurrenceType === 'date'
-                          ? `Data: ${fix.dateStr.split('-')[2]}/${fix.dateStr.split('-')[1]} às ${fix.time}`
+                          ? `Data: ${fix.dateStr ? `${fix.dateStr.split('-')[2]}/${fix.dateStr.split('-')[1]}` : ''} às ${fix.time}`
                           : `Toda ${WEEKDAY_SHORT[fix.dayOfWeek]} às ${fix.time}`} ({fix.durationMinutes} min)
                       </span>
                       <button
@@ -2628,7 +2642,7 @@ export default function MonthlyScalePlannerView({
                 const patientCareTeam = careTeams.find((ct) => ct.patientId === patient.patientId) || { professionalIds: [] };
 
                 return (
-                  <div key={patient.patientId} style={{
+                  <div key={patient.patientId || patient.id} style={{
                     border: '1px solid var(--border-light)',
                     borderRadius: '12px',
                     padding: '1.25rem',
@@ -2819,7 +2833,7 @@ export default function MonthlyScalePlannerView({
                               title={isMember ? 'Remover do Care Team' : 'Adicionar ao Care Team'}
                             >
                               {isMember ? <CheckCircle2 size={12} color="#2563eb" /> : <Plus size={12} />}
-                              {prof.professionalName.split(' ')[0]} {prof.professionalName.split(' ')[1] || ''}
+                              {(prof.professionalName || '').split(' ')[0]} {(prof.professionalName || '').split(' ')[1] || ''}
                             </button>
                           );
                         })}
@@ -4190,7 +4204,7 @@ export default function MonthlyScalePlannerView({
 
                         return (
                           <div
-                            key={cIdx}
+                            key={cell.dateStr || `cell-${wIdx}-${cIdx}`}
                             style={{
                               background: cell.isCurrentMonth ? (isWeekend ? '#f8fafc' : '#ffffff') : '#f1f5f9',
                               minHeight: '105px',
@@ -4351,7 +4365,7 @@ export default function MonthlyScalePlannerView({
                   const sessionsInCell = cell.dateStr ? pdfSessions.filter((s) => s.date === cell.dateStr) : [];
                   return (
                     <div
-                      key={cIdx}
+                      key={cell.dateStr || `print-cell-${wIdx}-${cIdx}`}
                       style={{
                         background: cell.isCurrentMonth ? '#ffffff' : '#f1f5f9',
                         minHeight: '90px',

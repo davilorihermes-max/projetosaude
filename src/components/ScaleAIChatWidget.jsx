@@ -219,12 +219,17 @@ export default function ScaleAIChatWidget({
     } catch (err) {}
   };
 
+  const firstProf = context?.professionalAvailabilities?.[0];
+  const firstProfName = firstProf?.professionalName || firstProf?.name;
+  const firstPat = context?.patientsWithDemands?.[0];
+  const firstPatName = firstPat?.patientName || firstPat?.name;
+
   const quickPrompts = [
     'Como ficou a escala deste mês?',
     'Quais os principais gargalos da escala?',
     'Quantos atendimentos foram agendados?',
-    context?.professionalAvailabilities?.[0] ? `Atendimentos de ${context.professionalAvailabilities[0].professionalName.split(' ')[0]}` : null,
-    context?.patientsWithDemands?.[0] ? `Situação de ${context.patientsWithDemands[0].patientName.split(' ')[0]}` : null
+    firstProfName ? `Atendimentos de ${firstProfName.split(' ')[0]}` : null,
+    firstPatName ? `Situação de ${firstPatName.split(' ')[0]}` : null
   ].filter(Boolean);
 
   if (!isOpen && !isDocked) return null;
@@ -345,7 +350,7 @@ export default function ScaleAIChatWidget({
 
                 {/* Conteúdo da Mensagem com quebras de linha e formatação */}
                 <div className="ai-message-text">
-                  {msg.text.split('\n').map((line, lIdx) => {
+                  {(msg.text || "").split('\n').map((line, lIdx) => {
                     if (!line.trim()) return <div key={lIdx} style={{ height: '0.4rem' }} />;
 
                     // Suporte simples a títulos markdown ###

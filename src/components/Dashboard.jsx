@@ -32,7 +32,8 @@ export default function Dashboard({
   onOpenNewAppointment,
   onOpenNewPatient,
   onOpenPatientRecord,
-  activeDoctor
+  activeDoctor,
+  searchQuery = ''
 }) {
   const isAllDoctors = !activeDoctor || activeDoctor.id === 'all';
   const realTodayStr = new Date().toISOString().slice(0, 10);
@@ -78,11 +79,23 @@ export default function Dashboard({
       .filter((apt) => {
         const isMatchDate = apt.date === selectedDate;
         if (!isMatchDate) return false;
-        if (isAllDoctors) return true;
-        return apt.doctorId === activeDoctor.id;
+        if (!isAllDoctors && apt.doctorId !== activeDoctor.id) return false;
+        if (searchQuery && searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const pat = patients.find((p) => p.id === apt.patientId);
+          const patName = (pat?.name || '').toLowerCase();
+          const patAddr = (pat?.address || apt.address || '').toLowerCase();
+          const patCpf = (pat?.cpf || '').toLowerCase();
+          if (!patName.includes(q) && !patAddr.includes(q) && !patCpf.includes(q)) {
+            return false;
+          }
+        }
+        return true;
+
+
       })
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-  }, [appointments, selectedDate, isAllDoctors, activeDoctor]);
+  }, [appointments, selectedDate, isAllDoctors, activeDoctor, searchQuery, patients]);
 
   const pendingCount = todayAppointments.filter((a) => a.status === 'scheduled' || a.status === 'waiting').length;
   const inProgressCount = todayAppointments.filter((a) => a.status === 'in_progress').length;
@@ -414,13 +427,42 @@ export default function Dashboard({
                           />
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                              <span className="queue-patient-name">{patient?.name}</span>
+                              <span
+                                className="queue-patient-name"
+                                style={{ cursor: onOpenPatientRecord ? 'pointer' : 'default' }}
+                                onClick={() => onOpenPatientRecord && patient?.id && onOpenPatientRecord(patient.id)}
+                                title="Abrir dados do paciente e prontuário"
+                              >
+                                {patient?.name}
+                              </span>
                               {getStatusBadge(apt.status)}
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--primary)', marginTop: '0.25rem', fontWeight: 600 }}>
                               <MapPin size={14} />
-                              <span>{patient?.address || apt.address}</span>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${
+                                  patient?.latitude && patient?.longitude
+                                    ? `${patient.latitude},${patient.longitude}`
+                                    : encodeURIComponent(patient?.address || apt.address || 'Vitória - ES')
+                                }`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--primary)',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                                title="Abrir localização no Google Maps para navegação GPS"
+                              >
+                                <span>{patient?.address || apt.address}</span>
+                                <span style={{ fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', background: 'var(--primary-subtle)', fontWeight: 700 }}>
+                                  Maps ↗
+                                </span>
+                              </a>
                             </div>
 
                             <div className="queue-meta" style={{ flexWrap: 'wrap' }}>
@@ -430,7 +472,7 @@ export default function Dashboard({
                               <span>• {apt.type}</span>
                               {patient?.caregiver && (
                                 <span style={{ color: 'var(--text-muted)' }}>
-                                  • Cuidador(a): <strong>{patient.caregiver.split('-')[0]}</strong>
+                                  • Cuidador(a): <strong>{String(typeof patient.caregiver === 'object' ? (patient.caregiver?.name || '') : patient.caregiver).split('-')[0].trim()}</strong>
                                 </span>
                               )}
                             </div>
@@ -452,6 +494,40 @@ export default function Dashboard({
                             >
                               <CheckCircle2 size={14} /> Fazer Check-in no Domicílio
                             </button>
+                          ) : apt.status === 'in_progress' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  color: '#059669',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  padding: '0.35rem 0.65rem',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <CheckCircle2 size={13} color="#059669" /> Presença Confirmada
+                              </span>
+                              <button
+                                className="btn btn-primary"
+                                style={{
+                                  padding: '0.45rem 0.85rem',
+                                  fontSize: '0.78rem',
+                                  background: '#059669',
+                                  borderColor: '#059669',
+                                  color: '#ffffff',
+                                  fontWeight: 700
+                                }}
+                                onClick={() => handleCompleteWithCelebration(apt.id)}
+                                title="Finalizar atendimento e registrar conclusão da sessão"
+                              >
+                                <CheckCircle2 size={14} /> Concluir Sessão
+                              </button>
+                            </div>
                           ) : (
                             <span
                               style={{
@@ -467,7 +543,7 @@ export default function Dashboard({
                                 gap: '0.35rem'
                               }}
                             >
-                              <CheckCircle2 size={13} color="#059669" /> Presença Confirmada
+                              <CheckCircle2 size={13} color="#059669" /> Sessão Concluída
                             </span>
                           )}
                         </div>

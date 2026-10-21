@@ -26,9 +26,15 @@ export default function ProfessionalsView({
   onOpenNewProfessional,
   onDeleteProfessional,
   onSelectDoctorForSchedule,
-  onNavigateToPlanner
+  onNavigateToPlanner,
+  searchQuery = ''
 }) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchQuery || '');
+  React.useEffect(() => {
+    if (searchQuery !== undefined) {
+      setSearch(searchQuery);
+    }
+  }, [searchQuery]);
   const [selectedProfession, setSelectedProfession] = useState('all');
   const [copiedId, setCopiedId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -162,6 +168,37 @@ Profissional: ${doc.name}
             <div className="metric-label">Outras Especialidades</div>
           </div>
         </div>
+      </div>
+
+      {/* Filtro Interativo por Especialidade */}
+      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', marginTop: '0.5rem' }}>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>Área de Atuação:</span>
+        {[
+          { id: 'all', label: `Todas (${totalCount})` },
+          { id: 'Fisioterapia', label: `Fisioterapia (${fisioCount})` },
+          { id: 'Enfermagem', label: 'Enfermagem' },
+          { id: 'Fonoaudiologia', label: 'Fonoaudiologia' },
+          { id: 'Terapia Ocupacional', label: 'Terapia Ocupacional' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`filter-chip ${selectedProfession === tab.id ? 'active' : ''}`}
+            onClick={() => setSelectedProfession(tab.id)}
+            style={{
+              padding: '0.3rem 0.75rem',
+              fontSize: '0.78rem',
+              borderRadius: '20px',
+              border: `1px solid ${selectedProfession === tab.id ? 'var(--primary)' : 'var(--border-color, #cbd5e1)'}`,
+              background: selectedProfession === tab.id ? 'var(--primary-subtle, #f0fdfa)' : 'var(--bg-card, #ffffff)',
+              color: selectedProfession === tab.id ? 'var(--primary, #0d9488)' : 'var(--text-body, #334155)',
+              fontWeight: selectedProfession === tab.id ? 700 : 500,
+              cursor: 'pointer'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Grade de Profissionais */}

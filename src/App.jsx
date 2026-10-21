@@ -935,6 +935,7 @@ export default function App() {
               onOpenNewAppointment={() => handleOpenNewAppointment(null, '09:00', todayStr, 45, activeDoctor?.id)}
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               activeDoctor={activeDoctor}
+              searchQuery={searchQuery}
             />
           )}
 
@@ -950,6 +951,7 @@ export default function App() {
               setSelectedDoctorId={setSelectedDoctorId}
               initialSelectedDate={scheduleActiveDate}
               onLoadPlannedScale={handleLoadOrSyncPlannedScale}
+              searchQuery={searchQuery}
             />
           )}
 
@@ -1014,6 +1016,7 @@ export default function App() {
               patients={patients}
               appointments={appointments}
               activeDoctor={activeDoctor}
+              searchQuery={searchQuery}
               doctors={doctors}
               onOpenPatientRecord={handleOpenPatientRecord}
               onOpenNewPatient={() => {
@@ -1026,6 +1029,7 @@ export default function App() {
               }}
               onOpenNewAppointment={(patId) => handleOpenNewAppointment(patId, '09:00', todayStr, 45, activeDoctor?.id)}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
+              searchQuery={searchQuery}
               onDeletePatient={handleDeletePatient}
             />
           )}
@@ -1040,6 +1044,7 @@ export default function App() {
                 setActiveTab('schedule');
               }}
               onNavigateToPlanner={() => setActiveTab('monthly-planner')}
+              searchQuery={searchQuery}
             />
           )}
 
@@ -1049,6 +1054,8 @@ export default function App() {
               patients={patients}
               appointments={appointments}
               currentUser={currentUser}
+              selectedDoctorId={selectedDoctorId}
+              setSelectedDoctorId={setSelectedDoctorId}
             />
           )}
 

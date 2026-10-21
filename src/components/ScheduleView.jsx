@@ -44,7 +44,8 @@ export default function ScheduleView({
   selectedDoctorId,
   setSelectedDoctorId,
   initialSelectedDate,
-  onLoadPlannedScale
+  onLoadPlannedScale,
+  searchQuery = ''
 }) {
   const allDatesWithApts = React.useMemo(() => {
     return Array.from(new Set(appointments.map((a) => a.date).filter(Boolean))).sort();
@@ -79,7 +80,18 @@ export default function ScheduleView({
     const matchesDate = apt.date === selectedDate;
     const matchesDoctor = selectedDoctorId === 'all' || apt.doctorId === selectedDoctorId;
     const matchesStatus = statusFilter === 'all' || apt.status === statusFilter;
-    return matchesDate && matchesDoctor && matchesStatus;
+    if (!matchesDate || !matchesDoctor || !matchesStatus) return false;
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const pat = patients.find((p) => p.id === apt.patientId);
+      const patName = (pat?.name || '').toLowerCase();
+      const patAddr = (pat?.address || apt.address || '').toLowerCase();
+      const patCpf = (pat?.cpf || '').toLowerCase();
+      if (!patName.includes(q) && !patAddr.includes(q) && !patCpf.includes(q)) {
+        return false;
+      }
+    }
+    return true;
   });
 
   // Base padrão de horários + horários reais dos agendamentos + horários de saída para deslocamento urbano
@@ -812,12 +824,48 @@ export default function ScheduleView({
                           </button>
                         )}
 
-                        {(aptInSlot.status === 'in_progress' || aptInSlot.status === 'completed') && (
+                        {aptInSlot.status === 'in_progress' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                color: '#059669',
+                                background: '#ecfdf5',
+                                border: '1px solid #a7f3d0',
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <CheckCircle2 size={13} color="#059669" /> Check-in Realizado
+                            </span>
+                            <button
+                              className="btn btn-primary"
+                              style={{
+                                fontSize: '0.78rem',
+                                padding: '0.4rem 0.75rem',
+                                background: '#059669',
+                                borderColor: '#059669',
+                                color: '#ffffff',
+                                fontWeight: 700
+                              }}
+                              onClick={() => handleCompleteWithCelebration(aptInSlot.id)}
+                              title="Finalizar atendimento e registrar conclusão da sessão"
+                            >
+                              <CheckCircle2 size={14} /> Concluir Sessão
+                            </button>
+                          </div>
+                        )}
+
+                        {aptInSlot.status === 'completed' && (
                           <span
                             style={{
                               fontSize: '0.78rem',
                               fontWeight: 700,
-                              color: '#059669',
+                              color: '#047857',
                               background: '#ecfdf5',
                               border: '1px solid #a7f3d0',
                               padding: '0.35rem 0.65rem',
@@ -827,9 +875,11 @@ export default function ScheduleView({
                               gap: '0.35rem'
                             }}
                           >
-                            <CheckCircle2 size={13} color="#059669" /> Check-in Realizado
+                            <CheckCircle2 size={13} color="#059669" /> Sessão Concluída
                           </span>
                         )}
+
+                          
 
                         <button
                           className="btn btn-outline-primary"

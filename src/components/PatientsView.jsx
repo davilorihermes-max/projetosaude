@@ -27,9 +27,15 @@ export default function PatientsView({
   onEditPatient,
   onOpenNewAppointment,
   onNavigateToPlanner,
-  onDeletePatient
+  onDeletePatient,
+  searchQuery = ''
 }) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchQuery || '');
+  React.useEffect(() => {
+    if (searchQuery !== undefined) {
+      setSearch(searchQuery);
+    }
+  }, [searchQuery]);
   const [scope, setScope] = useState(activeDoctor && activeDoctor.id !== 'all' ? 'my' : 'all');
 
   // IDs de pacientes vinculados aos atendimentos ou Care Team do profissional ativo
@@ -225,9 +231,37 @@ export default function PatientsView({
                     <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
                       <MapPin size={13} /> Domicílio:
                     </span>
-                    <strong style={{ fontSize: '0.8rem', textAlign: 'right', maxWidth: '65%' }}>
-                      {patient.address || 'Vitória - ES'}
-                    </strong>
+
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${
+                        patient?.latitude && patient?.longitude
+                          ? `${patient.latitude},${patient.longitude}`
+                          : encodeURIComponent(patient.address || 'Vitória - ES')
+                      }`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: '0.8rem',
+                        textAlign: 'right',
+                        maxWidth: '65%',
+                        color: 'var(--primary)',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Abrir endereço no Google Maps"
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {patient.address || 'Vitória - ES'}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', padding: '1px 4px', borderRadius: '4px', background: 'var(--primary-subtle)', fontWeight: 700 }}>
+                        Maps ↗
+                      </span>
+                    </a>
+
+
                   </div>
 
                   {patient.caregiver && (

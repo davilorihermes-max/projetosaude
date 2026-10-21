@@ -19,7 +19,7 @@ import {
 import './BottlenecksVisualManager.css';
 
 function timeToMinutes(timeStr) {
-  if (!timeStr) return 0;
+  if (!timeStr || typeof timeStr !== 'string') return 0;
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + m;
 }
@@ -34,6 +34,16 @@ function minutesToTime(totalMin) {
 function getEndTime(startStr, durationMin = 45) {
   return minutesToTime(timeToMinutes(startStr) + Number(durationMin));
 }
+
+function getShortDisplayName(name) {
+  if (!name) return 'Profissional';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length > 1 && /^(dr|dra|enf|ft|fono|nutri|prof)\b/i.test(parts[0])) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return parts[0] || 'Profissional';
+}
+
 
 const PX_PER_MINUTE = 0.8; // Proporção uniforme: 60 minutos = 48px
 const GRID_START_TIME = '08:00';
@@ -796,7 +806,7 @@ export default function BottlenecksVisualManager({
                               title={`Autorizar ${cand.professionalName} no Care Team deste paciente`}
                             >
                               <UserCheck size={15} />
-                              ✨ Autorizar {cand.professionalName.split(' ')[0]} no Care Team
+                              ✨ Autorizar {getShortDisplayName(cand.professionalName)} no Care Team
                             </button>
                           ))}
                         </>
@@ -818,7 +828,7 @@ export default function BottlenecksVisualManager({
                                     title={`Habilitar domingo para ${prof.professionalName}`}
                                   >
                                     <Zap size={15} />
-                                    ⚡ Habilitar Domingo para {prof.professionalName.split(' ')[0]}
+                                    ⚡ Habilitar Domingo para {getShortDisplayName(prof.professionalName)}
                                   </button>
                                 )}
                                 {sabOff && (
@@ -829,7 +839,7 @@ export default function BottlenecksVisualManager({
                                     title={`Habilitar sábado para ${prof.professionalName}`}
                                   >
                                     <Zap size={15} />
-                                    ⚡ Habilitar Sábado para {prof.professionalName.split(' ')[0]}
+                                    ⚡ Habilitar Sábado para {getShortDisplayName(prof.professionalName)}
                                   </button>
                                 )}
                                 <button
@@ -839,7 +849,7 @@ export default function BottlenecksVisualManager({
                                   title={`Ampliar jornada de ${prof.professionalName} até 19:00`}
                                 >
                                   <Clock size={15} />
-                                  Ampliar Horário de {prof.professionalName.split(' ')[0]} até 19h
+                                  Ampliar Horário de {getShortDisplayName(prof.professionalName)} até 19h
                                 </button>
                               </React.Fragment>
                             );
