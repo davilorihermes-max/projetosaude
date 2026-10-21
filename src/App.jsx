@@ -106,7 +106,13 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((d) => !isMockDoctor(d));
+          const filtered = parsed.filter((d) => !isMockDoctor(d)).map((d) => {
+            const emailClean = (d.email || '').toLowerCase().trim();
+            if (emailClean === 'sabrinapradolucas@elohabilitar.com.br' && !d.avatar) {
+              return { ...d, avatar: '/avatars/sabrina-prado-lucas.png' };
+            }
+            return d;
+          });
           if (filtered.length > 0) return filtered;
         }
       } catch {}
@@ -161,7 +167,16 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('omnihome_user_v3') || localStorage.getItem('omnihome_user');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed) {
+          const emailClean = (parsed.email || '').toLowerCase().trim();
+          if (emailClean === 'sabrinapradolucas@elohabilitar.com.br' && !parsed.avatar) {
+            parsed.avatar = '/avatars/sabrina-prado-lucas.png';
+          }
+          return parsed;
+        }
+      } catch {}
     }
     return null;
   });
