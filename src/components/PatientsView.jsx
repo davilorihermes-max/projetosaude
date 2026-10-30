@@ -13,7 +13,9 @@ import {
   Stethoscope,
   Edit,
   MapPin,
-  Trash2
+  Trash2,
+  Mic,
+  FileText
 } from 'lucide-react';
 import './PatientsView.css';
 import Avatar from './Avatar';
@@ -23,6 +25,8 @@ export default function PatientsView({
   appointments = [],
   activeDoctor,
   doctors = [],
+  evolutions = [],
+  onOpenVoiceEvolution,
   onOpenNewPatient,
   onEditPatient,
   onOpenNewAppointment,
@@ -195,6 +199,9 @@ export default function PatientsView({
               .filter((d) => careTeamDocIds.includes(d.id))
               .map((d) => d.name);
 
+            // Contagem de evoluções deste paciente
+            const patientEvoCount = evolutions.filter((e) => e.patientId === patient.id).length;
+
             return (
               <div key={patient.id} className="patient-card">
                 <div className="patient-card-header" style={{ position: 'relative' }}>
@@ -260,8 +267,6 @@ export default function PatientsView({
                         Maps ↗
                       </span>
                     </a>
-
-
                   </div>
 
                   {patient.caregiver && (
@@ -317,6 +322,31 @@ export default function PatientsView({
                 </div>
 
                 <div className="patient-card-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {/* Botão de Evolução Rápida por Voz */}
+                  {onOpenVoiceEvolution && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{
+                        width: '100%',
+                        fontSize: '0.8rem',
+                        padding: '0.45rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        background: 'var(--primary-subtle)',
+                        borderColor: 'var(--primary-border)',
+                        color: 'var(--primary)',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => onOpenVoiceEvolution(patient)}
+                    >
+                      <Mic size={15} /> Gravar Evolução por Voz {patientEvoCount > 0 ? `(${patientEvoCount})` : ''}
+                    </button>
+                  )}
+
                   {onEditPatient && (
                     <button
                       className="btn btn-secondary"
@@ -328,9 +358,9 @@ export default function PatientsView({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '0.4rem',
-                        border: '1px solid var(--primary-border)',
-                        color: 'var(--primary)',
-                        background: 'var(--primary-subtle)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-body)',
+                        background: 'var(--bg-surface)',
                         fontWeight: 600,
                         cursor: 'pointer'
                       }}

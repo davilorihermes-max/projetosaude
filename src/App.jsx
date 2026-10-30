@@ -20,6 +20,7 @@ import NotificationsModal from './components/NotificationsModal';
 import LoginModal from './components/LoginModal';
 import ProfileModal from './components/ProfileModal';
 import MobileAppView from './components/MobileAppView';
+import VoiceEvolutionModal from './components/VoiceEvolutionModal';
 
 import {
   DOCTORS,
@@ -217,6 +218,26 @@ export default function App() {
   const [modalInitialDate, setModalInitialDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [modalInitialDuration, setModalInitialDuration] = useState(45);
   const [scheduleActiveDate, setScheduleActiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  // Voice Clinical Evolutions
+  const [evolutions, setEvolutions] = useState(() => {
+    const saved = localStorage.getItem('omnihome_evolutions_v3');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [isVoiceEvoModalOpen, setIsVoiceEvoModalOpen] = useState(false);
+  const [voiceEvoPatient, setVoiceEvoPatient] = useState(null);
+  const [voiceEvoAppointment, setVoiceEvoAppointment] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('omnihome_evolutions_v3', JSON.stringify(evolutions));
+  }, [evolutions]);
 
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isProfessionalModalOpen, setIsProfessionalModalOpen] = useState(false);
@@ -756,6 +777,39 @@ export default function App() {
       setActivePatientId(patientId);
     }
     setActiveTab('patients');
+  };
+
+  const handleOpenVoiceEvolution = (patientOrApt) => {
+    if (!patientOrApt) return;
+    if (patientOrApt.patientId) {
+      const p = patients.find((pat) => pat.id === patientOrApt.patientId);
+      setVoiceEvoPatient(p || { id: patientOrApt.patientId, name: patientOrApt.patientName || 'Paciente' });
+      setVoiceEvoAppointment(patientOrApt);
+    } else {
+      setVoiceEvoPatient(patientOrApt);
+      const todayApt = appointments.find((a) => a.patientId === patientOrApt.id && a.date === todayStr);
+      setVoiceEvoAppointment(todayApt || null);
+    }
+    setIsVoiceEvoModalOpen(true);
+  };
+
+  const handleSaveEvolution = (newEvo) => {
+    setEvolutions((prev) => [newEvo, ...prev]);
+
+    if (newEvo.appointmentId) {
+      handleUpdateAppointmentStatus(newEvo.appointmentId, 'completed');
+    }
+
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        type: 'success',
+        title: 'Evolução por Voz Registrada',
+        description: `Evolução de ${newEvo.patientName || 'Paciente'} salva com sucesso no prontuário.`,
+        time: 'Agora'
+      },
+      ...prev
+    ]);
   };
 
   const handleOpenNewAppointment = (patientId = null, time = '09:00', date = null, duration = 45, docId = null) => {

@@ -19,7 +19,8 @@ import {
   UserPlus,
   CalendarPlus,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Mic
 } from 'lucide-react';
 import './Dashboard.css';
 import Avatar from './Avatar';
@@ -529,22 +530,41 @@ export default function Dashboard({
                               </button>
                             </div>
                           ) : (
-                            <span
-                              style={{
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                color: '#059669',
-                                background: '#ecfdf5',
-                                border: '1px solid #a7f3d0',
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '6px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem'
-                              }}
-                            >
-                              <CheckCircle2 size={13} color="#059669" /> Sessão Concluída
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  color: '#059669',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  padding: '0.35rem 0.65rem',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <CheckCircle2 size={13} color="#059669" /> Sessão Concluída
+                              </span>
+                              {onOpenVoiceEvolution && (
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{
+                                    padding: '0.25rem 0.55rem',
+                                    fontSize: '0.72rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    marginLeft: '0.4rem'
+                                  }}
+                                  onClick={() => onOpenVoiceEvolution(apt)}
+                                  title="Ver ou gravar evolução clínica por voz"
+                                >
+                                  <Mic size={12} /> {evolutions.some(e => e.appointmentId === apt.id) ? 'Ver Evolução' : 'Gravar Áudio'}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>

@@ -16,7 +16,9 @@ import {
   Compass,
   User,
   Monitor,
-  Sparkles
+  Sparkles,
+  Mic,
+  FileText
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MobileAppView.css';
@@ -43,6 +45,8 @@ export default function MobileAppView({
   doctors = [],
   currentUser = null,
   activeDoctor = null,
+  evolutions = [],
+  onOpenVoiceEvolution,
   onUpdateAppointmentStatus,
   onOpenNewAppointment,
   onOpenLoginModal,
@@ -213,15 +217,38 @@ export default function MobileAppView({
         </div>
       </section>
 
-      {/* Actions Bar */}
-      <div className="mob-action-bar">
+      {/* Actions Bar com Atalho para Agendamento e Gravação por Voz */}
+      <div className="mob-action-bar" style={{ display: 'flex', gap: '0.5rem' }}>
         <button
           type="button"
           className="mob-btn-add-session"
+          style={{ flex: 1 }}
           onClick={() => onOpenNewAppointment(null, '09:00', selectedDate)}
         >
-          <Plus size={16} /> Agendar Nova Sessão
+          <Plus size={16} /> Nova Sessão
         </button>
+
+        {onOpenVoiceEvolution && (
+          <button
+            type="button"
+            className="mob-btn-voice-quick"
+            onClick={() => {
+              const targetApt =
+                dayAppointments.find((a) => a.status === 'in_progress') ||
+                dayAppointments.find((a) => a.status === 'scheduled') ||
+                dayAppointments[0];
+              const targetPatient = targetApt
+                ? patients.find((p) => p.id === targetApt.patientId)
+                : patients[0];
+              if (targetPatient) {
+                onOpenVoiceEvolution(targetApt || targetPatient);
+              }
+            }}
+            title="Gravar evolução por áudio rápido para um paciente"
+          >
+            <Mic size={16} /> Ditar Evolução
+          </button>
+        )}
       </div>
 
       {/* Appointments & Displacement Feed */}
@@ -275,6 +302,13 @@ export default function MobileAppView({
             const endTime = getEndTime(apt.time, apt.durationMinutes);
             const isInProgress = apt.status === 'in_progress';
             const isCompleted = apt.status === 'completed';
+
+            // Verifica se este atendimento já possui evolução clínica registrada
+            const aptEvolution = evolutions.find(
+              (e) =>
+                e.appointmentId === apt.id ||
+                (e.patientId === apt.patientId && e.date === apt.date)
+            );
 
             // Link Google Maps
             const mapsUrl = patient?.latitude && patient?.longitude
@@ -338,22 +372,59 @@ export default function MobileAppView({
                     </span>
                   </a>
 
-                  {/* Ações de Check-in Simplificado */}
-                  <div className="mob-actions-row">
-                    {apt.status !== 'in_progress' && apt.status !== 'completed' ? (
+                  {/* Ações de Check-in Simplificado e Evolução por Voz */}
+                  <div className="mob-actions-row" style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%' }}>
+                    {/* Badge se já possui evolução gravada */}
+                    {aptEvolution && (
                       <button
                         type="button"
-                        className="mob-btn-action mob-btn-checkin"
-                        onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
+                        className="mob-evo-done-tag"
+                        onClick={() => onOpenVoiceEvolution && onOpenVoiceEvolution(apt)}
+                        title="Ver evolução e áudio registrado"
                       >
-                        <CheckCircle2 size={16} /> Fazer Check-in
+                        <CheckCircle2 size={14} color="#059669" />
+                        <span>Evolução por Voz Registrada ({aptEvolution.time})</span>
                       </button>
+                    )}
+
+                    {apt.status !== 'in_progress' && apt.status !== 'completed' ? (
+                      <div style={{ display: 'flex', gap: '0.45rem', width: '100%' }}>
+                        <button
+                          type="button"
+                          className="mob-btn-action mob-btn-checkin"
+                          style={{ flex: 1 }}
+                          onClick={() => onUpdateAppointmentStatus(apt.id, 'in_progress')}
+                        >
+                          <CheckCircle2 size={16} /> Fazer Check-in
+                        </button>
+                        {onOpenVoiceEvolution && (
+                          <button
+                            type="button"
+                            className="mob-btn-action mob-btn-voice-evo"
+                            style={{ flex: 1 }}
+                            onClick={() => onOpenVoiceEvolution(apt)}
+                          >
+                            <Mic size={15} /> Gravar Áudio
+                          </button>
+                        )}
+                      </div>
                     ) : apt.status === 'in_progress' ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%' }}>
                         <div className="mob-done-indicator">
                           <CheckCircle2 size={16} color="#059669" />
                           <span>Presença confirmada (Em atendimento)</span>
                         </div>
+
+                        {onOpenVoiceEvolution && (
+                          <button
+                            type="button"
+                            className="mob-btn-action mob-btn-voice-highlight"
+                            onClick={() => onOpenVoiceEvolution(apt)}
+                          >
+                            <Mic size={18} /> Gravar Evolução por Voz & Concluir
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           className="mob-btn-action mob-btn-checkin"
@@ -364,9 +435,20 @@ export default function MobileAppView({
                         </button>
                       </div>
                     ) : (
-                      <div className="mob-done-indicator">
-                        <CheckCircle2 size={16} color="#059669" />
-                        <span style={{ fontWeight: 700, color: '#047857' }}>Sessão Concluída</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <div className="mob-done-indicator">
+                          <CheckCircle2 size={16} color="#059669" />
+                          <span style={{ fontWeight: 700, color: '#047857' }}>Sessão Concluída</span>
+                        </div>
+                        {onOpenVoiceEvolution && (
+                          <button
+                            type="button"
+                            className="mob-btn-mini-voice"
+                            onClick={() => onOpenVoiceEvolution(apt)}
+                          >
+                            <Mic size={13} /> {aptEvolution ? 'Ver Prontuário' : 'Gravar Áudio'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

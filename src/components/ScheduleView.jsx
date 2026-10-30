@@ -13,7 +13,8 @@ import {
   UserCheck,
   Car,
   MapPin,
-  Sparkles
+  Sparkles,
+  Mic
 } from 'lucide-react';
 import './ScheduleView.css';
 import Avatar from './Avatar';

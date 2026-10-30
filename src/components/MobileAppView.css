@@ -468,3 +468,85 @@
   font-size: 0.75rem;
   cursor: pointer;
 }
+
+/* Voice Clinical Evolution Buttons */
+.mob-btn-voice-evo {
+  background: var(--primary-subtle, #f0f9ff);
+  color: var(--primary, #0284c7);
+  border: 1px solid var(--primary-border, #bae6fd);
+}
+
+.mob-btn-voice-evo:hover {
+  background: var(--primary, #0284c7);
+  color: #ffffff;
+}
+
+.mob-btn-voice-highlight {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+}
+
+.mob-btn-voice-highlight:hover {
+  filter: brightness(1.05);
+}
+
+.mob-btn-mini-voice {
+  background: var(--bg-surface-hover, #f1f5f9);
+  border: 1px solid var(--border-light, #e2e8f0);
+  color: var(--text-headline, #0f172a);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+.mob-btn-mini-voice:hover {
+  background: var(--primary-subtle, #f0f9ff);
+  border-color: var(--primary-border, #bae6fd);
+  color: var(--primary, #0284c7);
+}
+
+.mob-evo-done-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+}
+
+.mob-btn-voice-quick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+  transition: all 0.15s ease;
+}
+
+.mob-btn-voice-quick:hover {
+  background: #047857;
+}
