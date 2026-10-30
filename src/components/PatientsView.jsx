@@ -319,34 +319,93 @@ export default function PatientsView({
                       </span>
                     </div>
                   )}
+
+                  {/* Banner / Resumo do Prontuário e Evoluções Registradas */}
+                  {patientEvoCount > 0 ? (
+                    <div
+                      style={{
+                        marginTop: '0.65rem',
+                        background: '#ecfdf5',
+                        border: '1px solid #a7f3d0',
+                        borderRadius: '8px',
+                        padding: '0.5rem 0.65rem',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => onOpenVoiceEvolution && onOpenVoiceEvolution(patient, 'history')}
+                      title="Clique para abrir e ouvir as evoluções clínicas deste paciente"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#047857', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <FileText size={13} /> {patientEvoCount} {patientEvoCount === 1 ? 'Evolução Registrada' : 'Evoluções Registradas'}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 700 }}>
+                          Ver Prontuário ➔
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.76rem', color: '#166534', lineHeight: 1.35 }}>
+                        <strong>Última: </strong>
+                        {evolutions.filter((e) => e.patientId === patient.id)[0]?.summarizedConduct || 'Atendimento domiciliar registrado'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      📋 Prontuário: Nenhuma evolução gravada ainda
+                    </div>
+                  )}
                 </div>
 
                 <div className="patient-card-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {/* Botão de Evolução Rápida por Voz */}
+                  {/* Ações de Prontuário: Gravar por Voz e Ver Histórico */}
                   {onOpenVoiceEvolution && (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{
-                        width: '100%',
-                        fontSize: '0.82rem',
-                        padding: '0.55rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.45rem',
-                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        borderRadius: '8px',
-                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
-                      }}
-                      onClick={() => onOpenVoiceEvolution(patient)}
-                      title="Gravar evolução clínica por voz para este paciente"
-                    >
-                      <Mic size={16} /> 🎙️ Gravar Evolução por Voz {patientEvoCount > 0 ? `(${patientEvoCount})` : ''}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{
+                          flex: 1,
+                          fontSize: '0.8rem',
+                          padding: '0.5rem 0.35rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          borderRadius: '8px',
+                          boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)'
+                        }}
+                        onClick={() => onOpenVoiceEvolution(patient, 'record')}
+                        title="Ditar nova evolução clínica por voz para este paciente"
+                      >
+                        <Mic size={15} /> 🎙️ Gravar Voz
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{
+                          flex: 1,
+                          fontSize: '0.8rem',
+                          padding: '0.5rem 0.35rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          background: patientEvoCount > 0 ? '#ecfdf5' : 'var(--bg-surface)',
+                          borderColor: patientEvoCount > 0 ? '#a7f3d0' : 'var(--border-light)',
+                          color: patientEvoCount > 0 ? '#047857' : 'var(--text-body)',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          borderRadius: '8px'
+                        }}
+                        onClick={() => onOpenVoiceEvolution(patient, 'history')}
+                        title="Ver histórico de evoluções, notas SOAP e gravações de áudio deste paciente"
+                      >
+                        <FileText size={15} /> 📋 Prontuário ({patientEvoCount})
+                      </button>
+                    </div>
                   )}
 
                   {onEditPatient && (

@@ -35,12 +35,13 @@ export default function VoiceEvolutionModal({
   activeDoctor,
   currentUser,
   evolutions = [],
-  onSaveEvolution
+  onSaveEvolution,
+  initialTab = "record"
 }) {
   if (!isOpen || !patient) return null;
 
   // Tabs: 'record' (Nova Evolução) ou 'history' (Histórico do Paciente)
-  const [activeTab, setActiveTab] = useState('record');
+  const [activeTab, setActiveTab] = useState(initialTab || 'record');
 
   // Gravação de Áudio & Fala
   const [isRecording, setIsRecording] = useState(false);
@@ -79,7 +80,7 @@ export default function VoiceEvolutionModal({
   // Reset do estado ao abrir modal
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('record');
+      setActiveTab(initialTab || 'record');
       setIsRecording(false);
       setRecordingSeconds(0);
       setRawTranscription('');
@@ -322,13 +323,14 @@ export default function VoiceEvolutionModal({
 
     try {
       confetti({
-        particleCount: 50,
+        particleCount: 60,
         spread: 60,
         origin: { y: 0.7 }
       });
     } catch {}
 
-    onClose();
+    // Alterna para aba de histórico para visualização imediata da evolução gravada
+    setActiveTab('history');
   };
 
   return (
@@ -631,7 +633,21 @@ export default function VoiceEvolutionModal({
                 <p>Grave a primeira evolução por voz deste paciente tocando na aba acima.</p>
               </div>
             ) : (
-              <div className="voice-evo-history-list">
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-headline)' }}>
+                    Evoluções Registradas no Prontuário:
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                    onClick={() => setActiveTab('record')}
+                  >
+                    <Mic size={13} /> Ditar Nova Evolução
+                  </button>
+                </div>
+                <div className="voice-evo-history-list">
                 {patientHistory.map((evo) => (
                   <div key={evo.id} className="voice-evo-history-card">
                     <div className="voice-evo-hist-header">
@@ -671,8 +687,19 @@ export default function VoiceEvolutionModal({
                     )}
                   </div>
                 ))}
-              </div>
+                </div>
+              </>
             )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+                onClick={onClose}
+              >
+                Concluir Visualização
+              </button>
+            </div>
           </div>
         )}
       </div>

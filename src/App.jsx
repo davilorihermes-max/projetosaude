@@ -232,6 +232,7 @@ export default function App() {
     return [];
   });
   const [isVoiceEvoModalOpen, setIsVoiceEvoModalOpen] = useState(false);
+  const [voiceEvoInitialTab, setVoiceEvoInitialTab] = useState('record');
   const [voiceEvoPatient, setVoiceEvoPatient] = useState(null);
   const [voiceEvoAppointment, setVoiceEvoAppointment] = useState(null);
 
@@ -779,8 +780,9 @@ export default function App() {
     setActiveTab('patients');
   };
 
-  const handleOpenVoiceEvolution = (patientOrApt) => {
+  const handleOpenVoiceEvolution = (patientOrApt, tab = 'record') => {
     if (!patientOrApt) return;
+    setVoiceEvoInitialTab(tab || 'record');
     if (patientOrApt.patientId) {
       const p = patients.find((pat) => pat.id === patientOrApt.patientId);
       setVoiceEvoPatient(p || { id: patientOrApt.patientId, name: patientOrApt.patientName || 'Paciente' });
@@ -1396,6 +1398,7 @@ export default function App() {
         activeDoctor={currentUserDoctor || activeDoctor}
         currentUser={currentUser}
         evolutions={evolutions}
+        initialTab={voiceEvoInitialTab}
         onSaveEvolution={handleSaveEvolution}
       />
     </div>
