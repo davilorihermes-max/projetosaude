@@ -1050,6 +1050,8 @@ export default function App() {
           doctors={doctors}
           currentUser={currentUser}
           activeDoctor={currentUserDoctor || activeDoctor}
+          evolutions={evolutions}
+          onOpenVoiceEvolution={handleOpenVoiceEvolution}
           onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
           onOpenNewAppointment={handleOpenNewAppointment}
           onOpenLoginModal={() => {
@@ -1113,6 +1115,8 @@ export default function App() {
               onOpenNewPatient={() => setIsPatientModalOpen(true)}
               activeDoctor={activeDoctor}
               searchQuery={searchQuery}
+              evolutions={evolutions}
+              onOpenVoiceEvolution={handleOpenVoiceEvolution}
             />
           )}
 
@@ -1129,6 +1133,8 @@ export default function App() {
               initialSelectedDate={scheduleActiveDate}
               onLoadPlannedScale={handleLoadOrSyncPlannedScale}
               searchQuery={searchQuery}
+              evolutions={evolutions}
+              onOpenVoiceEvolution={handleOpenVoiceEvolution}
             />
           )}
 
@@ -1196,6 +1202,8 @@ export default function App() {
               searchQuery={searchQuery}
               doctors={doctors}
               onOpenPatientRecord={handleOpenPatientRecord}
+              evolutions={evolutions}
+              onOpenVoiceEvolution={handleOpenVoiceEvolution}
               onOpenNewPatient={() => {
                 setEditingPatient(null);
                 setIsPatientModalOpen(true);
@@ -1375,6 +1383,20 @@ export default function App() {
         currentDoctor={currentUserDoctor || activeDoctor}
         onUpdateProfile={handleUpdateProfile}
         onLogout={handleLogout}
+      />
+          <VoiceEvolutionModal
+        isOpen={isVoiceEvoModalOpen}
+        onClose={() => {
+          setIsVoiceEvoModalOpen(false);
+          setVoiceEvoPatient(null);
+          setVoiceEvoAppointment(null);
+        }}
+        patient={voiceEvoPatient}
+        appointment={voiceEvoAppointment}
+        activeDoctor={currentUserDoctor || activeDoctor}
+        currentUser={currentUser}
+        evolutions={evolutions}
+        onSaveEvolution={handleSaveEvolution}
       />
     </div>
   );

@@ -326,24 +326,26 @@ export default function PatientsView({
                   {onOpenVoiceEvolution && (
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="btn btn-primary"
                       style={{
                         width: '100%',
-                        fontSize: '0.8rem',
-                        padding: '0.45rem',
+                        fontSize: '0.82rem',
+                        padding: '0.55rem',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.4rem',
-                        background: 'var(--primary-subtle)',
-                        borderColor: 'var(--primary-border)',
-                        color: 'var(--primary)',
+                        gap: '0.45rem',
+                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                        color: '#ffffff',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
                       }}
                       onClick={() => onOpenVoiceEvolution(patient)}
+                      title="Gravar evolução clínica por voz para este paciente"
                     >
-                      <Mic size={15} /> Gravar Evolução por Voz {patientEvoCount > 0 ? `(${patientEvoCount})` : ''}
+                      <Mic size={16} /> 🎙️ Gravar Evolução por Voz {patientEvoCount > 0 ? `(${patientEvoCount})` : ''}
                     </button>
                   )}
 
