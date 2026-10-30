@@ -16,7 +16,9 @@ import {
   Building,
   Home,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  Layers,
+  FileText
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MonthlyFinancialSettlementView.css';
@@ -66,7 +68,7 @@ export default function MonthlyFinancialSettlementView({
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
   const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing'
-  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState('all');
   const [includeScheduled, setIncludeScheduled] = useState(false);
   const [internalDoctorId, setInternalDoctorId] = useState(() => {
     if (selectedDoctorId && selectedDoctorId !== 'all') return selectedDoctorId;
@@ -238,6 +240,7 @@ export default function MonthlyFinancialSettlementView({
         hourlyRate: pricing.hourlyRate,
         totalAmount: pricing.totalAmount,
         ruleApplied: pricing.ruleApplied,
+        notes: apt.notes || apt.swapInfo || apt.observation || apt.comments || '',
         status: apt.status || 'COMPLETED'
       };
     });
@@ -278,12 +281,13 @@ export default function MonthlyFinancialSettlementView({
   // Sincroniza o paciente selecionado com os pacientes com atendimentos no mês
   useEffect(() => {
     if (groupedByPatient.length > 0) {
+      if (selectedPatientId === 'all') return;
       const exists = groupedByPatient.some((g) => g.patientId === selectedPatientId);
       if (!exists) {
-        setSelectedPatientId(groupedByPatient[0].patientId);
+        setSelectedPatientId('all');
       }
     } else {
-      setSelectedPatientId('');
+      setSelectedPatientId('all');
     }
   }, [groupedByPatient, selectedPatientId]);
 
@@ -312,6 +316,7 @@ export default function MonthlyFinancialSettlementView({
   const [newSessionHourlyRate, setNewSessionHourlyRate] = useState(150.0);
   const [newSessionTotal, setNewSessionTotal] = useState(150.0);
   const [newSessionAddress, setNewSessionAddress] = useState('');
+  const [newSessionNotes, setNewSessionNotes] = useState('');
 
   // Atualiza valor total ao alterar duração ou taxa no modal de inclusão
   useEffect(() => {
@@ -368,7 +373,7 @@ export default function MonthlyFinancialSettlementView({
     if (!editingSession) return;
 
     setSettlementSessions((prev) =>
-      prev.map((s) => (s.id === editingSession.id ? { ...editingSession } : s))
+      prev.map((s) => (s.id === editingSession.id ? { ...editingSession, notes: (editingSession.notes || '').trim() } : s))
     );
 
     setEditingSession(null);
@@ -410,6 +415,7 @@ export default function MonthlyFinancialSettlementView({
       hourlyRate: Number(newSessionHourlyRate),
       totalAmount: Number(newSessionTotal),
       ruleApplied: `Inclusão Manual (${dayLabel})`,
+      notes: newSessionNotes.trim(),
       status: 'COMPLETED'
     };
 
@@ -419,6 +425,7 @@ export default function MonthlyFinancialSettlementView({
       return next;
     });
 
+    setNewSessionNotes('');
     setIsAddSessionModalOpen(false);
     setSuccessMsg('Novo atendimento incluído no fechamento com sucesso!');
     setTimeout(() => setSuccessMsg(''), 3500);
@@ -676,6 +683,357 @@ export default function MonthlyFinancialSettlementView({
     URL.revokeObjectURL(url);
   };
 
+  // Exportar Relatório Consolidado em PDF de TODOS os Pacientes do Mês (Para a Gestora / Sabrina)
+  const handleExportConsolidatedPDF = () => {
+    if (!settlementSessions || settlementSessions.length === 0) {
+      alert('Não há atendimentos registrados para exportar.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor, permita pop-ups no navegador para gerar o demonstrativo em PDF.');
+      return;
+    }
+
+    const monthName = MONTH_NAMES[selectedMonth - 1];
+
+    // Tabela sintética por paciente
+    const summaryRowsHtml = groupedByPatient.map((g, idx) => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 600;">${g.patientName}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">${g.patientAddress}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; font-weight: 600;">${g.sessions.length}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">${(g.totalDurationMinutes / 60).toFixed(1)}h</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: bold; color: #0284c7;">
+          R$ ${g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </td>
+      </tr>
+    `).join('');
+
+    // Tabela analítica de todas as sessões
+    const sessionsRowsHtml = settlementSessions.map((s, idx) => `
+      <tr>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; white-space: nowrap;">
+          <strong>${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
+          <span style="color: #64748b; margin-left: 4px;">${s.timeStr}</span>
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600;">
+          ${s.patientName}
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #64748b;">
+          ${s.patientAddress}
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">
+          ${s.durationMinutes} min
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right;">
+          R$ ${Number(s.hourlyRate).toFixed(2)}
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: bold; color: #0284c7;">
+          R$ ${Number(s.totalAmount).toFixed(2)}
+        </td>
+        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: ${s.notes ? '#92400e' : '#64748b'};">
+          ${s.notes ? `<strong>[Obs: ${s.notes}]</strong> ` : ''}${s.ruleApplied || 'Padrão'}
+        </td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <title>Fechamento Geral Consolidado — ${activeProfessional.name} (${monthName}/${selectedYear})</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 30px; font-size: 13px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
+          .pro-info h2 { margin: 0 0 4px 0; color: #0284c7; font-size: 22px; }
+          .pro-info p { margin: 2px 0; font-size: 12px; color: #64748b; }
+          .statement-title { text-align: right; }
+          .statement-title h1 { margin: 0 0 4px 0; font-size: 19px; color: #0f172a; }
+          .statement-title span { font-size: 13px; font-weight: bold; color: #64748b; }
+          
+          .kpi-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+          .kpi-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; text-align: center; }
+          .kpi-box .val { font-size: 18px; font-weight: 800; color: #0284c7; margin-top: 4px; }
+          .kpi-box .lbl { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+          
+          .section-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 20px 0 8px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+          
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th { background: #f1f5f9; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1; }
+          
+          .totals-box { display: flex; justify-content: flex-end; margin-top: 15px; }
+          .totals-table { width: 360px; border-collapse: collapse; }
+          .totals-table td { padding: 6px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+          .totals-table tr.grand-total td { font-size: 16px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; border-bottom: none; }
+          
+          .pix-box { margin-top: 25px; padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; }
+          .footer { margin-top: 35px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-size: 11px; color: #94a3b8; text-align: center; }
+          
+          @media print {
+            body { margin: 15px; font-size: 11px; }
+            .page-break { page-break-before: always; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="pro-info">
+            <h2>${activeProfessional.name}</h2>
+            <p>${activeProfessional.crm || 'CREFITO Ativo'} • ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</p>
+            <p>Atendimento Fisioterapêutico Especializado em Saúde Domiciliar</p>
+          </div>
+          <div class="statement-title">
+            <h1>DEMONSTRATIVO GERAL CONSOLIDADO</h1>
+            <span>Competência: ${monthName} / ${selectedYear}</span>
+          </div>
+        </div>
+
+        <div class="kpi-cards">
+          <div class="kpi-box">
+            <div class="lbl">Faturamento Geral</div>
+            <div class="val">R$ ${monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+          <div class="kpi-box">
+            <div class="lbl">Total de Atendimentos</div>
+            <div class="val">${monthTotals.totalSessions}</div>
+          </div>
+          <div class="kpi-box">
+            <div class="lbl">Carga Horária</div>
+            <div class="val">${monthTotals.totalHours}h</div>
+          </div>
+          <div class="kpi-box">
+            <div class="lbl">Pacientes Atendidos</div>
+            <div class="val">${monthTotals.totalPatients}</div>
+          </div>
+        </div>
+
+        <div class="section-title">1. Resumo Sintético por Paciente</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35px; text-align: center;">#</th>
+              <th>Paciente</th>
+              <th>Endereço Principal</th>
+              <th style="text-align: center;">Sessões</th>
+              <th style="text-align: center;">Horas</th>
+              <th style="text-align: right;">Subtotal a Receber</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="section-title">2. Detalhamento Cronológico de Atendimentos & Ocorrências</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px; text-align: center;">#</th>
+              <th>Data & Horário</th>
+              <th>Paciente</th>
+              <th>Local Atendido</th>
+              <th style="text-align: center;">Duração</th>
+              <th style="text-align: right;">Valor Hora</th>
+              <th style="text-align: right;">Total Sessão</th>
+              <th>Regra / Obs / Permuta</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sessionsRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals-box">
+          <table class="totals-table">
+            <tr>
+              <td>Total Geral de Sessões:</td>
+              <td style="text-align: right; font-weight: bold;">${monthTotals.totalSessions}</td>
+            </tr>
+            <tr>
+              <td>Carga Horária Total:</td>
+              <td style="text-align: right; font-weight: bold;">${monthTotals.totalHours} horas</td>
+            </tr>
+            <tr>
+              <td>Pacientes Atendidos no Mês:</td>
+              <td style="text-align: right; font-weight: bold;">${monthTotals.totalPatients}</td>
+            </tr>
+            <tr class="grand-total">
+              <td>VALOR TOTAL A RECEBER:</td>
+              <td style="text-align: right;">R$ ${monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="pix-box">
+          <strong style="color: #166534; display: block; margin-bottom: 3px;">Dados para Quitação de Honorários (Chave PIX):</strong>
+          <span style="font-size: 13px; color: #15803d;">
+            Chave: <strong>${activeProfessional.email || 'contato@omnihomecare.com'}</strong> • Titular: <strong>${activeProfessional.name}</strong>
+          </span>
+        </div>
+
+        <div class="footer">
+          <p>Documento gerado eletronicamente em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • OmniHome Care</p>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // Exportar Planilha Excel Geral Consolidada (.xlsx/.xls) com Todos os Pacientes (Para a Gestora / Sabrina)
+  const handleExportConsolidatedXLSX = () => {
+    if (!settlementSessions || settlementSessions.length === 0) {
+      alert('Não há atendimentos registrados para exportar.');
+      return;
+    }
+
+    const monthName = MONTH_NAMES[selectedMonth - 1];
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Consolidado Mensal</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+          .header-title { font-size: 14pt; font-weight: bold; color: #0284c7; }
+          .meta-row { font-size: 11pt; color: #1e293b; margin: 4px 0; }
+          .section-title { font-size: 12pt; font-weight: bold; color: #0f172a; margin-top: 15px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 15px; }
+          th { background-color: #0284c7; color: #ffffff; font-weight: bold; text-align: left; border: 1px solid #94a3b8; padding: 7px 10px; }
+          td { border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5pt; }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .subtotal-row td { background-color: #f1f5f9; font-weight: bold; }
+          .grand-total td { background-color: #e0f2fe; font-weight: bold; font-size: 12pt; color: #0369a1; }
+        </style>
+      </head>
+      <body>
+        <div class="header-title">DEMONSTRATIVO GERAL CONSOLIDADO DE ATENDIMENTOS</div>
+        <div class="meta-row"><strong>Profissional:</strong> ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO Ativo'}) - ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</div>
+        <div class="meta-row"><strong>Competência:</strong> ${monthName} / ${selectedYear}</div>
+        <div class="meta-row"><strong>Chave PIX:</strong> ${activeProfessional.email || 'contato@omnihomecare.com'}</div>
+        <br/>
+
+        <div class="section-title">1. RESUMO SINTÉTICO POR PACIENTE</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45px; text-align: center;">#</th>
+              <th>Paciente</th>
+              <th>Endereço Principal</th>
+              <th>Responsável / Contato</th>
+              <th style="width: 100px; text-align: center;">Sessões</th>
+              <th style="width: 110px; text-align: center;">Horas (h)</th>
+              <th style="width: 150px; text-align: right;">Subtotal (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${groupedByPatient.map((g, idx) => `
+              <tr>
+                <td class="center">${idx + 1}</td>
+                <td><strong>${g.patientName}</strong></td>
+                <td>${g.patientAddress}</td>
+                <td>${g.responsibleName} (${g.phone})</td>
+                <td class="center">${g.sessions.length}</td>
+                <td class="center">${(g.totalDurationMinutes / 60).toFixed(1)}h</td>
+                <td class="right"><strong>R$ ${Number(g.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
+              </tr>
+            `).join('')}
+            <tr class="grand-total">
+              <td colspan="4" class="right">TOTAIS CONSOLIDADOS:</td>
+              <td class="center">${monthTotals.totalSessions}</td>
+              <td class="center">${monthTotals.totalHours}h</td>
+              <td class="right">R$ ${Number(monthTotals.totalAmount).toFixed(2).replace('.', ',')}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="section-title">2. DETALHAMENTO DE ATENDIMENTOS & OCORRÊNCIAS</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">#</th>
+              <th style="width: 100px; text-align: center;">Data</th>
+              <th style="width: 70px; text-align: center;">Horário</th>
+              <th style="width: 160px;">Paciente</th>
+              <th>Endereço Atendido</th>
+              <th style="width: 100px; text-align: center;">Duração (min)</th>
+              <th style="width: 120px; text-align: right;">Valor Hora (R$)</th>
+              <th style="width: 130px; text-align: right;">Valor Sessão (R$)</th>
+              <th>Regra / Permuta / Ocorrência</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${settlementSessions.map((s, idx) => `
+              <tr>
+                <td class="center">${idx + 1}</td>
+                <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                <td class="center">${s.timeStr}</td>
+                <td><strong>${s.patientName}</strong></td>
+                <td>${s.patientAddress}</td>
+                <td class="center">${s.durationMinutes}</td>
+                <td class="right">R$ ${Number(s.hourlyRate).toFixed(2).replace('.', ',')}</td>
+                <td class="right"><strong>R$ ${Number(s.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
+                <td>${s.notes ? `[Obs: ${s.notes}] ` : ''}${s.ruleApplied}</td>
+              </tr>
+            `).join('')}
+            <tr class="grand-total">
+              <td colspan="7" class="right">VALOR TOTAL GERAL A RECEBER NO MÊS:</td>
+              <td class="right">R$ ${Number(monthTotals.totalAmount).toFixed(2).replace('.', ',')}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <br/>
+        <div style="font-size: 9pt; color: #64748b;">
+          Documento gerado eletronicamente em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • OmniHome Care
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\uFEFF', excelHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const sanitizedDocName = (activeProfessional.name || 'Profissional').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ_-]/g, '_');
+    link.download = `Fechamento_Consolidado_${sanitizedDocName}_${monthName}_${selectedYear}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+
   return (
     <div className="financial-container">
       {/* Header Individual do Profissional */}
@@ -740,6 +1098,26 @@ export default function MonthlyFinancialSettlementView({
             <option value={2026}>2026</option>
             <option value={2027}>2027</option>
           </select>
+
+          <button
+            type="button"
+            className="btn-export pdf-consolidated"
+            onClick={handleExportConsolidatedPDF}
+            title="Gerar e imprimir Demonstrativo Geral Consolidado em PDF de TODOS os pacientes atendidos no mês"
+          >
+            <Printer size={15} />
+            Gerar PDF Geral
+          </button>
+
+          <button
+            type="button"
+            className="btn-export excel-consolidated"
+            onClick={handleExportConsolidatedXLSX}
+            title="Exportar planilha Excel (.xls) com o consolidado de todos os pacientes e ocorrências do mês"
+          >
+            <FileSpreadsheet size={15} />
+            Exportar Excel Geral
+          </button>
 
           <button
             className="btn btn-primary"
@@ -857,6 +1235,9 @@ export default function MonthlyFinancialSettlementView({
                     value={selectedPatientId}
                     onChange={(e) => setSelectedPatientId(e.target.value)}
                   >
+                    <option value="all">
+                      📋 Todos os Pacientes (Visão Geral Consolidada) — {monthTotals.totalSessions} sessões (R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                    </option>
                     {groupedByPatient.map((g) => (
                       <option key={g.patientId} value={g.patientId}>
                         {g.patientName} — {g.sessions.length} {g.sessions.length === 1 ? 'sessão' : 'sessões'} (R$ {g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
@@ -866,14 +1247,26 @@ export default function MonthlyFinancialSettlementView({
                 </div>
               </div>
 
-              {groupedByPatient.length > 1 && (
+              {groupedByPatient.length > 0 && (
                 <div className="patient-quick-pills">
+                  <button
+                    type="button"
+                    className={`patient-pill-btn ${selectedPatientId === 'all' ? 'active' : ''}`}
+                    onClick={() => setSelectedPatientId('all')}
+                    title="Exibir consolidado de todos os atendimentos do mês"
+                  >
+                    <Layers size={14} />
+                    <span className="pill-name">Todos os Pacientes</span>
+                    <span className="pill-count">{monthTotals.totalSessions}</span>
+                  </button>
+
                   {groupedByPatient.map((g) => (
                     <button
                       key={g.patientId}
                       type="button"
                       className={`patient-pill-btn ${g.patientId === selectedPatientId ? 'active' : ''}`}
                       onClick={() => setSelectedPatientId(g.patientId)}
+                      title={`Visualizar apenas atendimentos de ${g.patientName}`}
                     >
                       <span className="pill-name">{g.patientName}</span>
                       <span className="pill-count">{g.sessions.length}</span>
@@ -884,7 +1277,7 @@ export default function MonthlyFinancialSettlementView({
             </div>
           )}
 
-          {/* Card do Paciente Selecionado */}
+          {/* Card de Atendimentos: Visão Consolidada Geral (Todos) ou Individual */}
           {groupedByPatient.length === 0 ? (
             <div className="table-card">
               <div className="empty-state-box">
@@ -896,7 +1289,212 @@ export default function MonthlyFinancialSettlementView({
                 </p>
               </div>
             </div>
+          ) : selectedPatientId === 'all' ? (
+            /* --- VISÃO GERAL CONSOLIDADA (TODOS OS PACIENTES) --- */
+            <div className="patient-financial-card">
+              {/* Header Consolidado Geral */}
+              <div className="patient-card-header">
+                <div className="patient-info-block">
+                  <div className="consolidated-badge-icon">
+                    <Layers size={22} />
+                  </div>
+                  <div>
+                    <h3>Demonstrativo Geral Consolidado (Todos os Pacientes)</h3>
+                    <p>
+                      Competência: <strong>{MONTH_NAMES[selectedMonth - 1]}/{selectedYear}</strong> • {monthTotals.totalPatients} pacientes atendidos • {monthTotals.totalSessions} sessões ({monthTotals.totalHours} horas)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ações Globais de Exportação */}
+                <div className="patient-actions-block">
+                  <button
+                    type="button"
+                    className="btn-export pdf-consolidated"
+                    onClick={handleExportConsolidatedPDF}
+                    title="Gerar e imprimir demonstrativo consolidado de todos os pacientes em PDF"
+                  >
+                    <Printer size={15} />
+                    Gerar PDF Geral
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-export excel-consolidated"
+                    onClick={handleExportConsolidatedXLSX}
+                    title="Baixar planilha Excel (.xls) com todos os pacientes e atendimentos"
+                  >
+                    <FileSpreadsheet size={15} />
+                    Exportar Excel Geral
+                  </button>
+                </div>
+              </div>
+
+              {/* Resumo por Paciente em Cards Rápidos */}
+              <div className="consolidated-patients-summary">
+                {groupedByPatient.map((g) => (
+                  <div
+                    key={g.patientId}
+                    className="consolidated-patient-pill-card"
+                    onClick={() => setSelectedPatientId(g.patientId)}
+                    title={`Clique para inspecionar individualmente os atendimentos de ${g.patientName}`}
+                  >
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '0.88rem', color: 'var(--text-headline)' }}>
+                        {g.patientName}
+                      </strong>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                        {g.sessions.length} {g.sessions.length === 1 ? 'sessão' : 'sessões'} • {(g.totalDurationMinutes / 60).toFixed(1)}h
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        R$ {g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabela Cronológica Consolidada de Todas as Sessões */}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="financial-table">
+                  <thead>
+                    <tr>
+                      <th>Data & Horário</th>
+                      <th>Paciente</th>
+                      <th>Endereço / Local</th>
+                      <th>Tipo de Dia</th>
+                      <th>Duração</th>
+                      <th>Custo Horário</th>
+                      <th>Valor Total</th>
+                      <th>Regra & Ocorrências / Permuta</th>
+                      <th style={{ textAlign: 'right' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {settlementSessions.map((sess) => {
+                      const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
+                      const dayCat = classifyDate(dateObj);
+
+                      return (
+                        <tr key={sess.id}>
+                          <td>
+                            <strong>
+                              {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </strong>
+                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              {sess.timeStr}
+                            </span>
+                          </td>
+
+                          <td>
+                            <button
+                              type="button"
+                              className="patient-link-btn"
+                              onClick={() => setSelectedPatientId(sess.patientId)}
+                              title="Filtrar demonstrativo deste paciente"
+                            >
+                              <strong>{sess.patientName}</strong>
+                            </button>
+                          </td>
+
+                          <td>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                              {sess.patientAddress}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
+                              {dayCat === 'WEEKEND' ? 'Fim de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil'}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              ({(sess.durationMinutes / 60).toFixed(1)}h)
+                            </span>
+                          </td>
+
+                          <td>
+                            <strong style={{ color: 'var(--text-headline)' }}>
+                              R$ {Number(sess.hourlyRate).toFixed(2)}/h
+                            </strong>
+                          </td>
+
+                          <td>
+                            <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                              R$ {Number(sess.totalAmount).toFixed(2)}
+                            </strong>
+                          </td>
+
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <span className="rule-tag default">
+                                {sess.ruleApplied}
+                              </span>
+                              {sess.notes && (
+                                <span className="session-note-tag" title={sess.notes}>
+                                  Obs: {sess.notes}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td style={{ textAlign: 'right' }}>
+                            <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
+                              <button
+                                className="btn-action-sm"
+                                onClick={() => setEditingSession({ ...sess })}
+                                title="Corrigir valores ou ocorrência deste atendimento"
+                              >
+                                <Edit2 size={13} />
+                                Corrigir
+                              </button>
+                              <button
+                                className="btn-action-sm danger"
+                                onClick={() => handleDeleteSession(sess.id)}
+                                title="Excluir este atendimento do fechamento"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Subtotalizador Geral Consolidado */}
+              <div className="patient-subtotal-bar consolidated">
+                <div className="patient-subtotal-stats">
+                  <span>
+                    Total Geral de Sessões: <strong>{monthTotals.totalSessions}</strong>
+                  </span>
+                  <span>
+                    Pacientes Atendidos: <strong>{monthTotals.totalPatients}</strong>
+                  </span>
+                  <span>
+                    Carga Horária Total: <strong>{monthTotals.totalHours} horas</strong>
+                  </span>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textAlign: 'right' }}>
+                    Total Geral a Receber no Mês:
+                  </span>
+                  <div className="patient-subtotal-total" style={{ fontSize: '1.35rem' }}>
+                    R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
+            /* --- VISÃO DO PACIENTE INDIVIDUAL SELECIONADO --- */
             (() => {
               const group = groupedByPatient.find((g) => g.patientId === selectedPatientId) || groupedByPatient[0];
               if (!group) return null;
@@ -948,7 +1546,7 @@ export default function MonthlyFinancialSettlementView({
                           <th>Duração</th>
                           <th>Custo Horário (R$/h)</th>
                           <th>Valor Total da Sessão</th>
-                          <th>Regra Aplicada</th>
+                          <th>Regra Aplicada & Observações</th>
                           <th style={{ textAlign: 'right' }}>Ações</th>
                         </tr>
                       </thead>
@@ -994,9 +1592,16 @@ export default function MonthlyFinancialSettlementView({
                               </td>
 
                               <td>
-                                <span className="rule-tag default">
-                                  {sess.ruleApplied}
-                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                  <span className="rule-tag default">
+                                    {sess.ruleApplied}
+                                  </span>
+                                  {sess.notes && (
+                                    <span className="session-note-tag" title={sess.notes}>
+                                      Obs: {sess.notes}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               <td style={{ textAlign: 'right' }}>
@@ -1204,6 +1809,17 @@ export default function MonthlyFinancialSettlementView({
                   />
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label">Observações / Trocas de Escala (Ex: "Troquei com Sabrina pelo dia 29", "Cobertura Roberta")</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editingSession.notes || ''}
+                    onChange={(e) => setEditingSession({ ...editingSession, notes: e.target.value })}
+                    placeholder="Ex: Troca de escala com colega, atendimento domiciliar especial..."
+                  />
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Duração (minutos)</label>
@@ -1354,6 +1970,17 @@ export default function MonthlyFinancialSettlementView({
                     value={newSessionAddress}
                     onChange={(e) => setNewSessionAddress(e.target.value)}
                     placeholder="Ex: Av. Dante Michelini, 500"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Observações / Ocorrências de Escala (Opcional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newSessionNotes}
+                    onChange={(e) => setNewSessionNotes(e.target.value)}
+                    placeholder="Ex: 28 troquei com Sabrina pelo 29, Dupla com Patrícia..."
                   />
                 </div>
 
