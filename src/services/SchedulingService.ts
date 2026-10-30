@@ -277,6 +277,11 @@ export class SchedulingService {
     const patient = await this.resolvePatient(patientId);
 
     // 3. Persiste o agendamento no Prisma
+    const upperStatus = ((input as any).status || 'SCHEDULED').toUpperCase();
+    const validStatus = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(upperStatus)
+      ? upperStatus
+      : 'SCHEDULED';
+
     const appointment = await prisma.appointment.create({
       data: {
         professionalId: professional?.id || professionalId,
@@ -286,7 +291,7 @@ export class SchedulingService {
         latitude: patient?.latitude ?? null,
         longitude: patient?.longitude ?? null,
         notes: notes || null,
-        status: 'SCHEDULED'
+        status: validStatus
       },
       include: {
         patient: true,
@@ -303,6 +308,95 @@ export class SchedulingService {
       appointment,
       report: viability
     };
+  }
+
+  /**
+   * Atualiza status e/ou observações de um agendamento no PostgreSQL (ex: check-in, conclusão)
+   * Se for um agendamento originado localmente (ex: apt-plan-...), persiste como novo registro na nuvem.
+   */
+  static async updateAppointmentStatus(input: {
+    id: string;
+    status: string;
+    notes?: string;
+    professionalId?: string;
+    patientId?: string;
+    scheduledTime?: Date | string;
+    durationMinutes?: number;
+  }) {
+    const { id, status, notes, professionalId, patientId, scheduledTime, durationMinutes } = input;
+    const upper = (status || '').toUpperCase();
+    const validStatus = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(upper)
+      ? upper
+      : upper === 'WAITING'
+      ? 'SCHEDULED'
+      : upper === 'ATTENDED'
+      ? 'COMPLETED'
+      : 'SCHEDULED';
+
+    // 1. Tenta atualizar se já existir
+    const existing = await prisma.appointment.findUnique({
+      where: { id }
+    });
+
+    if (existing) {
+      return prisma.appointment.update({
+        where: { id },
+        data: {
+          status: validStatus,
+          ...(notes !== undefined ? { notes } : {})
+        },
+        include: {
+          patient: true,
+          professional: {
+            include: {
+              user: { select: { id: true, name: true, email: true } }
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Se for um agendamento planejado ou local (ex: apt-plan-...) que ainda não estava no banco
+    if (professionalId && patientId && scheduledTime) {
+      const professional = await this.resolveProfessional(professionalId);
+      const patient = await this.resolvePatient(patientId);
+
+      return prisma.appointment.create({
+        data: {
+          id: id.startsWith('apt-plan-') ? undefined : id,
+          professionalId: professional?.id || professionalId,
+          patientId: patient?.id || patientId,
+          scheduledTime: new Date(scheduledTime),
+          durationMinutes: durationMinutes || 45,
+          latitude: patient?.latitude ?? null,
+          longitude: patient?.longitude ?? null,
+          notes: notes || null,
+          status: validStatus
+        },
+        include: {
+          patient: true,
+          professional: {
+            include: {
+              user: { select: { id: true, name: true, email: true } }
+            }
+          }
+        }
+      });
+    }
+
+    throw new Error(`Agendamento com ID "${id}" não encontrado para atualização.`);
+  }
+
+  /**
+   * Remove um agendamento do banco de dados Prisma
+   */
+  static async deleteAppointment(id: string) {
+    const existing = await prisma.appointment.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: true, message: 'Agendamento já não constava na base.' };
+    }
+    await prisma.appointment.delete({ where: { id } });
+    return { success: true };
   }
 
   /**

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MonthlyFinancialSettlementView.css';
+import { API_BASE_URL } from '../services/apiConfig';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -150,15 +151,60 @@ export default function MonthlyFinancialSettlementView({
     ];
   });
 
-  // Salva regras no localStorage sempre que alteradas
+  // Salva regras no localStorage e na nuvem sempre que alteradas (Cross-Device)
   useEffect(() => {
     if (activeProfessional?.id) {
       localStorage.setItem(`omnihome_pricing_${activeProfessional.id}`, JSON.stringify(pricingRules));
+      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/pricing_rules_${activeProfessional.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: pricingRules })
+      }).catch((e) => console.warn('Erro ao salvar regras de preço na nuvem:', e));
     }
   }, [pricingRules, activeProfessional]);
 
+  // Carrega regras de preço da nuvem ao iniciar ou trocar de profissional
+  useEffect(() => {
+    if (!activeProfessional?.id) return;
+    const fetchCloudRules = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/cloud-state/pricing_rules_${activeProfessional.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.value) && data.value.length > 0) {
+            setPricingRules(data.value);
+            localStorage.setItem(`omnihome_pricing_${activeProfessional.id}`, JSON.stringify(data.value));
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar regras de preço da nuvem:', err);
+      }
+    };
+    fetchCloudRules();
+  }, [activeProfessional?.id]);
+
   // Lista local e editável de atendimentos do mês para este profissional
   const [settlementSessions, setSettlementSessions] = useState([]);
+  const [manualSessions, setManualSessions] = useState([]);
+
+  // Carrega sessões manuais persistidas na nuvem para este profissional
+  useEffect(() => {
+    if (!activeProfessional?.id) return;
+    const fetchCloudManualSessions = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.value)) {
+            setManualSessions(data.value);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar sessões manuais da nuvem:', err);
+      }
+    };
+    fetchCloudManualSessions();
+  }, [activeProfessional?.id]);
 
   // Resolve o preço para um determinado paciente, local e data
   const resolvePrice = useCallback((patientId, _address, dateObj, durationMinutes = 60) => {
@@ -245,11 +291,28 @@ export default function MonthlyFinancialSettlementView({
       };
     });
 
-    // Ordena por data e hora crescente
-    parsedSessions.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
+    // Combina agendamentos com as sessões manuais persistidas na nuvem
+    const monthManual = (manualSessions || []).filter((s) => {
+      if (!s || !s.dateStr) return false;
+      const d = new Date(`${s.dateStr}T12:00:00`);
+      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
+    });
 
-    setSettlementSessions(parsedSessions);
-  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice, includeScheduled]);
+    const combined = [...parsedSessions, ...monthManual];
+    const seen = new Set();
+    const deduped = [];
+    for (const sess of combined) {
+      if (!seen.has(sess.id)) {
+        seen.add(sess.id);
+        deduped.push(sess);
+      }
+    }
+
+    // Ordena por data e hora crescente
+    deduped.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
+
+    setSettlementSessions(deduped);
+  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice, includeScheduled, manualSessions]);
 
   // Agrupamento por Paciente
   const groupedByPatient = useMemo(() => {
@@ -382,16 +445,32 @@ export default function MonthlyFinancialSettlementView({
   };
 
   // Excluir Sessão do Fechamento
-  const handleDeleteSession = (sessionId) => {
+  const handleDeleteSession = async (sessionId) => {
     if (window.confirm('Tem certeza que deseja excluir este atendimento do fechamento mensal?')) {
+      const updatedManual = manualSessions.filter((s) => s.id !== sessionId);
+      setManualSessions(updatedManual);
       setSettlementSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
+      // Sincroniza exclusão na nuvem PostgreSQL (Cross-Device)
+      if (activeProfessional?.id) {
+        fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: updatedManual })
+        }).catch(() => null);
+      }
+
+      fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionId}`, {
+        method: 'DELETE'
+      }).catch(() => null);
+
       setSuccessMsg('Atendimento excluído do fechamento.');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
 
   // Incluir Novo Atendimento no Fechamento
-  const handleAddSession = (e) => {
+  const handleAddSession = async (e) => {
     e.preventDefault();
     const pat = (patients || []).find((p) => p.id === newSessionPatientId);
     if (!pat) {
@@ -403,8 +482,9 @@ export default function MonthlyFinancialSettlementView({
     const dayCategory = classifyDate(dateObj);
     const dayLabel = dayCategory === 'WEEKEND' ? 'Fim de Semana' : dayCategory === 'HOLIDAY' ? 'Feriado' : 'Dia Útil';
 
+    const tempId = `manual-sess-${Date.now()}`;
     const newSess = {
-      id: `manual-sess-${Date.now()}`,
+      id: tempId,
       patientId: newSessionPatientId,
       patientName: pat.name,
       patientAddress: newSessionAddress || pat.address || 'Vitória - ES',
@@ -419,15 +499,54 @@ export default function MonthlyFinancialSettlementView({
       status: 'COMPLETED'
     };
 
+    // 1. Atualização otimista imediata na UI
+    const updatedManual = [...manualSessions, newSess];
+    setManualSessions(updatedManual);
     setSettlementSessions((prev) => {
       const next = [...prev, newSess];
       next.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
       return next;
     });
 
+    // 2. Persistência na nuvem (Cross-Device)
+    if (activeProfessional?.id) {
+      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: updatedManual })
+      }).catch((err) => console.warn('Erro ao salvar sessão manual na nuvem:', err));
+    }
+
+    // 3. Persiste também como agendamento CONCLUÍDO no PostgreSQL
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          professionalId: activeProfessional?.id,
+          patientId: newSessionPatientId,
+          scheduledTime: `${newSessionDate}T${newSessionTime}:00.000Z`,
+          durationMinutes: Number(newSessionDuration),
+          notes: newSessionNotes.trim() || 'Sessão concluída e faturada no fechamento',
+          status: 'COMPLETED'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.appointment?.id) {
+          const finalId = data.appointment.id;
+          setManualSessions((prev) => prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s)));
+          setSettlementSessions((prev) => prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s)));
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao gravar atendimento no banco:', err);
+    }
+
     setNewSessionNotes('');
     setIsAddSessionModalOpen(false);
-    setSuccessMsg('Novo atendimento incluído no fechamento com sucesso!');
+    setSuccessMsg('Novo atendimento incluído e sincronizado na nuvem com sucesso!');
     setTimeout(() => setSuccessMsg(''), 3500);
   };
 

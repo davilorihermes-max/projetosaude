@@ -296,6 +296,32 @@ export default function MonthlyScalePlannerView({
       }
     };
     fetchCloudFixedAppointments();
+
+    const fetchCloudScaleState = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/cloud-state/monthly_scale_state`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.value) {
+            const val = data.value;
+            if (val.selectedMonth) setSelectedMonth(val.selectedMonth);
+            if (Array.isArray(val.patientsWithDemands) && val.patientsWithDemands.length > 0) {
+              setPatientsWithDemands(val.patientsWithDemands);
+            }
+            if (Array.isArray(val.professionalAvailabilities) && val.professionalAvailabilities.length > 0) {
+              setProfessionalAvailabilities(val.professionalAvailabilities);
+            }
+            if (val.scaleResult) {
+              setScaleResult(val.scaleResult);
+            }
+            localStorage.setItem(SCALE_STORAGE_KEY, JSON.stringify(val));
+          }
+        }
+      } catch (err) {
+        console.warn('Sincronização de escala com a nuvem ignorada:', err);
+      }
+    };
+    fetchCloudScaleState();
   }, []);
 
   // Modal para cadastrar atendimento fixo
@@ -1473,18 +1499,24 @@ export default function MonthlyScalePlannerView({
   // Salvar explicitamente a escala e seus parâmetros no localStorage E sincronizar com a Agenda e Rota do Dia
   const handleSaveScaleExplicitly = () => {
     try {
-      localStorage.setItem(
-        SCALE_STORAGE_KEY,
-        JSON.stringify({
-          selectedMonth,
-          patientsWithDemands,
-          professionalAvailabilities,
-          careTeams,
-          fixedAppointments,
-          scaleResult,
-          savedAt: new Date().toISOString()
-        })
-      );
+      const scalePayload = {
+        selectedMonth,
+        patientsWithDemands,
+        professionalAvailabilities,
+        careTeams,
+        fixedAppointments,
+        scaleResult,
+        savedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem(SCALE_STORAGE_KEY, JSON.stringify(scalePayload));
+
+      // Persistência em nuvem PostgreSQL para sincronização entre computadores e dispositivos móveis
+      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/monthly_scale_state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: scalePayload })
+      }).catch((e) => console.warn('Erro ao salvar escala na nuvem:', e));
 
       // Sincroniza imediatamente com a agenda e rota do dia se houver sessões planejadas
       if (scaleResult && scaleResult.plannedSessions && scaleResult.plannedSessions.length > 0 && onCommitScaleToAppointments) {

@@ -141,6 +141,85 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
   );
 
   /**
+   * PATCH /api/scheduler/appointments/:id/status
+   * Atualiza o status do agendamento (ex: check-in, conclusão) no PostgreSQL
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      status: string;
+      notes?: string;
+      professionalId?: string;
+      patientId?: string;
+      scheduledTime?: string;
+      durationMinutes?: number;
+    };
+  }>('/appointments/:id/status', { preHandler: [authenticateOptional] }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const { status, notes, professionalId, patientId, scheduledTime, durationMinutes } = request.body || {};
+
+      if (!id || !status) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'ID do agendamento e status são obrigatórios.'
+        });
+      }
+
+      const updated = await SchedulingService.updateAppointmentStatus({
+        id,
+        status,
+        notes,
+        professionalId,
+        patientId,
+        scheduledTime,
+        durationMinutes
+      });
+
+      return reply.status(200).send({
+        success: true,
+        appointment: updated
+      });
+    } catch (err: any) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: err.message || 'Falha ao atualizar status do agendamento.'
+      });
+    }
+  });
+
+  /**
+   * DELETE /api/scheduler/appointments/:id
+   * Remove agendamento do banco de dados na nuvem
+   */
+  app.delete<{ Params: { id: string } }>('/appointments/:id', { preHandler: [authenticateOptional] }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      if (!id) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'ID do agendamento é obrigatório.'
+        });
+      }
+
+      await SchedulingService.deleteAppointment(id);
+
+      return reply.status(200).send({
+        success: true
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao remover agendamento.'
+      });
+    }
+  });
+
+  /**
    * GET /api/scheduler/professionals
    * Lista profissionais cadastrados para uso no agendamento
    */
@@ -303,26 +382,18 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     // Vincula aos pacientes para compor o Care Team
     const existingPatients = await prisma.patient.findMany({ select: { id: true } });
     if (existingPatients.length > 0 && user.professional) {
-      for (const p of existingPatients) {
-        try {
-          await prisma.careTeamMember.upsert({
-            where: {
-              patientId_professionalId: {
-                patientId: p.id,
-                professionalId: user.professional.id
-              }
-            },
-            update: { active: true },
-            create: {
-              patientId: p.id,
-              professionalId: user.professional.id,
-              role: 'SPECIALIST',
-              active: true
-            }
-          });
-        } catch {
-          // Ignora caso paciente de teste tenha sido excluído concorrentemente
-        }
+      try {
+        await prisma.careTeamMember.createMany({
+          data: existingPatients.map((p) => ({
+            patientId: p.id,
+            professionalId: user.professional!.id,
+            role: 'SPECIALIST',
+            active: true
+          })),
+          skipDuplicates: true
+        });
+      } catch {
+        // Ignora caso paciente de teste tenha sido excluído concorrentemente
       }
     }
 
@@ -816,6 +887,81 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         statusCode: 500,
         error: 'Internal Server Error',
         message: err.message || 'Falha ao remover atendimento fixado.'
+      });
+    }
+  });
+
+  /**
+   * GET /api/scheduler/cloud-state/:key
+   * Recupera qualquer estado compartilhado na nuvem (escala mensal, precificação, fechamento)
+   */
+  app.get<{ Params: { key: string } }>('/cloud-state/:key', async (request, reply) => {
+    try {
+      const { key } = request.params;
+      const config = await prisma.scalePlannerConfig.findUnique({
+        where: { key }
+      });
+
+      if (!config) {
+        return reply.status(200).send({
+          success: true,
+          key,
+          value: null,
+          updatedAt: null
+        });
+      }
+
+      let parsed = config.value;
+      try {
+        parsed = JSON.parse(config.value);
+      } catch {}
+
+      return reply.status(200).send({
+        success: true,
+        key,
+        value: parsed,
+        updatedAt: config.updatedAt
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao buscar estado na nuvem.'
+      });
+    }
+  });
+
+  /**
+   * POST /api/scheduler/cloud-state/:key
+   * Persiste qualquer estado compartilhado no PostgreSQL (garante sincronização entre múltiplos dispositivos)
+   */
+  app.post<{
+    Params: { key: string };
+    Body: { value: any };
+  }>('/cloud-state/:key', async (request, reply) => {
+    try {
+      const { key } = request.params;
+      const { value } = request.body || {};
+
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value ?? null);
+
+      const saved = await prisma.scalePlannerConfig.upsert({
+        where: { key },
+        create: { key, value: stringValue },
+        update: { value: stringValue }
+      });
+
+      return reply.status(200).send({
+        success: true,
+        key: saved.key,
+        value,
+        updatedAt: saved.updatedAt
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Falha ao salvar estado na nuvem.'
       });
     }
   });

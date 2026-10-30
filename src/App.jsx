@@ -454,8 +454,10 @@ export default function App() {
     fetchBackendPatients();
   }, []);
 
-  // Sincroniza agendamentos do backend Prisma (com ou sem sessão autenticada)
+  // Sincroniza agendamentos do backend Prisma (Cross-Device: ao carregar, focar na janela ou em intervalo periódico)
   useEffect(() => {
+    let isMounted = true;
+
     const syncBackendAppointments = async () => {
       try {
         const token = localStorage.getItem('omnihome_jwt');
@@ -467,7 +469,7 @@ export default function App() {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
 
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json();
           if (data.appointments && Array.isArray(data.appointments)) {
             const mapped = data.appointments
@@ -513,7 +515,24 @@ export default function App() {
     };
 
     syncBackendAppointments();
-  }, [currentUser]);
+
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncBackendAppointments();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    const interval = setInterval(syncBackendAppointments, 25000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      clearInterval(interval);
+    };
+  }, [currentUser, patients, doctors]);
 
 
   // Sincroniza automaticamente o profissional selecionado com o usuário autenticado
@@ -687,11 +706,49 @@ export default function App() {
     ]);
   };
 
-  // Actions
-  const handleUpdateAppointmentStatus = (aptId, newStatus) => {
+  // Actions com sincronização atômica em nuvem (Cross-Device)
+  const handleUpdateAppointmentStatus = async (aptId, newStatus) => {
+    const targetApt = appointments.find((a) => a.id === aptId);
+    // 1. Atualização otimista imediata na UI local
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === aptId ? { ...apt, status: newStatus } : apt))
     );
+
+    // 2. Persistência no PostgreSQL na nuvem (garante que outro dispositivo veja a mudança)
+    try {
+      const token = localStorage.getItem('omnihome_jwt');
+      const scheduledTime = targetApt?.date
+        ? `${targetApt.date}T${targetApt.time || '09:00'}:00.000Z`
+        : new Date().toISOString();
+
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments/${aptId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          notes: targetApt?.notes,
+          professionalId: targetApt?.doctorId,
+          patientId: targetApt?.patientId,
+          scheduledTime,
+          durationMinutes: targetApt?.durationMinutes || 45
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.appointment?.id && data.appointment.id !== aptId) {
+          // Atualiza ID local temporário para o ID persistido na nuvem
+          setAppointments((prev) =>
+            prev.map((apt) => (apt.id === aptId ? { ...apt, id: data.appointment.id } : apt))
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Persistência de status em nuvem em contingência:', err);
+    }
   };
 
   const handleOpenPatientRecord = (patientId) => {
@@ -713,8 +770,44 @@ export default function App() {
     setIsAppointmentModalOpen(true);
   };
 
-  const handleSaveAppointment = (newApt) => {
+  const handleSaveAppointment = async (newApt) => {
+    // 1. Atualização otimista imediata na UI local
     setAppointments((prev) => [newApt, ...prev]);
+
+    // 2. Persistência no PostgreSQL na nuvem
+    try {
+      const token = localStorage.getItem('omnihome_jwt');
+      const scheduledTime = newApt.date
+        ? `${newApt.date}T${newApt.time || '09:00'}:00.000Z`
+        : new Date().toISOString();
+
+      const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          professionalId: newApt.doctorId,
+          patientId: newApt.patientId,
+          scheduledTime,
+          durationMinutes: Number(newApt.durationMinutes || 45),
+          notes: newApt.notes,
+          status: newApt.status ? newApt.status.toUpperCase() : 'SCHEDULED'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.appointment?.id) {
+          setAppointments((prev) =>
+            prev.map((apt) => (apt.id === newApt.id ? { ...apt, id: data.appointment.id } : apt))
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Persistência de agendamento em nuvem em contingência:', err);
+    }
   };
 
   const handleRegisterDoctorWithoutAccount = async (newDoctor) => {
