@@ -109,6 +109,33 @@ export default function PatientsView({
           <button className="btn btn-primary" onClick={onOpenNewPatient}>
             <UserPlus size={16} /> Cadastrar Paciente
           </button>
+          {onOpenVoiceEvolution && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                color: '#ffffff',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.55rem 0.95rem',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)'
+              }}
+              onClick={() => {
+                const target = filteredPatients[0] || patients[0];
+                if (target) {
+                  onOpenVoiceEvolution(target, 'record');
+                }
+              }}
+              title="Gravação rápida de evolução por voz com IA (ActiveVoice Cascade)"
+            >
+              <Mic size={16} /> 🎙️ Gravar Voz (ActiveVoice)
+            </button>
+          )}
         </div>
       </div>
 
