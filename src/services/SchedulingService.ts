@@ -322,8 +322,18 @@ export class SchedulingService {
     patientId?: string;
     scheduledTime?: Date | string;
     durationMinutes?: number;
+    updateDetails?: boolean;
   }) {
-    const { id, status, notes, professionalId, patientId, scheduledTime, durationMinutes } = input;
+    const {
+      id,
+      status,
+      notes,
+      professionalId,
+      patientId,
+      scheduledTime,
+      durationMinutes,
+      updateDetails
+    } = input;
     const upper = (status || '').toUpperCase();
     const validStatus = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(upper)
       ? upper
@@ -339,11 +349,22 @@ export class SchedulingService {
     });
 
     if (existing) {
+      const parsedTime =
+        updateDetails && scheduledTime && !isNaN(new Date(scheduledTime).getTime())
+          ? new Date(scheduledTime)
+          : undefined;
+      const parsedDuration =
+        updateDetails && durationMinutes !== undefined && Number(durationMinutes) > 0
+          ? Math.round(Number(durationMinutes))
+          : undefined;
+
       return prisma.appointment.update({
         where: { id },
         data: {
           status: validStatus,
-          ...(notes !== undefined ? { notes } : {})
+          ...(notes !== undefined ? { notes } : {}),
+          ...(parsedTime ? { scheduledTime: parsedTime } : {}),
+          ...(parsedDuration ? { durationMinutes: parsedDuration } : {})
         },
         include: {
           patient: true,

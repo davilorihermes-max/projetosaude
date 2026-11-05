@@ -58,13 +58,85 @@ function classifyDate(dateObj) {
   return 'WEEKDAY';
 }
 
+const DEFAULT_DEMO_PRICING_RULES = [
+  {
+    id: 'rule-demo-1',
+    patientId: 'pat-1',
+    patientName: 'Mariana Souza Lima',
+    locationType: 'HOME',
+    locationName: 'Domicílio Principal',
+    dayType: 'WEEKDAY',
+    hourlyRate: 150.0,
+    fixedPrice: 150.0,
+    notes: 'Sessão padrão dias úteis'
+  },
+  {
+    id: 'rule-demo-2',
+    patientId: 'pat-1',
+    patientName: 'Mariana Souza Lima',
+    locationType: 'HOME',
+    locationName: 'Domicílio Principal',
+    dayType: 'WEEKEND',
+    hourlyRate: 200.0,
+    fixedPrice: 200.0,
+    notes: 'Plantão de fim de semana'
+  },
+  {
+    id: 'rule-demo-3',
+    patientId: 'pat-4',
+    patientName: 'Gabriel Santos Oliveira',
+    locationType: 'HOME',
+    locationName: 'Domicílio Principal',
+    dayType: 'WEEKDAY',
+    hourlyRate: 180.0,
+    fixedPrice: 180.0,
+    notes: 'Fisioterapia cardiorrespiratória'
+  }
+];
+
+function parseNumericInput(val, fallback = 0) {
+  if (val === '' || val === null || val === undefined) return fallback;
+  const normalized = String(val).replace(',', '.').trim();
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : fallback;
+}
+
+function readLocalStorageJson(key, fallback) {
+  if (typeof window === 'undefined' || !key) return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function extractYearMonthFromDateStr(dateStr) {
+  if (!dateStr) return null;
+  const isoPart = String(dateStr).split('T')[0];
+  const parts = isoPart.split('-').map(Number);
+  if (parts.length === 3 && parts[0] > 1900 && parts[1] >= 1 && parts[1] <= 12) {
+    return { year: parts[0], month: parts[1], cleanDateStr: isoPart };
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    cleanDateStr: d.toISOString().slice(0, 10)
+  };
+}
+
 export default function MonthlyFinancialSettlementView({
   doctors = [],
   patients = [],
   appointments = [],
   currentUser,
   selectedDoctorId,
-  setSelectedDoctorId
+  setSelectedDoctorId,
+  onUpdateAppointment
 }) {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
@@ -105,110 +177,127 @@ export default function MonthlyFinancialSettlementView({
     };
   }, [effectiveDoctorId, currentUser, doctors]);
 
-  // Regras de precificação configuradas pelo profissional
-  const [pricingRules, setPricingRules] = useState(() => {
-    const saved = localStorage.getItem(`omnihome_pricing_${activeProfessional?.id}`);
-    if (saved) {
+  // Helper para persistir estado compartilhado no localStorage e na nuvem PostgreSQL
+  const persistCloudAndLocal = useCallback((localKey, cloudKey, value) => {
+    if (typeof window !== 'undefined' && localKey) {
       try {
-        return JSON.parse(saved);
+        localStorage.setItem(localKey, JSON.stringify(value));
       } catch {}
     }
-    // Regras padrão iniciais para demonstração
-    return [
-      {
-        id: 'rule-demo-1',
-        patientId: 'pat-1',
-        patientName: 'Mariana Souza Lima',
-        locationType: 'HOME',
-        locationName: 'Domicílio Principal',
-        dayType: 'WEEKDAY',
-        hourlyRate: 150.0,
-        fixedPrice: 150.0,
-        notes: 'Sessão padrão dias úteis'
-      },
-      {
-        id: 'rule-demo-2',
-        patientId: 'pat-1',
-        patientName: 'Mariana Souza Lima',
-        locationType: 'HOME',
-        locationName: 'Domicílio Principal',
-        dayType: 'WEEKEND',
-        hourlyRate: 200.0,
-        fixedPrice: 200.0,
-        notes: 'Plantão de fim de semana'
-      },
-      {
-        id: 'rule-demo-3',
-        patientId: 'pat-4',
-        patientName: 'Gabriel Santos Oliveira',
-        locationType: 'HOME',
-        locationName: 'Domicílio Principal',
-        dayType: 'WEEKDAY',
-        hourlyRate: 180.0,
-        fixedPrice: 180.0,
-        notes: 'Fisioterapia cardiorrespiratória'
-      }
-    ];
-  });
-
-  // Salva regras no localStorage e na nuvem sempre que alteradas (Cross-Device)
-  useEffect(() => {
-    if (activeProfessional?.id) {
-      localStorage.setItem(`omnihome_pricing_${activeProfessional.id}`, JSON.stringify(pricingRules));
-      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/pricing_rules_${activeProfessional.id}`, {
+    if (cloudKey) {
+      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/${cloudKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: pricingRules })
-      }).catch((e) => console.warn('Erro ao salvar regras de preço na nuvem:', e));
+        body: JSON.stringify({ value })
+      }).catch((err) => console.warn(`Erro ao sincronizar ${cloudKey} na nuvem:`, err));
     }
-  }, [pricingRules, activeProfessional]);
+  }, []);
 
-  // Carrega regras de preço da nuvem ao iniciar ou trocar de profissional
-  useEffect(() => {
-    if (!activeProfessional?.id) return;
-    const fetchCloudRules = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/scheduler/cloud-state/pricing_rules_${activeProfessional.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && Array.isArray(data.value) && data.value.length > 0) {
-            setPricingRules(data.value);
-            localStorage.setItem(`omnihome_pricing_${activeProfessional.id}`, JSON.stringify(data.value));
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao carregar regras de preço da nuvem:', err);
-      }
-    };
-    fetchCloudRules();
-  }, [activeProfessional?.id]);
+  // Regras de precificação configuradas pelo profissional
+  const [pricingRules, setPricingRules] = useState(() =>
+    readLocalStorageJson(`omnihome_pricing_${activeProfessional?.id}`, DEFAULT_DEMO_PRICING_RULES)
+  );
+
+  // Correções manuais de valores/dados de sessões ("Corrigir") persistidas em localStorage e nuvem
+  const [sessionOverrides, setSessionOverrides] = useState(() =>
+    readLocalStorageJson(`omnihome_settlement_overrides_${activeProfessional?.id}`, {})
+  );
 
   // Lista local e editável de atendimentos do mês para este profissional
   const [settlementSessions, setSettlementSessions] = useState([]);
-  const [manualSessions, setManualSessions] = useState([]);
+  const [manualSessions, setManualSessions] = useState(() =>
+    readLocalStorageJson(`omnihome_settlement_manual_${activeProfessional?.id}`, [])
+  );
+  const [deletedSessionIds, setDeletedSessionIds] = useState(() =>
+    readLocalStorageJson(`omnihome_settlement_deleted_${activeProfessional?.id}`, [])
+  );
 
-  // Carrega sessões manuais persistidas na nuvem para este profissional
+  // Carrega regras de preço, correções de valores e sessões manuais ao iniciar ou trocar de profissional
   useEffect(() => {
-    if (!activeProfessional?.id) return;
-    const fetchCloudManualSessions = async () => {
+    const profId = activeProfessional?.id;
+    if (!profId) return;
+
+    let cancelled = false;
+
+    // 1. Hidratação imediata do localStorage específico deste profissional
+    const localRules = readLocalStorageJson(`omnihome_pricing_${profId}`, DEFAULT_DEMO_PRICING_RULES);
+    const localOverrides = readLocalStorageJson(`omnihome_settlement_overrides_${profId}`, {});
+    const localManual = readLocalStorageJson(`omnihome_settlement_manual_${profId}`, []);
+    const localDeleted = readLocalStorageJson(`omnihome_settlement_deleted_${profId}`, []);
+
+    setPricingRules(Array.isArray(localRules) ? localRules : DEFAULT_DEMO_PRICING_RULES);
+    setSessionOverrides(localOverrides && typeof localOverrides === 'object' ? localOverrides : {});
+    setManualSessions(Array.isArray(localManual) ? localManual : []);
+    setDeletedSessionIds(Array.isArray(localDeleted) ? localDeleted : []);
+
+    // 2. Sincronização assíncrona com o PostgreSQL na nuvem (Cross-Device)
+    const syncFromCloud = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && Array.isArray(data.value)) {
+        const [rulesRes, overridesRes, manualRes, deletedRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/scheduler/cloud-state/pricing_rules_${profId}`).catch(() => null),
+          fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_overrides_${profId}`).catch(() => null),
+          fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${profId}`).catch(() => null),
+          fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_deleted_${profId}`).catch(() => null)
+        ]);
+
+        if (cancelled) return;
+
+        if (rulesRes && rulesRes.ok) {
+          const data = await rulesRes.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.value) && data.value.length > 0) {
+            setPricingRules(data.value);
+            localStorage.setItem(`omnihome_pricing_${profId}`, JSON.stringify(data.value));
+          }
+        }
+
+        if (overridesRes && overridesRes.ok) {
+          const data = await overridesRes.json().catch(() => null);
+          if (!cancelled && data && data.value && typeof data.value === 'object' && !Array.isArray(data.value)) {
+            setSessionOverrides((prev) => {
+              const merged = { ...data.value };
+              for (const [k, localVal] of Object.entries(prev || {})) {
+                const cloudVal = merged[k];
+                if (!cloudVal || (localVal?.updatedAt || 0) >= (cloudVal?.updatedAt || 0)) {
+                  merged[k] = localVal;
+                }
+              }
+              localStorage.setItem(`omnihome_settlement_overrides_${profId}`, JSON.stringify(merged));
+              return merged;
+            });
+          }
+        }
+
+        if (manualRes && manualRes.ok) {
+          const data = await manualRes.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.value)) {
             setManualSessions(data.value);
+            localStorage.setItem(`omnihome_settlement_manual_${profId}`, JSON.stringify(data.value));
+          }
+        }
+
+        if (deletedRes && deletedRes.ok) {
+          const data = await deletedRes.json().catch(() => null);
+          if (!cancelled && data && Array.isArray(data.value)) {
+            setDeletedSessionIds(data.value);
+            localStorage.setItem(`omnihome_settlement_deleted_${profId}`, JSON.stringify(data.value));
           }
         }
       } catch (err) {
-        console.warn('Erro ao carregar sessões manuais da nuvem:', err);
+        console.warn('Erro ao sincronizar estado financeiro da nuvem:', err);
       }
     };
-    fetchCloudManualSessions();
+
+    syncFromCloud();
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeProfessional?.id]);
 
   // Resolve o preço para um determinado paciente, local e data
   const resolvePrice = useCallback((patientId, _address, dateObj, durationMinutes = 60) => {
     const dayCategory = classifyDate(dateObj);
+    const safeDuration = Number(durationMinutes) > 0 ? Number(durationMinutes) : 60;
 
     // 1. Procura regra com paciente + dia correspondente (ou ANY_DAY) + local correspondente
     const matchingRule = pricingRules.find((r) => {
@@ -218,8 +307,11 @@ export default function MonthlyFinancialSettlementView({
     });
 
     if (matchingRule) {
-      const rate = matchingRule.hourlyRate || (matchingRule.fixedPrice ? (matchingRule.fixedPrice / (durationMinutes / 60)) : 150.0);
-      const total = (rate * durationMinutes) / 60;
+      const rawRate =
+        matchingRule.hourlyRate ||
+        (matchingRule.fixedPrice ? matchingRule.fixedPrice / (safeDuration / 60) : 150.0);
+      const rate = Math.round(Number(rawRate) * 100) / 100;
+      const total = (rate * safeDuration) / 60;
       return {
         hourlyRate: rate,
         totalAmount: Math.round(total * 100) / 100,
@@ -229,7 +321,7 @@ export default function MonthlyFinancialSettlementView({
 
     // Preço base fallback
     const fallbackRate = dayCategory === 'WEEKEND' ? 180.0 : dayCategory === 'HOLIDAY' ? 220.0 : 150.0;
-    const fallbackTotal = (fallbackRate * durationMinutes) / 60;
+    const fallbackTotal = (fallbackRate * safeDuration) / 60;
     return {
       hourlyRate: fallbackRate,
       totalAmount: Math.round(fallbackTotal * 100) / 100,
@@ -237,13 +329,18 @@ export default function MonthlyFinancialSettlementView({
     };
   }, [pricingRules]);
 
-  // Inicializa as sessões do mês com base nos agendamentos da agenda
+  // Inicializa as sessões do mês com base nos agendamentos da agenda + correções manuais + inclusões avulsas
   useEffect(() => {
     if (!activeProfessional?.id) return;
+
+    const deletedSet = new Set(deletedSessionIds || []);
+    const matchedManualIds = new Set();
 
     // Filtra agendamentos do profissional no mês/ano QUE TIVERAM CHECK-IN
     const proApts = (appointments || []).filter((apt) => {
       if (!apt) return false;
+      if (apt.id && deletedSet.has(apt.id)) return false;
+
       const aptDocId = apt.doctorId || apt.professionalId;
       if (aptDocId !== activeProfessional.id) return false;
       if (apt.status === 'cancelled') return false;
@@ -257,46 +354,115 @@ export default function MonthlyFinancialSettlementView({
         Boolean(apt.checkedIn);
       if (!isCheckedIn && !includeScheduled) return false;
 
-      const dateStr = apt.date || apt.scheduledTime;
-      if (!dateStr) return false;
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return false;
+      const override = apt.id ? sessionOverrides?.[apt.id] : null;
+      const effectiveDateInput = override?.dateStr || apt.date || apt.scheduledTime;
+      const ym = extractYearMonthFromDateStr(effectiveDateInput);
+      if (!ym) return false;
 
-      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
+      return ym.month === selectedMonth && ym.year === selectedYear;
     });
 
     const parsedSessions = proApts.map((apt) => {
       const pat = (patients || []).find((p) => p.id === apt.patientId) || {};
-      const dateStr = apt.date || (apt.scheduledTime ? apt.scheduledTime.split('T')[0] : '2026-10-01');
-      const timeStr = apt.time || (apt.scheduledTime ? apt.scheduledTime.split('T')[1]?.slice(0, 5) : '09:00');
-      const dateObj = new Date(`${dateStr}T${timeStr}:00`);
-      const duration = Number(apt.durationMinutes || apt.duration || 60);
+      const baseYm = extractYearMonthFromDateStr(apt.date || apt.scheduledTime);
+      const baseDateStr = baseYm?.cleanDateStr || '2026-10-01';
+      const baseTimeStr =
+        apt.time || (apt.scheduledTime ? apt.scheduledTime.split('T')[1]?.slice(0, 5) : '09:00');
 
-      const pricing = resolvePrice(apt.patientId, pat.address || apt.address, dateObj, duration);
+      // Verifica se este agendamento corresponde a uma inclusão manual (por ID ou chave composta)
+      const manualMatch = (manualSessions || []).find(
+        (m) =>
+          m &&
+          (m.id === apt.id ||
+            (m.patientId === apt.patientId && m.dateStr === baseDateStr && m.timeStr === baseTimeStr))
+      );
+      if (manualMatch?.id) {
+        matchedManualIds.add(manualMatch.id);
+      }
+
+      const override =
+        (apt.id && sessionOverrides?.[apt.id]) ||
+        (manualMatch?.id && sessionOverrides?.[manualMatch.id]) ||
+        null;
+
+      const dateStr = override?.dateStr || manualMatch?.dateStr || baseDateStr;
+      const timeStr = override?.timeStr || manualMatch?.timeStr || baseTimeStr;
+      const dateObj = new Date(`${dateStr}T${timeStr}:00`);
+      const duration = Number(
+        override?.durationMinutes ?? manualMatch?.durationMinutes ?? apt.durationMinutes ?? apt.duration ?? 60
+      );
+      const patientAddress =
+        override?.patientAddress || manualMatch?.patientAddress || pat.address || apt.address || 'Vitória - ES';
+
+      const pricing = resolvePrice(apt.patientId, patientAddress, dateObj, duration);
+
+      const hourlyRate =
+        override?.hourlyRate !== undefined
+          ? Number(override.hourlyRate)
+          : manualMatch?.hourlyRate !== undefined
+          ? Number(manualMatch.hourlyRate)
+          : pricing.hourlyRate;
+
+      const totalAmount =
+        override?.totalAmount !== undefined
+          ? Number(override.totalAmount)
+          : manualMatch?.totalAmount !== undefined
+          ? Number(manualMatch.totalAmount)
+          : pricing.totalAmount;
+
+      const ruleApplied =
+        override?.ruleApplied || manualMatch?.ruleApplied || pricing.ruleApplied;
+
+      const rawAptNotes = apt.notes || apt.swapInfo || apt.observation || apt.comments || '';
+      const notes =
+        override?.notes !== undefined
+          ? override.notes
+          : manualMatch?.notes !== undefined
+          ? manualMatch.notes
+          : rawAptNotes;
 
       return {
         id: apt.id || `sess-${Date.now()}-${Math.random()}`,
         patientId: apt.patientId || 'pat-1',
-        patientName: pat.name || apt.patientName || 'Paciente',
-        patientAddress: pat.address || apt.address || 'Vitória - ES',
+        patientName: pat.name || apt.patientName || manualMatch?.patientName || 'Paciente',
+        patientAddress,
         locationType: 'HOME',
         dateStr,
         timeStr,
         durationMinutes: duration,
-        hourlyRate: pricing.hourlyRate,
-        totalAmount: pricing.totalAmount,
-        ruleApplied: pricing.ruleApplied,
-        notes: apt.notes || apt.swapInfo || apt.observation || apt.comments || '',
+        hourlyRate: Math.round(hourlyRate * 100) / 100,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        ruleApplied,
+        notes,
         status: apt.status || 'COMPLETED'
       };
     });
 
-    // Combina agendamentos com as sessões manuais persistidas na nuvem
-    const monthManual = (manualSessions || []).filter((s) => {
-      if (!s || !s.dateStr) return false;
-      const d = new Date(`${s.dateStr}T12:00:00`);
-      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
-    });
+    // Combina agendamentos com as sessões manuais persistidas na nuvem ainda não vinculadas
+    const monthManual = (manualSessions || [])
+      .filter((s) => {
+        if (!s || !s.id) return false;
+        if (deletedSet.has(s.id) || matchedManualIds.has(s.id)) return false;
+        const override = sessionOverrides?.[s.id];
+        const ym = extractYearMonthFromDateStr(override?.dateStr || s.dateStr);
+        if (!ym) return false;
+        return ym.month === selectedMonth && ym.year === selectedYear;
+      })
+      .map((s) => {
+        const override = sessionOverrides?.[s.id];
+        if (!override) return s;
+        return {
+          ...s,
+          dateStr: override.dateStr || s.dateStr,
+          timeStr: override.timeStr || s.timeStr,
+          patientAddress: override.patientAddress || s.patientAddress,
+          durationMinutes: Number(override.durationMinutes ?? s.durationMinutes ?? 60),
+          hourlyRate: Math.round(Number(override.hourlyRate ?? s.hourlyRate ?? 150) * 100) / 100,
+          totalAmount: Math.round(Number(override.totalAmount ?? s.totalAmount ?? 150) * 100) / 100,
+          ruleApplied: override.ruleApplied || s.ruleApplied,
+          notes: override.notes !== undefined ? override.notes : s.notes
+        };
+      });
 
     const combined = [...parsedSessions, ...monthManual];
     const seen = new Set();
@@ -309,10 +475,25 @@ export default function MonthlyFinancialSettlementView({
     }
 
     // Ordena por data e hora crescente
-    deduped.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
+    deduped.sort(
+      (a, b) =>
+        new Date(`${a.dateStr}T${a.timeStr}`).getTime() -
+        new Date(`${b.dateStr}T${b.timeStr}`).getTime()
+    );
 
     setSettlementSessions(deduped);
-  }, [selectedYear, selectedMonth, activeProfessional, appointments, patients, resolvePrice, includeScheduled, manualSessions]);
+  }, [
+    selectedYear,
+    selectedMonth,
+    activeProfessional,
+    appointments,
+    patients,
+    resolvePrice,
+    includeScheduled,
+    manualSessions,
+    sessionOverrides,
+    deletedSessionIds
+  ]);
 
   // Agrupamento por Paciente
   const groupedByPatient = useMemo(() => {
@@ -381,12 +562,6 @@ export default function MonthlyFinancialSettlementView({
   const [newSessionAddress, setNewSessionAddress] = useState('');
   const [newSessionNotes, setNewSessionNotes] = useState('');
 
-  // Atualiza valor total ao alterar duração ou taxa no modal de inclusão
-  useEffect(() => {
-    const tot = (Number(newSessionHourlyRate) * Number(newSessionDuration)) / 60;
-    setNewSessionTotal(Math.round(tot * 100) / 100);
-  }, [newSessionHourlyRate, newSessionDuration]);
-
   // Modal de Nova Regra de Preço
   const [isNewPriceModalOpen, setIsNewPriceModalOpen] = useState(false);
   const [rulePatientId, setRulePatientId] = useState('');
@@ -405,6 +580,7 @@ export default function MonthlyFinancialSettlementView({
       return;
     }
 
+    const rateVal = parseNumericInput(ruleHourlyRate, 150.0);
     const newRule = {
       id: `rule-${Date.now()}`,
       patientId: rulePatientId,
@@ -412,12 +588,19 @@ export default function MonthlyFinancialSettlementView({
       locationType: ruleLocationType,
       locationName: ruleLocationName || (ruleLocationType === 'HOME' ? 'Domicílio' : 'Clínica / Outro'),
       dayType: ruleDayType,
-      hourlyRate: parseFloat(ruleHourlyRate) || 150.0,
-      fixedPrice: parseFloat(ruleHourlyRate) || 150.0,
+      hourlyRate: rateVal,
+      fixedPrice: rateVal,
       notes: ruleNotes.trim()
     };
 
-    setPricingRules((prev) => [newRule, ...prev]);
+    const profId = activeProfessional?.id;
+    setPricingRules((prev) => {
+      const updated = [newRule, ...prev];
+      if (profId) {
+        persistCloudAndLocal(`omnihome_pricing_${profId}`, `pricing_rules_${profId}`, updated);
+      }
+      return updated;
+    });
     setIsNewPriceModalOpen(false);
     setSuccessMsg('Regra de preço registrada na sua tabela com sucesso!');
     setTimeout(() => setSuccessMsg(''), 4000);
@@ -425,39 +608,230 @@ export default function MonthlyFinancialSettlementView({
 
   // Excluir Regra de Preço
   const handleDeletePriceRule = (ruleId) => {
-    setPricingRules((prev) => prev.filter((r) => r.id !== ruleId));
+    const profId = activeProfessional?.id;
+    setPricingRules((prev) => {
+      const updated = prev.filter((r) => r.id !== ruleId);
+      if (profId) {
+        persistCloudAndLocal(`omnihome_pricing_${profId}`, `pricing_rules_${profId}`, updated);
+      }
+      return updated;
+    });
     setSuccessMsg('Regra de preço removida.');
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // Salvar Edição de Sessão
-  const handleSaveEditSession = (e) => {
+  // Salvar Edição de Sessão ("Corrigir") com persistência local + nuvem PostgreSQL
+  const handleSaveEditSession = async (e) => {
     e.preventDefault();
     if (!editingSession) return;
 
-    setSettlementSessions((prev) =>
-      prev.map((s) => (s.id === editingSession.id ? { ...editingSession, notes: (editingSession.notes || '').trim() } : s))
+    const sessionToSave = { ...editingSession };
+    const profId = activeProfessional?.id;
+
+    const cleanDuration = Math.max(1, Math.round(parseNumericInput(sessionToSave.durationMinutes, 60)));
+    const cleanTotal = Math.max(0, parseNumericInput(sessionToSave.totalAmount, 0));
+    const computedRateFromTotal = Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100;
+    const cleanRate =
+      sessionToSave.hourlyRate !== '' &&
+      sessionToSave.hourlyRate !== null &&
+      sessionToSave.hourlyRate !== undefined
+        ? Math.max(0, parseNumericInput(sessionToSave.hourlyRate, computedRateFromTotal))
+        : computedRateFromTotal;
+
+    const cleanNotes = (sessionToSave.notes || '').trim();
+    const cleanDateStr = sessionToSave.dateStr;
+    const cleanTimeStr = sessionToSave.timeStr;
+    const cleanAddress = (sessionToSave.patientAddress || '').trim() || 'Vitória - ES';
+
+    // Verifica se o valor difere da regra automática para rotular claramente a correção manual
+    const autoPricing = resolvePrice(
+      sessionToSave.patientId,
+      cleanAddress,
+      new Date(`${cleanDateStr}T${cleanTimeStr}:00`),
+      cleanDuration
     );
+    const priceDiffersFromAuto =
+      Math.abs(cleanTotal - autoPricing.totalAmount) >= 0.01 ||
+      Math.abs(cleanRate - autoPricing.hourlyRate) >= 0.01;
+
+    const nextRuleApplied =
+      sessionToSave.ruleApplied && String(sessionToSave.ruleApplied).startsWith('Inclusão Manual')
+        ? sessionToSave.ruleApplied
+        : priceDiffersFromAuto || sessionToSave.isManualValueOverride
+        ? 'Valor Corrigido Manualmente'
+        : sessionToSave.ruleApplied || autoPricing.ruleApplied;
+
+    const updatedSession = {
+      ...sessionToSave,
+      dateStr: cleanDateStr,
+      timeStr: cleanTimeStr,
+      patientAddress: cleanAddress,
+      durationMinutes: cleanDuration,
+      hourlyRate: cleanRate,
+      totalAmount: cleanTotal,
+      notes: cleanNotes,
+      ruleApplied: nextRuleApplied
+    };
+    delete updatedSession.isManualValueOverride;
+
+    const overrideEntry = {
+      id: sessionToSave.id,
+      patientId: sessionToSave.patientId,
+      dateStr: cleanDateStr,
+      timeStr: cleanTimeStr,
+      patientAddress: cleanAddress,
+      durationMinutes: cleanDuration,
+      hourlyRate: cleanRate,
+      totalAmount: cleanTotal,
+      notes: cleanNotes,
+      ruleApplied: nextRuleApplied,
+      updatedAt: Date.now()
+    };
+
+    // 1. Atualização imediata na UI da tabela
+    setSettlementSessions((prev) => {
+      const next = prev.map((s) => (s.id === sessionToSave.id ? updatedSession : s));
+      next.sort(
+        (a, b) =>
+          new Date(`${a.dateStr}T${a.timeStr}`).getTime() -
+          new Date(`${b.dateStr}T${b.timeStr}`).getTime()
+      );
+      return next;
+    });
+
+    // 2. Persiste override no localStorage e na nuvem (sobrevive a reloads e ao sync de 25s)
+    setSessionOverrides((prev) => {
+      const nextOverrides = { ...(prev || {}), [sessionToSave.id]: overrideEntry };
+      if (profId) {
+        persistCloudAndLocal(
+          `omnihome_settlement_overrides_${profId}`,
+          `settlement_overrides_${profId}`,
+          nextOverrides
+        );
+      }
+      return nextOverrides;
+    });
+
+    // 3. Se for sessão manual, atualiza também a lista de sessões manuais persistida
+    setManualSessions((prev) => {
+      if (!Array.isArray(prev) || !prev.some((m) => m.id === sessionToSave.id)) return prev;
+      const nextManual = prev.map((m) => (m.id === sessionToSave.id ? { ...m, ...updatedSession } : m));
+      if (profId) {
+        persistCloudAndLocal(
+          `omnihome_settlement_manual_${profId}`,
+          `settlement_manual_${profId}`,
+          nextManual
+        );
+      }
+      return nextManual;
+    });
+
+    // 4. Notifica estado global da agenda no App.jsx (se disponível)
+    if (onUpdateAppointment) {
+      onUpdateAppointment(sessionToSave.id, {
+        date: cleanDateStr,
+        time: cleanTimeStr,
+        durationMinutes: cleanDuration,
+        address: cleanAddress,
+        notes: cleanNotes
+      });
+    }
 
     setEditingSession(null);
-    setSuccessMsg('Atendimento e valores atualizados no fechamento!');
-    setTimeout(() => setSuccessMsg(''), 3000);
+    setSuccessMsg('Atendimento e valores atualizados e salvos na nuvem!');
+    setTimeout(() => setSuccessMsg(''), 3500);
+
+    // 5. Sincroniza metadados do agendamento no PostgreSQL (horário, duração e observações)
+    if (!String(sessionToSave.id).startsWith('manual-sess-')) {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('omnihome_jwt') : null;
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionToSave.id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            status: sessionToSave.status || 'COMPLETED',
+            notes: cleanNotes,
+            professionalId: profId,
+            patientId: sessionToSave.patientId,
+            scheduledTime: `${cleanDateStr}T${cleanTimeStr}:00.000Z`,
+            durationMinutes: cleanDuration,
+            updateDetails: true
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const newDbId = data.appointment?.id;
+          if (newDbId && newDbId !== sessionToSave.id) {
+            setSessionOverrides((prev) => {
+              const nextOverrides = {
+                ...(prev || {}),
+                [newDbId]: { ...overrideEntry, id: newDbId }
+              };
+              if (profId) {
+                persistCloudAndLocal(
+                  `omnihome_settlement_overrides_${profId}`,
+                  `settlement_overrides_${profId}`,
+                  nextOverrides
+                );
+              }
+              return nextOverrides;
+            });
+            setSettlementSessions((prev) =>
+              prev.map((s) => (s.id === sessionToSave.id ? { ...s, id: newDbId } : s))
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Sincronização de edição do agendamento em contingência:', err);
+      }
+    }
   };
 
   // Excluir Sessão do Fechamento
   const handleDeleteSession = async (sessionId) => {
     if (window.confirm('Tem certeza que deseja excluir este atendimento do fechamento mensal?')) {
+      const profId = activeProfessional?.id;
       const updatedManual = manualSessions.filter((s) => s.id !== sessionId);
       setManualSessions(updatedManual);
       setSettlementSessions((prev) => prev.filter((s) => s.id !== sessionId));
 
+      setDeletedSessionIds((prev) => {
+        const updatedDeleted = Array.from(new Set([...(prev || []), sessionId]));
+        if (profId) {
+          persistCloudAndLocal(
+            `omnihome_settlement_deleted_${profId}`,
+            `settlement_deleted_${profId}`,
+            updatedDeleted
+          );
+        }
+        return updatedDeleted;
+      });
+
+      setSessionOverrides((prev) => {
+        if (!prev || !(sessionId in prev)) return prev;
+        const nextOverrides = { ...prev };
+        delete nextOverrides[sessionId];
+        if (profId) {
+          persistCloudAndLocal(
+            `omnihome_settlement_overrides_${profId}`,
+            `settlement_overrides_${profId}`,
+            nextOverrides
+          );
+        }
+        return nextOverrides;
+      });
+
       // Sincroniza exclusão na nuvem PostgreSQL (Cross-Device)
-      if (activeProfessional?.id) {
-        fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ value: updatedManual })
-        }).catch(() => null);
+      if (profId) {
+        persistCloudAndLocal(
+          `omnihome_settlement_manual_${profId}`,
+          `settlement_manual_${profId}`,
+          updatedManual
+        );
       }
 
       fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionId}`, {
@@ -478,56 +852,96 @@ export default function MonthlyFinancialSettlementView({
       return;
     }
 
+    const profId = activeProfessional?.id;
     const dateObj = new Date(`${newSessionDate}T${newSessionTime}:00`);
     const dayCategory = classifyDate(dateObj);
     const dayLabel = dayCategory === 'WEEKEND' ? 'Fim de Semana' : dayCategory === 'HOLIDAY' ? 'Feriado' : 'Dia Útil';
+
+    const cleanDuration = Math.max(1, Math.round(parseNumericInput(newSessionDuration, 60)));
+    const cleanTotal = Math.max(0, parseNumericInput(newSessionTotal, 150));
+    const cleanRate = Math.max(
+      0,
+      parseNumericInput(newSessionHourlyRate, Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100)
+    );
+    const cleanNotes = newSessionNotes.trim();
+    const cleanAddress = newSessionAddress.trim() || pat.address || 'Vitória - ES';
+    const manualRuleLabel = `Inclusão Manual (${dayLabel})`;
 
     const tempId = `manual-sess-${Date.now()}`;
     const newSess = {
       id: tempId,
       patientId: newSessionPatientId,
       patientName: pat.name,
-      patientAddress: newSessionAddress || pat.address || 'Vitória - ES',
+      patientAddress: cleanAddress,
       locationType: 'HOME',
       dateStr: newSessionDate,
       timeStr: newSessionTime,
-      durationMinutes: Number(newSessionDuration),
-      hourlyRate: Number(newSessionHourlyRate),
-      totalAmount: Number(newSessionTotal),
-      ruleApplied: `Inclusão Manual (${dayLabel})`,
-      notes: newSessionNotes.trim(),
+      durationMinutes: cleanDuration,
+      hourlyRate: cleanRate,
+      totalAmount: cleanTotal,
+      ruleApplied: manualRuleLabel,
+      notes: cleanNotes,
       status: 'COMPLETED'
     };
 
-    // 1. Atualização otimista imediata na UI
+    const initialOverride = {
+      id: tempId,
+      patientId: newSessionPatientId,
+      dateStr: newSessionDate,
+      timeStr: newSessionTime,
+      patientAddress: cleanAddress,
+      durationMinutes: cleanDuration,
+      hourlyRate: cleanRate,
+      totalAmount: cleanTotal,
+      notes: cleanNotes,
+      ruleApplied: manualRuleLabel,
+      updatedAt: Date.now()
+    };
+
+    // 1. Atualização otimista imediata na UI + persistência local e nuvem
     const updatedManual = [...manualSessions, newSess];
     setManualSessions(updatedManual);
+    if (profId) {
+      persistCloudAndLocal(
+        `omnihome_settlement_manual_${profId}`,
+        `settlement_manual_${profId}`,
+        updatedManual
+      );
+    }
+
+    setSessionOverrides((prev) => {
+      const nextOverrides = { ...(prev || {}), [tempId]: initialOverride };
+      if (profId) {
+        persistCloudAndLocal(
+          `omnihome_settlement_overrides_${profId}`,
+          `settlement_overrides_${profId}`,
+          nextOverrides
+        );
+      }
+      return nextOverrides;
+    });
+
     setSettlementSessions((prev) => {
       const next = [...prev, newSess];
-      next.sort((a, b) => new Date(`${a.dateStr}T${a.timeStr}`).getTime() - new Date(`${b.dateStr}T${b.timeStr}`).getTime());
+      next.sort(
+        (a, b) =>
+          new Date(`${a.dateStr}T${a.timeStr}`).getTime() -
+          new Date(`${b.dateStr}T${b.timeStr}`).getTime()
+      );
       return next;
     });
 
-    // 2. Persistência na nuvem (Cross-Device)
-    if (activeProfessional?.id) {
-      fetch(`${API_BASE_URL}/api/scheduler/cloud-state/settlement_manual_${activeProfessional.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: updatedManual })
-      }).catch((err) => console.warn('Erro ao salvar sessão manual na nuvem:', err));
-    }
-
-    // 3. Persiste também como agendamento CONCLUÍDO no PostgreSQL
+    // 2. Persiste também como agendamento CONCLUÍDO no PostgreSQL mantendo o valor manual intacto
     try {
       const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          professionalId: activeProfessional?.id,
+          professionalId: profId,
           patientId: newSessionPatientId,
           scheduledTime: `${newSessionDate}T${newSessionTime}:00.000Z`,
-          durationMinutes: Number(newSessionDuration),
-          notes: newSessionNotes.trim() || 'Sessão concluída e faturada no fechamento',
+          durationMinutes: cleanDuration,
+          notes: cleanNotes || undefined,
           status: 'COMPLETED'
         })
       });
@@ -536,8 +950,33 @@ export default function MonthlyFinancialSettlementView({
         const data = await res.json().catch(() => ({}));
         if (data.appointment?.id) {
           const finalId = data.appointment.id;
-          setManualSessions((prev) => prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s)));
-          setSettlementSessions((prev) => prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s)));
+          setManualSessions((prev) => {
+            const syncedManual = prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s));
+            if (profId) {
+              persistCloudAndLocal(
+                `omnihome_settlement_manual_${profId}`,
+                `settlement_manual_${profId}`,
+                syncedManual
+              );
+            }
+            return syncedManual;
+          });
+          setSessionOverrides((prev) => {
+            const nextOverrides = { ...(prev || {}) };
+            delete nextOverrides[tempId];
+            nextOverrides[finalId] = { ...initialOverride, id: finalId, updatedAt: Date.now() };
+            if (profId) {
+              persistCloudAndLocal(
+                `omnihome_settlement_overrides_${profId}`,
+                `settlement_overrides_${profId}`,
+                nextOverrides
+              );
+            }
+            return nextOverrides;
+          });
+          setSettlementSessions((prev) =>
+            prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s))
+          );
         }
       }
     } catch (err) {
@@ -1944,15 +2383,24 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Duração (minutos)</label>
                     <input
                       type="number"
+                      min="1"
+                      step="1"
                       className="form-input"
                       value={editingSession.durationMinutes}
                       onChange={(e) => {
-                        const dur = Number(e.target.value);
-                        const tot = (dur * Number(editingSession.hourlyRate)) / 60;
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setEditingSession({ ...editingSession, durationMinutes: '' });
+                          return;
+                        }
+                        const dur = parseNumericInput(raw, 0);
+                        const rate = parseNumericInput(editingSession.hourlyRate, 0);
+                        const tot = dur > 0 ? Math.round(((dur * rate) / 60) * 100) / 100 : editingSession.totalAmount;
                         setEditingSession({
                           ...editingSession,
-                          durationMinutes: dur,
-                          totalAmount: Math.round(tot * 100) / 100
+                          durationMinutes: raw,
+                          totalAmount: tot,
+                          isManualValueOverride: true
                         });
                       }}
                       required
@@ -1963,16 +2411,24 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Custo Horário (R$/h)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       className="form-input"
                       value={editingSession.hourlyRate}
                       onChange={(e) => {
-                        const rate = Number(e.target.value);
-                        const tot = (Number(editingSession.durationMinutes) * rate) / 60;
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setEditingSession({ ...editingSession, hourlyRate: '' });
+                          return;
+                        }
+                        const rate = parseNumericInput(raw, 0);
+                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                        const tot = Math.round(((dur * rate) / 60) * 100) / 100;
                         setEditingSession({
                           ...editingSession,
-                          hourlyRate: rate,
-                          totalAmount: Math.round(tot * 100) / 100
+                          hourlyRate: raw,
+                          totalAmount: tot,
+                          isManualValueOverride: true
                         });
                       }}
                       required
@@ -1983,11 +2439,28 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Valor Total da Sessão (R$)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       className="form-input"
                       style={{ fontWeight: 800, color: 'var(--primary)' }}
                       value={editingSession.totalAmount}
-                      onChange={(e) => setEditingSession({ ...editingSession, totalAmount: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setEditingSession({ ...editingSession, totalAmount: '' });
+                          return;
+                        }
+                        const tot = parseNumericInput(raw, 0);
+                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                        const rate =
+                          dur > 0 ? Math.round(((tot * 60) / dur) * 100) / 100 : editingSession.hourlyRate;
+                        setEditingSession({
+                          ...editingSession,
+                          totalAmount: raw,
+                          hourlyRate: rate,
+                          isManualValueOverride: true
+                        });
+                      }}
                       required
                     />
                   </div>
@@ -2108,9 +2581,19 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Duração (minutos)</label>
                     <input
                       type="number"
+                      min="1"
+                      step="1"
                       className="form-input"
                       value={newSessionDuration}
-                      onChange={(e) => setNewSessionDuration(e.target.value)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setNewSessionDuration(raw);
+                        if (raw !== '') {
+                          const dur = parseNumericInput(raw, 60);
+                          const rate = parseNumericInput(newSessionHourlyRate, 0);
+                          setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
+                        }
+                      }}
                       required
                     />
                   </div>
@@ -2119,10 +2602,19 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Custo Horário (R$/h)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       className="form-input"
                       value={newSessionHourlyRate}
-                      onChange={(e) => setNewSessionHourlyRate(e.target.value)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setNewSessionHourlyRate(raw);
+                        if (raw !== '') {
+                          const rate = parseNumericInput(raw, 0);
+                          const dur = parseNumericInput(newSessionDuration, 60);
+                          setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
+                        }
+                      }}
                       required
                     />
                   </div>
@@ -2131,11 +2623,22 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Valor Total (R$)</label>
                     <input
                       type="number"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       className="form-input"
                       style={{ fontWeight: 800, color: 'var(--primary)' }}
                       value={newSessionTotal}
-                      onChange={(e) => setNewSessionTotal(e.target.value)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setNewSessionTotal(raw);
+                        if (raw !== '') {
+                          const tot = parseNumericInput(raw, 0);
+                          const dur = parseNumericInput(newSessionDuration, 60);
+                          if (dur > 0) {
+                            setNewSessionHourlyRate(Math.round(((tot * 60) / dur) * 100) / 100);
+                          }
+                        }
+                      }}
                       required
                     />
                   </div>
@@ -2243,7 +2746,8 @@ export default function MonthlyFinancialSettlementView({
                     <label className="form-label">Valor Hora (R$/h) *</label>
                     <input
                       type="number"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       className="form-input"
                       value={ruleHourlyRate}
                       onChange={(e) => setRuleHourlyRate(e.target.value)}

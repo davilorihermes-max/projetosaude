@@ -1243,6 +1243,11 @@ export default function App() {
               currentUser={currentUser}
               selectedDoctorId={selectedDoctorId}
               setSelectedDoctorId={setSelectedDoctorId}
+              onUpdateAppointment={(aptId, updates) => {
+                setAppointments((prev) =>
+                  prev.map((apt) => (apt.id === aptId ? { ...apt, ...updates } : apt))
+                );
+              }}
             />
           )}
 

@@ -119,5 +119,81 @@ describe('Cross-Device Persistence & Cloud State Synchronization', () => {
       // Limpeza
       await prisma.appointment.delete({ where: { id: patchBody.appointment.id } }).catch(() => null);
     });
+
+    it('deve persistir correção de valores (settlement_overrides) e atualizar duração/horário quando updateDetails=true', async () => {
+      const patient = await prisma.patient.findFirst();
+      const professional = await prisma.professional.findFirst();
+
+      if (!patient || !professional) return;
+
+      // 1. Cria agendamento concluído com duração 60 min
+      const created = await prisma.appointment.create({
+        data: {
+          professionalId: professional.id,
+          patientId: patient.id,
+          scheduledTime: new Date('2026-10-20T09:00:00.000Z'),
+          durationMinutes: 60,
+          status: 'COMPLETED',
+          notes: 'Sessão original'
+        }
+      });
+
+      const overrideKey = `settlement_overrides_test_${Date.now()}`;
+
+      try {
+        // 2. Persiste override de valor ("Corrigir": R$ 150 -> R$ 135) na nuvem
+        const overridesPayload = {
+          [created.id]: {
+            id: created.id,
+            patientId: patient.id,
+            dateStr: '2026-10-20',
+            timeStr: '10:30',
+            durationMinutes: 45,
+            hourlyRate: 180,
+            totalAmount: 135,
+            notes: 'Valor corrigido no fechamento',
+            ruleApplied: 'Valor Corrigido Manualmente',
+            updatedAt: Date.now()
+          }
+        };
+
+        const postOverrideRes = await app.inject({
+          method: 'POST',
+          url: `/api/scheduler/cloud-state/${overrideKey}`,
+          payload: { value: overridesPayload }
+        });
+        expect(postOverrideRes.statusCode).toBe(200);
+
+        const getOverrideRes = await app.inject({
+          method: 'GET',
+          url: `/api/scheduler/cloud-state/${overrideKey}`
+        });
+        expect(getOverrideRes.statusCode).toBe(200);
+        expect(getOverrideRes.json().value[created.id].totalAmount).toBe(135);
+        expect(getOverrideRes.json().value[created.id].hourlyRate).toBe(180);
+
+        // 3. Atualiza metadados da sessão existente no PostgreSQL com updateDetails: true
+        const patchDetailsRes = await app.inject({
+          method: 'PATCH',
+          url: `/api/scheduler/appointments/${created.id}/status`,
+          payload: {
+            status: 'COMPLETED',
+            notes: 'Valor corrigido no fechamento',
+            scheduledTime: '2026-10-20T10:30:00.000Z',
+            durationMinutes: 45,
+            updateDetails: true
+          }
+        });
+
+        expect(patchDetailsRes.statusCode).toBe(200);
+        const updatedApt = patchDetailsRes.json().appointment;
+        expect(updatedApt.durationMinutes).toBe(45);
+        expect(updatedApt.notes).toBe('Valor corrigido no fechamento');
+        expect(new Date(updatedApt.scheduledTime).toISOString()).toBe('2026-10-20T10:30:00.000Z');
+      } finally {
+        await prisma.scalePlannerConfig.delete({ where: { key: overrideKey } }).catch(() => null);
+        await prisma.appointment.delete({ where: { id: created.id } }).catch(() => null);
+      }
+    });
   });
 });

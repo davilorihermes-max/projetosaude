@@ -154,11 +154,20 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       patientId?: string;
       scheduledTime?: string;
       durationMinutes?: number;
+      updateDetails?: boolean;
     };
   }>('/appointments/:id/status', { preHandler: [authenticateOptional] }, async (request, reply) => {
     try {
       const { id } = request.params;
-      const { status, notes, professionalId, patientId, scheduledTime, durationMinutes } = request.body || {};
+      const {
+        status,
+        notes,
+        professionalId,
+        patientId,
+        scheduledTime,
+        durationMinutes,
+        updateDetails
+      } = request.body || {};
 
       if (!id || !status) {
         return reply.status(400).send({
@@ -175,7 +184,8 @@ export const schedulerRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         professionalId,
         patientId,
         scheduledTime,
-        durationMinutes
+        durationMinutes,
+        updateDetails
       });
 
       return reply.status(200).send({
