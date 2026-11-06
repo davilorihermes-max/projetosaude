@@ -720,3 +720,281 @@
   background: linear-gradient(135deg, var(--bg-surface) 0%, var(--primary-subtle) 100%);
   border-top: 2px solid var(--primary-border);
 }
+
+
+/* --- Agrupamento por Paciente & Gestão de Trocas de Escala --- */
+
+.btn-swap-register {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.52rem 0.9rem;
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--warning-border);
+  background: var(--warning-subtle);
+  color: #b45309;
+}
+
+[data-theme='dark'] .btn-swap-register {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.btn-swap-register:hover {
+  border-color: var(--warning);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-action-sm.swap {
+  border-color: var(--warning-border);
+  background: var(--warning-subtle);
+  color: #b45309;
+}
+
+[data-theme='dark'] .btn-action-sm.swap {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.btn-action-sm.swap:hover {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.consolidated-view-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.view-mode-toggle-group {
+  display: inline-flex;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 0.2rem;
+  gap: 0.2rem;
+}
+
+.view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.view-mode-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-xs);
+}
+
+.grouped-patients-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 1.15rem 1.25rem;
+  background: var(--bg-page);
+}
+
+.grouped-patient-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+
+.grouped-patient-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--primary-subtle);
+  border-bottom: 1px solid var(--primary-border);
+}
+
+.grouped-patient-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.grouped-patient-index {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.grouped-patient-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.grouped-patient-subtotal-chip {
+  background: var(--bg-surface);
+  border: 1px solid var(--primary-border);
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.grouped-patient-block-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.65rem 1.1rem;
+  background: var(--bg-surface-hover);
+  border-top: 1px solid var(--border-light);
+  font-size: 0.83rem;
+}
+
+.swap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.swap-badge.covered {
+  background: var(--info-subtle);
+  color: var(--info);
+  border: 1px solid var(--info-border);
+}
+
+.swap-badge.ceded {
+  background: var(--warning-subtle);
+  color: #b45309;
+  border: 1px solid var(--warning-border);
+}
+
+[data-theme='dark'] .swap-badge.ceded {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.financial-table tr.ceded-swap-row td {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.swap-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+@media (max-width: 640px) {
+  .swap-type-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.swap-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-light);
+  background: var(--bg-surface);
+  color: var(--text-headline);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.swap-type-card:hover {
+  border-color: var(--primary);
+  background: var(--bg-surface-hover);
+}
+
+.swap-type-card.active.normal {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+}
+
+.swap-type-card.active.covered {
+  border-color: var(--info);
+  background: var(--info-subtle);
+}
+
+.swap-type-card.active.ceded {
+  border-color: var(--warning);
+  background: var(--warning-subtle);
+}
+
+.swap-type-card-title {
+  font-size: 0.84rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swap-type-card-desc {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.swap-details-panel {
+  background: var(--bg-surface-hover);
+  border: 1px dashed var(--primary-border);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.swap-details-panel.ceded {
+  border-color: var(--warning-border);
+  background: var(--warning-subtle);
+}
+
+[data-theme='dark'] .swap-details-panel.ceded {
+  background: rgba(245, 158, 11, 0.09);
+  border-color: rgba(245, 158, 11, 0.35);
+}

@@ -195,5 +195,67 @@ describe('Cross-Device Persistence & Cloud State Synchronization', () => {
         await prisma.appointment.delete({ where: { id: created.id } }).catch(() => null);
       }
     });
+
+    it('deve persistir registros de trocas de escala (COVERED e CEDED) no estado de fechamento em nuvem', async () => {
+      const manualKey = `settlement_manual_swap_test_${Date.now()}`;
+      const manualPayload = [
+        {
+          id: 'manual-sess-covered-1',
+          patientId: 'pat-davi',
+          patientName: 'Davi B.',
+          patientAddress: 'Jardim Guadalajara Vila velha',
+          dateStr: '2026-10-22',
+          timeStr: '08:00',
+          durationMinutes: 90,
+          hourlyRate: 135,
+          totalAmount: 202.5,
+          swapType: 'COVERED',
+          swapPartnerName: 'Roberta',
+          swapReason: 'Troquei pelo meu dia 15/10',
+          isInformationalSwap: false
+        },
+        {
+          id: 'swap-ceded-1',
+          patientId: 'pat-davi',
+          patientName: 'Davi B.',
+          patientAddress: 'Jardim Guadalajara Vila velha',
+          dateStr: '2026-10-15',
+          timeStr: '08:00',
+          durationMinutes: 60,
+          hourlyRate: 0,
+          totalAmount: 0,
+          swapType: 'CEDED',
+          swapPartnerName: 'Roberta',
+          swapReason: 'Plantão feito pela Roberta em permuta',
+          isInformationalSwap: true
+        }
+      ];
+
+      try {
+        const postRes = await app.inject({
+          method: 'POST',
+          url: `/api/scheduler/cloud-state/${manualKey}`,
+          payload: { value: manualPayload }
+        });
+        expect(postRes.statusCode).toBe(200);
+
+        const getRes = await app.inject({
+          method: 'GET',
+          url: `/api/scheduler/cloud-state/${manualKey}`
+        });
+        expect(getRes.statusCode).toBe(200);
+
+        const saved = getRes.json().value;
+        expect(saved).toHaveLength(2);
+        expect(saved[0].swapType).toBe('COVERED');
+        expect(saved[0].swapPartnerName).toBe('Roberta');
+        expect(saved[0].totalAmount).toBe(202.5);
+        expect(saved[1].swapType).toBe('CEDED');
+        expect(saved[1].isInformationalSwap).toBe(true);
+        expect(saved[1].totalAmount).toBe(0);
+      } finally {
+        await prisma.scalePlannerConfig.delete({ where: { key: manualKey } }).catch(() => null);
+      }
+    });
   });
 });

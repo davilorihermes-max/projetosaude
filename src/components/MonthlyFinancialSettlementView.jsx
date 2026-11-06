@@ -18,7 +18,9 @@ import {
   CheckCircle2,
   UserCheck,
   Layers,
-  FileText
+  FileText,
+  RefreshCw,
+  Users
 } from 'lucide-react';
 import Avatar from './Avatar';
 import './MonthlyFinancialSettlementView.css';
@@ -129,6 +131,37 @@ function extractYearMonthFromDateStr(dateStr) {
   };
 }
 
+function formatCurrencyBR(val) {
+  return Number(val || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatSwapBadgeText(sess) {
+  if (!sess) return '';
+  if (sess.swapType === 'COVERED') {
+    const partner = sess.swapPartnerName ? `Atendeu no lugar de ${sess.swapPartnerName}` : 'Assumiu plantão em troca';
+    const reason = sess.swapReason ? ` (${sess.swapReason})` : '';
+    return `🔄 Troca: ${partner}${reason}`;
+  }
+  if (sess.swapType === 'CEDED' || sess.isInformationalSwap) {
+    const partner = sess.swapPartnerName ? `Realizado por ${sess.swapPartnerName}` : 'Realizado por colega';
+    const reason = sess.swapReason ? ` (${sess.swapReason})` : '';
+    return `↪ Plantão Cedido: ${partner}${reason}`;
+  }
+  return '';
+}
+
 export default function MonthlyFinancialSettlementView({
   doctors = [],
   patients = [],
@@ -142,6 +175,7 @@ export default function MonthlyFinancialSettlementView({
   const [selectedMonth, setSelectedMonth] = useState(10); // Outubro
   const [activeSubtab, setActiveSubtab] = useState('settlement'); // 'settlement' | 'pricing'
   const [selectedPatientId, setSelectedPatientId] = useState('all');
+  const [consolidatedViewMode, setConsolidatedViewMode] = useState('by_patient'); // 'by_patient' | 'chronological'
   const [includeScheduled, setIncludeScheduled] = useState(false);
   const [internalDoctorId, setInternalDoctorId] = useState(() => {
     if (selectedDoctorId && selectedDoctorId !== 'all') return selectedDoctorId;
@@ -176,6 +210,11 @@ export default function MonthlyFinancialSettlementView({
       specialty: 'Fisioterapia Domiciliar'
     };
   }, [effectiveDoctorId, currentUser, doctors]);
+
+  // Lista de colegas da clínica para seleção rápida nas trocas de escala ("quem fez o quê")
+  const colleagueOptions = useMemo(() => {
+    return (doctors || []).filter((d) => d && d.id !== 'all' && d.id !== activeProfessional?.id);
+  }, [doctors, activeProfessional?.id]);
 
   // Helper para persistir estado compartilhado no localStorage e na nuvem PostgreSQL
   const persistCloudAndLocal = useCallback((localKey, cloudKey, value) => {
@@ -374,7 +413,11 @@ export default function MonthlyFinancialSettlementView({
         (m) =>
           m &&
           (m.id === apt.id ||
-            (m.patientId === apt.patientId && m.dateStr === baseDateStr && m.timeStr === baseTimeStr))
+            (!m.isInformationalSwap &&
+              m.swapType !== 'CEDED' &&
+              m.patientId === apt.patientId &&
+              m.dateStr === baseDateStr &&
+              m.timeStr === baseTimeStr))
       );
       if (manualMatch?.id) {
         matchedManualIds.add(manualMatch.id);
@@ -394,24 +437,35 @@ export default function MonthlyFinancialSettlementView({
       const patientAddress =
         override?.patientAddress || manualMatch?.patientAddress || pat.address || apt.address || 'Vitória - ES';
 
+      const swapType = override?.swapType || manualMatch?.swapType || 'NONE';
+      const swapPartnerName = override?.swapPartnerName ?? manualMatch?.swapPartnerName ?? '';
+      const swapReason = override?.swapReason ?? manualMatch?.swapReason ?? '';
+      const isInformationalSwap = Boolean(
+        override?.isInformationalSwap ?? manualMatch?.isInformationalSwap ?? swapType === 'CEDED'
+      );
+
       const pricing = resolvePrice(apt.patientId, patientAddress, dateObj, duration);
 
-      const hourlyRate =
+      const rawHourlyRate =
         override?.hourlyRate !== undefined
           ? Number(override.hourlyRate)
           : manualMatch?.hourlyRate !== undefined
           ? Number(manualMatch.hourlyRate)
           : pricing.hourlyRate;
 
-      const totalAmount =
+      const rawTotalAmount =
         override?.totalAmount !== undefined
           ? Number(override.totalAmount)
           : manualMatch?.totalAmount !== undefined
           ? Number(manualMatch.totalAmount)
           : pricing.totalAmount;
 
-      const ruleApplied =
-        override?.ruleApplied || manualMatch?.ruleApplied || pricing.ruleApplied;
+      const hourlyRate = isInformationalSwap ? 0 : rawHourlyRate;
+      const totalAmount = isInformationalSwap ? 0 : rawTotalAmount;
+
+      const ruleApplied = isInformationalSwap
+        ? 'Troca de Escala (Plantão Cedido)'
+        : override?.ruleApplied || manualMatch?.ruleApplied || pricing.ruleApplied;
 
       const rawAptNotes = apt.notes || apt.swapInfo || apt.observation || apt.comments || '';
       const notes =
@@ -434,6 +488,10 @@ export default function MonthlyFinancialSettlementView({
         totalAmount: Math.round(totalAmount * 100) / 100,
         ruleApplied,
         notes,
+        swapType,
+        swapPartnerName,
+        swapReason,
+        isInformationalSwap,
         status: apt.status || 'COMPLETED'
       };
     });
@@ -450,17 +508,37 @@ export default function MonthlyFinancialSettlementView({
       })
       .map((s) => {
         const override = sessionOverrides?.[s.id];
-        if (!override) return s;
+        const swapType = override?.swapType || s.swapType || 'NONE';
+        const swapPartnerName = override?.swapPartnerName ?? s.swapPartnerName ?? '';
+        const swapReason = override?.swapReason ?? s.swapReason ?? '';
+        const isInformationalSwap = Boolean(
+          override?.isInformationalSwap ?? s.isInformationalSwap ?? swapType === 'CEDED'
+        );
+
+        const durationMinutes = Number(override?.durationMinutes ?? s.durationMinutes ?? 60);
+        const hourlyRate = isInformationalSwap
+          ? 0
+          : Math.round(Number(override?.hourlyRate ?? s.hourlyRate ?? 150) * 100) / 100;
+        const totalAmount = isInformationalSwap
+          ? 0
+          : Math.round(Number(override?.totalAmount ?? s.totalAmount ?? 150) * 100) / 100;
+
         return {
           ...s,
-          dateStr: override.dateStr || s.dateStr,
-          timeStr: override.timeStr || s.timeStr,
-          patientAddress: override.patientAddress || s.patientAddress,
-          durationMinutes: Number(override.durationMinutes ?? s.durationMinutes ?? 60),
-          hourlyRate: Math.round(Number(override.hourlyRate ?? s.hourlyRate ?? 150) * 100) / 100,
-          totalAmount: Math.round(Number(override.totalAmount ?? s.totalAmount ?? 150) * 100) / 100,
-          ruleApplied: override.ruleApplied || s.ruleApplied,
-          notes: override.notes !== undefined ? override.notes : s.notes
+          dateStr: override?.dateStr || s.dateStr,
+          timeStr: override?.timeStr || s.timeStr,
+          patientAddress: override?.patientAddress || s.patientAddress,
+          durationMinutes,
+          hourlyRate,
+          totalAmount,
+          ruleApplied: isInformationalSwap
+            ? 'Troca de Escala (Plantão Cedido)'
+            : override?.ruleApplied || s.ruleApplied,
+          notes: override?.notes !== undefined ? override.notes : s.notes,
+          swapType,
+          swapPartnerName,
+          swapReason,
+          isInformationalSwap
         };
       });
 
@@ -495,7 +573,7 @@ export default function MonthlyFinancialSettlementView({
     deletedSessionIds
   ]);
 
-  // Agrupamento por Paciente
+  // Agrupamento separado por Paciente (ordenado alfabeticamente para facilitar conferência na escala)
   const groupedByPatient = useMemo(() => {
     const groups = {};
 
@@ -509,17 +587,33 @@ export default function MonthlyFinancialSettlementView({
           phone: pat.phone || pat.responsiblePhone || '(27) 99999-0000',
           responsibleName: pat.responsibleName || pat.financialResponsible || pat.name,
           sessions: [],
+          billedSessionsCount: 0,
+          swapsCount: 0,
+          cededCount: 0,
           totalDurationMinutes: 0,
           totalAmount: 0
         };
       }
 
-      groups[sess.patientId].sessions.push(sess);
-      groups[sess.patientId].totalDurationMinutes += Number(sess.durationMinutes || 0);
-      groups[sess.patientId].totalAmount += Number(sess.totalAmount || 0);
+      const grp = groups[sess.patientId];
+      grp.sessions.push(sess);
+
+      if (sess.swapType && sess.swapType !== 'NONE') {
+        grp.swapsCount += 1;
+      }
+
+      if (sess.isInformationalSwap || sess.swapType === 'CEDED') {
+        grp.cededCount += 1;
+      } else {
+        grp.billedSessionsCount += 1;
+        grp.totalDurationMinutes += Number(sess.durationMinutes || 0);
+        grp.totalAmount += Number(sess.totalAmount || 0);
+      }
     });
 
-    return Object.values(groups);
+    return Object.values(groups).sort((a, b) =>
+      String(a.patientName || '').localeCompare(String(b.patientName || ''), 'pt-BR')
+    );
   }, [settlementSessions, patients]);
 
   // Sincroniza o paciente selecionado com os pacientes com atendimentos no mês
@@ -535,22 +629,26 @@ export default function MonthlyFinancialSettlementView({
     }
   }, [groupedByPatient, selectedPatientId]);
 
-  // Totais Gerais do Mês do Profissional
+  // Totais Gerais do Mês do Profissional (contabilizando apenas sessões efetivamente realizadas/faturadas)
   const monthTotals = useMemo(() => {
-    const totalSessions = settlementSessions.length;
-    const totalMinutes = settlementSessions.reduce((acc, s) => acc + Number(s.durationMinutes || 0), 0);
-    const totalAmount = settlementSessions.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
-    const totalPatients = groupedByPatient.length;
+    const billedSessions = settlementSessions.filter((s) => !s.isInformationalSwap && s.swapType !== 'CEDED');
+    const swappedSessions = settlementSessions.filter((s) => s.swapType && s.swapType !== 'NONE');
+    const totalSessions = billedSessions.length;
+    const totalMinutes = billedSessions.reduce((acc, s) => acc + Number(s.durationMinutes || 0), 0);
+    const totalAmount = billedSessions.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+    const billedPatientsCount = groupedByPatient.filter((g) => g.billedSessionsCount > 0).length;
+    const totalPatients = billedPatientsCount > 0 ? billedPatientsCount : groupedByPatient.length;
 
     return {
       totalSessions,
+      totalSwaps: swappedSessions.length,
       totalHours: (totalMinutes / 60).toFixed(1),
       totalAmount: Math.round(totalAmount * 100) / 100,
       totalPatients
     };
   }, [settlementSessions, groupedByPatient]);
 
-  // Modais de Edição e Inclusão de Atendimentos
+  // Modais de Edição e Inclusão de Atendimentos / Trocas
   const [editingSession, setEditingSession] = useState(null);
   const [isAddSessionModalOpen, setIsAddSessionModalOpen] = useState(false);
   const [newSessionPatientId, setNewSessionPatientId] = useState('');
@@ -561,6 +659,112 @@ export default function MonthlyFinancialSettlementView({
   const [newSessionTotal, setNewSessionTotal] = useState(150.0);
   const [newSessionAddress, setNewSessionAddress] = useState('');
   const [newSessionNotes, setNewSessionNotes] = useState('');
+  const [newSessionSwapType, setNewSessionSwapType] = useState('NONE'); // 'NONE' | 'COVERED' | 'CEDED'
+  const [newSessionSwapPartnerSelect, setNewSessionSwapPartnerSelect] = useState('');
+  const [newSessionSwapPartnerCustom, setNewSessionSwapPartnerCustom] = useState('');
+  const [newSessionSwapReason, setNewSessionSwapReason] = useState('');
+
+  // Sugere tarifa inteligente baseada nas sessões anteriores do paciente ou regra da tabela
+  const getSuggestedPatientPricing = useCallback(
+    (patientId, dateStr, durationMins = 60) => {
+      const safeDur = Number(durationMins) > 0 ? Number(durationMins) : 60;
+      const existingBilled = settlementSessions.find(
+        (s) => s.patientId === patientId && !s.isInformationalSwap && Number(s.hourlyRate) > 0
+      );
+      if (existingBilled) {
+        const rate = Number(existingBilled.hourlyRate);
+        const dur = Number(existingBilled.durationMinutes) > 0 ? Number(existingBilled.durationMinutes) : safeDur;
+        return {
+          durationMinutes: dur,
+          hourlyRate: rate,
+          totalAmount: Math.round(((rate * dur) / 60) * 100) / 100
+        };
+      }
+      const resolved = resolvePrice(patientId, '', new Date(`${dateStr}T12:00:00`), safeDur);
+      return {
+        durationMinutes: safeDur,
+        hourlyRate: resolved.hourlyRate,
+        totalAmount: resolved.totalAmount
+      };
+    },
+    [settlementSessions, resolvePrice]
+  );
+
+  // Abre modal de Inclusão de Atendimento ou Registro de Troca
+  const openAddSessionModal = useCallback(
+    ({ patientId = '', initialSwapType = 'NONE' } = {}) => {
+      const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-05`;
+      const targetPatId = patientId || (selectedPatientId !== 'all' ? selectedPatientId : '');
+      const pat = (patients || []).find((p) => p.id === targetPatId);
+
+      setNewSessionPatientId(targetPatId);
+      setNewSessionDate(defaultDate);
+      setNewSessionTime('08:00');
+      setNewSessionAddress(pat?.address || '');
+      setNewSessionNotes('');
+      setNewSessionSwapType(initialSwapType);
+      setNewSessionSwapPartnerSelect('');
+      setNewSessionSwapPartnerCustom('');
+      setNewSessionSwapReason('');
+
+      if (targetPatId && initialSwapType !== 'CEDED') {
+        const suggested = getSuggestedPatientPricing(targetPatId, defaultDate, 60);
+        setNewSessionDuration(suggested.durationMinutes);
+        setNewSessionHourlyRate(suggested.hourlyRate);
+        setNewSessionTotal(suggested.totalAmount);
+      } else if (initialSwapType === 'CEDED') {
+        setNewSessionDuration(60);
+        setNewSessionHourlyRate(0);
+        setNewSessionTotal(0);
+      } else {
+        setNewSessionDuration(60);
+        setNewSessionHourlyRate(150.0);
+        setNewSessionTotal(150.0);
+      }
+
+      setErrorMsg('');
+      setIsAddSessionModalOpen(true);
+    },
+    [selectedYear, selectedMonth, selectedPatientId, patients, getSuggestedPatientPricing]
+  );
+
+  // Abre modal de Edição / Registro de Troca em sessão existente
+  const openEditSessionModal = useCallback(
+    (sess, defaultSwapFocus = false) => {
+      const existingPartner = sess.swapPartnerName || '';
+      const matchedColleague = colleagueOptions.find((c) => c.name === existingPartner);
+      const partnerSelect = existingPartner
+        ? matchedColleague
+          ? matchedColleague.name
+          : '__custom__'
+        : '';
+      const partnerCustom = existingPartner && !matchedColleague ? existingPartner : '';
+
+      const initialSwapType =
+        defaultSwapFocus && (!sess.swapType || sess.swapType === 'NONE')
+          ? 'COVERED'
+          : sess.swapType || 'NONE';
+
+      const fallbackPricing = getSuggestedPatientPricing(
+        sess.patientId,
+        sess.dateStr,
+        sess.durationMinutes || 60
+      );
+
+      setErrorMsg('');
+      setEditingSession({
+        ...sess,
+        swapType: initialSwapType,
+        swapPartnerSelect: partnerSelect,
+        swapPartnerCustom: partnerCustom,
+        swapReason: sess.swapReason || '',
+        _backupHourlyRate: Number(sess.hourlyRate) > 0 ? sess.hourlyRate : fallbackPricing.hourlyRate,
+        _backupTotalAmount: Number(sess.totalAmount) > 0 ? sess.totalAmount : fallbackPricing.totalAmount,
+        _focusSwap: defaultSwapFocus
+      });
+    },
+    [colleagueOptions, getSuggestedPatientPricing]
+  );
 
   // Modal de Nova Regra de Preço
   const [isNewPriceModalOpen, setIsNewPriceModalOpen] = useState(false);
@@ -620,7 +824,7 @@ export default function MonthlyFinancialSettlementView({
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // Salvar Edição de Sessão ("Corrigir") com persistência local + nuvem PostgreSQL
+  // Salvar Edição de Sessão ("Corrigir" / "Informar Troca") com persistência local + nuvem PostgreSQL
   const handleSaveEditSession = async (e) => {
     e.preventDefault();
     if (!editingSession) return;
@@ -628,15 +832,33 @@ export default function MonthlyFinancialSettlementView({
     const sessionToSave = { ...editingSession };
     const profId = activeProfessional?.id;
 
+    const swapType = sessionToSave.swapType || 'NONE';
+    const resolvedPartner =
+      swapType === 'NONE'
+        ? ''
+        : sessionToSave.swapPartnerSelect === '__custom__'
+        ? (sessionToSave.swapPartnerCustom || '').trim()
+        : (sessionToSave.swapPartnerSelect || sessionToSave.swapPartnerName || '').trim();
+
+    if (swapType !== 'NONE' && !resolvedPartner) {
+      setErrorMsg('Informe com qual profissional foi feita a troca de escala.');
+      return;
+    }
+
+    const cleanSwapReason = swapType === 'NONE' ? '' : (sessionToSave.swapReason || '').trim();
+    const isInformationalSwap = swapType === 'CEDED';
+
     const cleanDuration = Math.max(1, Math.round(parseNumericInput(sessionToSave.durationMinutes, 60)));
-    const cleanTotal = Math.max(0, parseNumericInput(sessionToSave.totalAmount, 0));
-    const computedRateFromTotal = Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100;
-    const cleanRate =
-      sessionToSave.hourlyRate !== '' &&
-      sessionToSave.hourlyRate !== null &&
-      sessionToSave.hourlyRate !== undefined
-        ? Math.max(0, parseNumericInput(sessionToSave.hourlyRate, computedRateFromTotal))
-        : computedRateFromTotal;
+    const cleanTotal = isInformationalSwap ? 0 : Math.max(0, parseNumericInput(sessionToSave.totalAmount, 0));
+    const computedRateFromTotal =
+      cleanDuration > 0 ? Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100 : 0;
+    const cleanRate = isInformationalSwap
+      ? 0
+      : sessionToSave.hourlyRate !== '' &&
+        sessionToSave.hourlyRate !== null &&
+        sessionToSave.hourlyRate !== undefined
+      ? Math.max(0, parseNumericInput(sessionToSave.hourlyRate, computedRateFromTotal))
+      : computedRateFromTotal;
 
     const cleanNotes = (sessionToSave.notes || '').trim();
     const cleanDateStr = sessionToSave.dateStr;
@@ -651,15 +873,19 @@ export default function MonthlyFinancialSettlementView({
       cleanDuration
     );
     const priceDiffersFromAuto =
-      Math.abs(cleanTotal - autoPricing.totalAmount) >= 0.01 ||
-      Math.abs(cleanRate - autoPricing.hourlyRate) >= 0.01;
+      !isInformationalSwap &&
+      (Math.abs(cleanTotal - autoPricing.totalAmount) >= 0.01 ||
+        Math.abs(cleanRate - autoPricing.hourlyRate) >= 0.01);
 
-    const nextRuleApplied =
-      sessionToSave.ruleApplied && String(sessionToSave.ruleApplied).startsWith('Inclusão Manual')
-        ? sessionToSave.ruleApplied
-        : priceDiffersFromAuto || sessionToSave.isManualValueOverride
-        ? 'Valor Corrigido Manualmente'
-        : sessionToSave.ruleApplied || autoPricing.ruleApplied;
+    const nextRuleApplied = isInformationalSwap
+      ? 'Troca de Escala (Plantão Cedido)'
+      : sessionToSave.ruleApplied && String(sessionToSave.ruleApplied).startsWith('Inclusão Manual')
+      ? sessionToSave.ruleApplied
+      : priceDiffersFromAuto || sessionToSave.isManualValueOverride
+      ? 'Valor Corrigido Manualmente'
+      : sessionToSave.ruleApplied === 'Troca de Escala (Plantão Cedido)'
+      ? autoPricing.ruleApplied
+      : sessionToSave.ruleApplied || autoPricing.ruleApplied;
 
     const updatedSession = {
       ...sessionToSave,
@@ -670,9 +896,18 @@ export default function MonthlyFinancialSettlementView({
       hourlyRate: cleanRate,
       totalAmount: cleanTotal,
       notes: cleanNotes,
+      swapType,
+      swapPartnerName: resolvedPartner,
+      swapReason: cleanSwapReason,
+      isInformationalSwap,
       ruleApplied: nextRuleApplied
     };
     delete updatedSession.isManualValueOverride;
+    delete updatedSession.swapPartnerSelect;
+    delete updatedSession.swapPartnerCustom;
+    delete updatedSession._backupHourlyRate;
+    delete updatedSession._backupTotalAmount;
+    delete updatedSession._focusSwap;
 
     const overrideEntry = {
       id: sessionToSave.id,
@@ -684,6 +919,10 @@ export default function MonthlyFinancialSettlementView({
       hourlyRate: cleanRate,
       totalAmount: cleanTotal,
       notes: cleanNotes,
+      swapType,
+      swapPartnerName: resolvedPartner,
+      swapReason: cleanSwapReason,
+      isInformationalSwap,
       ruleApplied: nextRuleApplied,
       updatedAt: Date.now()
     };
@@ -726,6 +965,9 @@ export default function MonthlyFinancialSettlementView({
       return nextManual;
     });
 
+    const swapSummaryForAgenda = formatSwapBadgeText(updatedSession);
+    const combinedAgendaNotes = [swapSummaryForAgenda, cleanNotes].filter(Boolean).join(' • ');
+
     // 4. Notifica estado global da agenda no App.jsx (se disponível)
     if (onUpdateAppointment) {
       onUpdateAppointment(sessionToSave.id, {
@@ -733,16 +975,21 @@ export default function MonthlyFinancialSettlementView({
         time: cleanTimeStr,
         durationMinutes: cleanDuration,
         address: cleanAddress,
-        notes: cleanNotes
+        notes: combinedAgendaNotes
       });
     }
 
     setEditingSession(null);
-    setSuccessMsg('Atendimento e valores atualizados e salvos na nuvem!');
+    setErrorMsg('');
+    setSuccessMsg(
+      swapType !== 'NONE'
+        ? 'Troca de escala e atendimento salvos na nuvem com sucesso!'
+        : 'Atendimento e valores atualizados e salvos na nuvem!'
+    );
     setTimeout(() => setSuccessMsg(''), 3500);
 
     // 5. Sincroniza metadados do agendamento no PostgreSQL (horário, duração e observações)
-    if (!String(sessionToSave.id).startsWith('manual-sess-')) {
+    if (!String(sessionToSave.id).startsWith('manual-sess-') && !String(sessionToSave.id).startsWith('swap-ceded-')) {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('omnihome_jwt') : null;
         const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionToSave.id}/status`, {
@@ -753,7 +1000,7 @@ export default function MonthlyFinancialSettlementView({
           },
           body: JSON.stringify({
             status: sessionToSave.status || 'COMPLETED',
-            notes: cleanNotes,
+            notes: combinedAgendaNotes,
             professionalId: profId,
             patientId: sessionToSave.patientId,
             scheduledTime: `${cleanDateStr}T${cleanTimeStr}:00.000Z`,
@@ -793,7 +1040,7 @@ export default function MonthlyFinancialSettlementView({
 
   // Excluir Sessão do Fechamento
   const handleDeleteSession = async (sessionId) => {
-    if (window.confirm('Tem certeza que deseja excluir este atendimento do fechamento mensal?')) {
+    if (window.confirm('Tem certeza que deseja excluir este registro do fechamento mensal?')) {
       const profId = activeProfessional?.id;
       const updatedManual = manualSessions.filter((s) => s.id !== sessionId);
       setManualSessions(updatedManual);
@@ -834,16 +1081,18 @@ export default function MonthlyFinancialSettlementView({
         );
       }
 
-      fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionId}`, {
-        method: 'DELETE'
-      }).catch(() => null);
+      if (!String(sessionId).startsWith('swap-ceded-')) {
+        fetch(`${API_BASE_URL}/api/scheduler/appointments/${sessionId}`, {
+          method: 'DELETE'
+        }).catch(() => null);
+      }
 
-      setSuccessMsg('Atendimento excluído do fechamento.');
+      setSuccessMsg('Registro excluído do fechamento.');
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
 
-  // Incluir Novo Atendimento no Fechamento
+  // Incluir Novo Atendimento ou Registro de Troca no Fechamento
   const handleAddSession = async (e) => {
     e.preventDefault();
     const pat = (patients || []).find((p) => p.id === newSessionPatientId);
@@ -852,22 +1101,42 @@ export default function MonthlyFinancialSettlementView({
       return;
     }
 
+    const swapType = newSessionSwapType || 'NONE';
+    const resolvedPartner =
+      swapType === 'NONE'
+        ? ''
+        : newSessionSwapPartnerSelect === '__custom__'
+        ? newSessionSwapPartnerCustom.trim()
+        : newSessionSwapPartnerSelect.trim();
+
+    if (swapType !== 'NONE' && !resolvedPartner) {
+      setErrorMsg('Selecione ou digite o nome do profissional envolvido na troca de escala.');
+      return;
+    }
+
+    const cleanSwapReason = swapType === 'NONE' ? '' : newSessionSwapReason.trim();
+    const isInformationalSwap = swapType === 'CEDED';
+
     const profId = activeProfessional?.id;
     const dateObj = new Date(`${newSessionDate}T${newSessionTime}:00`);
     const dayCategory = classifyDate(dateObj);
     const dayLabel = dayCategory === 'WEEKEND' ? 'Fim de Semana' : dayCategory === 'HOLIDAY' ? 'Feriado' : 'Dia Útil';
 
     const cleanDuration = Math.max(1, Math.round(parseNumericInput(newSessionDuration, 60)));
-    const cleanTotal = Math.max(0, parseNumericInput(newSessionTotal, 150));
-    const cleanRate = Math.max(
-      0,
-      parseNumericInput(newSessionHourlyRate, Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100)
-    );
+    const cleanTotal = isInformationalSwap ? 0 : Math.max(0, parseNumericInput(newSessionTotal, 150));
+    const cleanRate = isInformationalSwap
+      ? 0
+      : Math.max(
+          0,
+          parseNumericInput(newSessionHourlyRate, Math.round(((cleanTotal * 60) / cleanDuration) * 100) / 100)
+        );
     const cleanNotes = newSessionNotes.trim();
     const cleanAddress = newSessionAddress.trim() || pat.address || 'Vitória - ES';
-    const manualRuleLabel = `Inclusão Manual (${dayLabel})`;
+    const manualRuleLabel = isInformationalSwap
+      ? 'Troca de Escala (Plantão Cedido)'
+      : `Inclusão Manual (${dayLabel})`;
 
-    const tempId = `manual-sess-${Date.now()}`;
+    const tempId = isInformationalSwap ? `swap-ceded-${Date.now()}` : `manual-sess-${Date.now()}`;
     const newSess = {
       id: tempId,
       patientId: newSessionPatientId,
@@ -881,7 +1150,11 @@ export default function MonthlyFinancialSettlementView({
       totalAmount: cleanTotal,
       ruleApplied: manualRuleLabel,
       notes: cleanNotes,
-      status: 'COMPLETED'
+      swapType,
+      swapPartnerName: resolvedPartner,
+      swapReason: cleanSwapReason,
+      isInformationalSwap,
+      status: isInformationalSwap ? 'SWAP_CEDED' : 'COMPLETED'
     };
 
     const initialOverride = {
@@ -894,6 +1167,10 @@ export default function MonthlyFinancialSettlementView({
       hourlyRate: cleanRate,
       totalAmount: cleanTotal,
       notes: cleanNotes,
+      swapType,
+      swapPartnerName: resolvedPartner,
+      swapReason: cleanSwapReason,
+      isInformationalSwap,
       ruleApplied: manualRuleLabel,
       updatedAt: Date.now()
     };
@@ -931,65 +1208,80 @@ export default function MonthlyFinancialSettlementView({
       return next;
     });
 
-    // 2. Persiste também como agendamento CONCLUÍDO no PostgreSQL mantendo o valor manual intacto
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          professionalId: profId,
-          patientId: newSessionPatientId,
-          scheduledTime: `${newSessionDate}T${newSessionTime}:00.000Z`,
-          durationMinutes: cleanDuration,
-          notes: cleanNotes || undefined,
-          status: 'COMPLETED'
-        })
-      });
+    // 2. Se for atendimento efetivamente realizado pela profissional (não cedido), grava também em appointments
+    if (!isInformationalSwap) {
+      const swapSummaryForAgenda = formatSwapBadgeText(newSess);
+      const combinedAgendaNotes = [swapSummaryForAgenda, cleanNotes].filter(Boolean).join(' • ');
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scheduler/appointments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            professionalId: profId,
+            patientId: newSessionPatientId,
+            scheduledTime: `${newSessionDate}T${newSessionTime}:00.000Z`,
+            durationMinutes: cleanDuration,
+            notes: combinedAgendaNotes || undefined,
+            status: 'COMPLETED'
+          })
+        });
 
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.appointment?.id) {
-          const finalId = data.appointment.id;
-          setManualSessions((prev) => {
-            const syncedManual = prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s));
-            if (profId) {
-              persistCloudAndLocal(
-                `omnihome_settlement_manual_${profId}`,
-                `settlement_manual_${profId}`,
-                syncedManual
-              );
-            }
-            return syncedManual;
-          });
-          setSessionOverrides((prev) => {
-            const nextOverrides = { ...(prev || {}) };
-            delete nextOverrides[tempId];
-            nextOverrides[finalId] = { ...initialOverride, id: finalId, updatedAt: Date.now() };
-            if (profId) {
-              persistCloudAndLocal(
-                `omnihome_settlement_overrides_${profId}`,
-                `settlement_overrides_${profId}`,
-                nextOverrides
-              );
-            }
-            return nextOverrides;
-          });
-          setSettlementSessions((prev) =>
-            prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s))
-          );
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.appointment?.id) {
+            const finalId = data.appointment.id;
+            setManualSessions((prev) => {
+              const syncedManual = prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s));
+              if (profId) {
+                persistCloudAndLocal(
+                  `omnihome_settlement_manual_${profId}`,
+                  `settlement_manual_${profId}`,
+                  syncedManual
+                );
+              }
+              return syncedManual;
+            });
+            setSessionOverrides((prev) => {
+              const nextOverrides = { ...(prev || {}) };
+              delete nextOverrides[tempId];
+              nextOverrides[finalId] = { ...initialOverride, id: finalId, updatedAt: Date.now() };
+              if (profId) {
+                persistCloudAndLocal(
+                  `omnihome_settlement_overrides_${profId}`,
+                  `settlement_overrides_${profId}`,
+                  nextOverrides
+                );
+              }
+              return nextOverrides;
+            });
+            setSettlementSessions((prev) =>
+              prev.map((s) => (s.id === tempId ? { ...s, id: finalId } : s))
+            );
+          }
         }
+      } catch (err) {
+        console.warn('Erro ao gravar atendimento no banco:', err);
       }
-    } catch (err) {
-      console.warn('Erro ao gravar atendimento no banco:', err);
     }
 
     setNewSessionNotes('');
+    setNewSessionSwapType('NONE');
+    setNewSessionSwapPartnerSelect('');
+    setNewSessionSwapPartnerCustom('');
+    setNewSessionSwapReason('');
+    setErrorMsg('');
     setIsAddSessionModalOpen(false);
-    setSuccessMsg('Novo atendimento incluído e sincronizado na nuvem com sucesso!');
+    setSuccessMsg(
+      isInformationalSwap
+        ? 'Troca de escala (plantão cedido) registrada para conferência!'
+        : swapType === 'COVERED'
+        ? 'Atendimento com troca de escala incluído e sincronizado na nuvem!'
+        : 'Novo atendimento incluído e sincronizado na nuvem com sucesso!'
+    );
     setTimeout(() => setSuccessMsg(''), 3500);
   };
 
-  // Exportar Relatório em PDF para o Paciente / Responsável Financeiro
+  // Exportar Relatório em PDF Individual para o Paciente / Responsável Financeiro
   const handleExportPDF = (patientGroup) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -999,30 +1291,37 @@ export default function MonthlyFinancialSettlementView({
 
     const monthName = MONTH_NAMES[selectedMonth - 1];
     const totalHours = (patientGroup.totalDurationMinutes / 60).toFixed(1);
+    const billedOnly = patientGroup.sessions.filter((s) => !s.isInformationalSwap && s.swapType !== 'CEDED');
+    const sessionsToPrint = billedOnly.length > 0 ? billedOnly : patientGroup.sessions;
 
-    const rowsHtml = patientGroup.sessions
-      .map(
-        (s, idx) => `
+    const rowsHtml = sessionsToPrint
+      .map((s, idx) => {
+        const swapLabel = formatSwapBadgeText(s);
+        const obsParts = [swapLabel, s.notes ? `Obs: ${s.notes}` : ''].filter(Boolean).join(' • ');
+        return `
         <tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">${idx + 1}</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
-            ${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')} às ${s.timeStr}
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; white-space: nowrap;">
+            ${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')} às ${escapeHtml(s.timeStr)}
           </td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
-            ${s.patientAddress}
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+            ${escapeHtml(s.patientAddress)}
           </td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: center;">
             ${s.durationMinutes} min
           </td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right;">
-            R$ ${Number(s.hourlyRate).toFixed(2)}
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: right;">
+            R$ ${formatCurrencyBR(s.hourlyRate)}
           </td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: bold; color: #0284c7;">
-            R$ ${Number(s.totalAmount).toFixed(2)}
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: right; font-weight: bold; color: #0284c7;">
+            R$ ${formatCurrencyBR(s.totalAmount)}
+          </td>
+          <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; color: #475569;">
+            ${obsParts ? escapeHtml(obsParts) : escapeHtml(s.ruleApplied || 'Sessão realizada')}
           </td>
         </tr>
-      `
-      )
+      `;
+      })
       .join('');
 
     const htmlContent = `
@@ -1030,7 +1329,7 @@ export default function MonthlyFinancialSettlementView({
       <html lang="pt-BR">
       <head>
         <meta charset="UTF-8">
-        <title>Demonstrativo de Atendimentos — ${patientGroup.patientName} (${monthName}/${selectedYear})</title>
+        <title>Demonstrativo de Atendimentos — ${escapeHtml(patientGroup.patientName)} (${monthName}/${selectedYear})</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 40px; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 20px; margin-bottom: 25px; }
@@ -1043,9 +1342,9 @@ export default function MonthlyFinancialSettlementView({
           .patient-box div p { margin: 4px 0; font-size: 13px; }
           .patient-box strong { color: #0f172a; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-          th { background: #f1f5f9; padding: 10px 12px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1; }
+          th { background: #f1f5f9; padding: 10px 10px; font-size: 11.5px; text-transform: uppercase; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1; }
           .totals-box { display: flex; justify-content: flex-end; margin-top: 15px; }
-          .totals-table { width: 320px; border-collapse: collapse; }
+          .totals-table { width: 340px; border-collapse: collapse; }
           .totals-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
           .totals-table tr.grand-total td { font-size: 18px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; border-bottom: none; }
           .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #94a3b8; text-align: center; }
@@ -1058,8 +1357,8 @@ export default function MonthlyFinancialSettlementView({
       <body>
         <div class="header">
           <div class="pro-info">
-            <h2>${activeProfessional.name}</h2>
-            <p>${activeProfessional.crm || 'CREFITO Ativo'} • ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</p>
+            <h2>${escapeHtml(activeProfessional.name)}</h2>
+            <p>${escapeHtml(activeProfessional.crm || 'CREFITO Ativo')} • ${escapeHtml(activeProfessional.specialty || 'Fisioterapia Domiciliar')}</p>
             <p>Atendimento Fisioterapêutico Especializado em Saúde Domiciliar</p>
           </div>
           <div class="statement-title">
@@ -1070,24 +1369,25 @@ export default function MonthlyFinancialSettlementView({
 
         <div class="patient-box">
           <div>
-            <p><strong>Paciente:</strong> ${patientGroup.patientName}</p>
-            <p><strong>Endereço Atendido:</strong> ${patientGroup.patientAddress}</p>
+            <p><strong>Paciente:</strong> ${escapeHtml(patientGroup.patientName)}</p>
+            <p><strong>Endereço Atendido:</strong> ${escapeHtml(patientGroup.patientAddress)}</p>
           </div>
           <div style="text-align: right;">
-            <p><strong>Responsável:</strong> ${patientGroup.responsibleName}</p>
-            <p><strong>Contato:</strong> ${patientGroup.phone}</p>
+            <p><strong>Responsável:</strong> ${escapeHtml(patientGroup.responsibleName)}</p>
+            <p><strong>Contato:</strong> ${escapeHtml(patientGroup.phone)}</p>
           </div>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 40px;">#</th>
+              <th style="width: 36px; text-align: center;">#</th>
               <th>Data & Horário</th>
               <th>Local do Atendimento</th>
               <th style="text-align: center;">Duração</th>
               <th style="text-align: right;">Valor Hora</th>
               <th style="text-align: right;">Valor da Sessão</th>
+              <th>Observações / Escala</th>
             </tr>
           </thead>
           <tbody>
@@ -1099,7 +1399,7 @@ export default function MonthlyFinancialSettlementView({
           <table class="totals-table">
             <tr>
               <td>Total de Sessões Realizadas:</td>
-              <td style="text-align: right; font-weight: bold;">${patientGroup.sessions.length}</td>
+              <td style="text-align: right; font-weight: bold;">${patientGroup.billedSessionsCount}</td>
             </tr>
             <tr>
               <td>Carga Horária Total:</td>
@@ -1107,14 +1407,14 @@ export default function MonthlyFinancialSettlementView({
             </tr>
             <tr class="grand-total">
               <td>Total Geral:</td>
-              <td style="text-align: right;">R$ ${patientGroup.totalAmount.toFixed(2)}</td>
+              <td style="text-align: right;">R$ ${formatCurrencyBR(patientGroup.totalAmount)}</td>
             </tr>
           </table>
         </div>
 
         <div style="margin-top: 40px; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
           <strong style="color: #166534; display: block; margin-bottom: 4px;">Informações para Pagamento:</strong>
-          <span style="font-size: 13px; color: #15803d;">Chave PIX do Profissional: <strong>${activeProfessional.email || 'contato@omnihomecare.com'}</strong> (${activeProfessional.name})</span>
+          <span style="font-size: 13px; color: #15803d;">Chave PIX do Profissional: <strong>${escapeHtml(activeProfessional.email || 'contato@omnihomecare.com')}</strong> (${escapeHtml(activeProfessional.name)})</span>
         </div>
 
         <div class="footer">
@@ -1134,7 +1434,7 @@ export default function MonthlyFinancialSettlementView({
     printWindow.document.close();
   };
 
-  // Exportar Planilha Excel (.xlsx/.xls) para o Paciente
+  // Exportar Planilha Excel (.xlsx/.xls) Individual para o Paciente
   const handleExportXLSX = (patientGroup) => {
     if (!patientGroup || !patientGroup.sessions || patientGroup.sessions.length === 0) {
       alert('Não há atendimentos registrados para exportar.');
@@ -1143,6 +1443,7 @@ export default function MonthlyFinancialSettlementView({
 
     const monthName = MONTH_NAMES[selectedMonth - 1];
     const totalHours = (patientGroup.totalDurationMinutes / 60).toFixed(1);
+    let billedCounter = 0;
 
     const excelHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1171,16 +1472,17 @@ export default function MonthlyFinancialSettlementView({
           td { border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5pt; }
           .center { text-align: center; }
           .right { text-align: right; }
+          .ceded td { background-color: #fffbeb; color: #92400e; }
           .subtotal-row td { background-color: #f1f5f9; font-weight: bold; }
           .grand-total td { background-color: #e0f2fe; font-weight: bold; font-size: 11.5pt; color: #0369a1; }
         </style>
       </head>
       <body>
         <div class="header-title">DEMONSTRATIVO DE ATENDIMENTOS FISIOTERAPÊUTICOS</div>
-        <div class="meta-row"><strong>Profissional:</strong> ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO Ativo'}) - ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</div>
-        <div class="meta-row"><strong>Paciente:</strong> ${patientGroup.patientName}</div>
-        <div class="meta-row"><strong>Endereço Atendido:</strong> ${patientGroup.patientAddress}</div>
-        <div class="meta-row"><strong>Responsável Financeiro:</strong> ${patientGroup.responsibleName} (Contato: ${patientGroup.phone})</div>
+        <div class="meta-row"><strong>Profissional:</strong> ${escapeHtml(activeProfessional.name)} (${escapeHtml(activeProfessional.crm || 'CREFITO Ativo')}) - ${escapeHtml(activeProfessional.specialty || 'Fisioterapia Domiciliar')}</div>
+        <div class="meta-row"><strong>Paciente:</strong> ${escapeHtml(patientGroup.patientName)}</div>
+        <div class="meta-row"><strong>Endereço Atendido:</strong> ${escapeHtml(patientGroup.patientAddress)}</div>
+        <div class="meta-row"><strong>Responsável Financeiro:</strong> ${escapeHtml(patientGroup.responsibleName)} (Contato: ${escapeHtml(patientGroup.phone)})</div>
         <div class="meta-row"><strong>Competência:</strong> ${monthName} / ${selectedYear}</div>
         <br/>
         <table>
@@ -1193,31 +1495,41 @@ export default function MonthlyFinancialSettlementView({
               <th style="width: 110px; text-align: center;">Duração (min)</th>
               <th style="width: 130px; text-align: right;">Valor Hora (R$)</th>
               <th style="width: 140px; text-align: right;">Valor Sessão (R$)</th>
-              <th>Regra Aplicada</th>
+              <th>Troca de Escala / Regra / Observações</th>
             </tr>
           </thead>
           <tbody>
-            ${patientGroup.sessions.map((s, idx) => `
-              <tr>
-                <td class="center">${idx + 1}</td>
+            ${patientGroup.sessions
+              .map((s) => {
+                const isCeded = Boolean(s.isInformationalSwap || s.swapType === 'CEDED');
+                if (!isCeded) billedCounter += 1;
+                const swapLabel = formatSwapBadgeText(s);
+                const fullObs = [swapLabel, s.notes ? `[Obs: ${s.notes}]` : '', s.ruleApplied]
+                  .filter(Boolean)
+                  .join(' • ');
+                return `
+              <tr class="${isCeded ? 'ceded' : ''}">
+                <td class="center">${isCeded ? '↪' : billedCounter}</td>
                 <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
-                <td class="center">${s.timeStr}</td>
-                <td>${s.patientAddress}</td>
-                <td class="center">${s.durationMinutes}</td>
-                <td class="right">R$ ${Number(s.hourlyRate).toFixed(2).replace('.', ',')}</td>
-                <td class="right"><strong>R$ ${Number(s.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
-                <td>${s.ruleApplied}</td>
+                <td class="center">${escapeHtml(s.timeStr)}</td>
+                <td>${escapeHtml(s.patientAddress)}</td>
+                <td class="center">${isCeded ? '—' : s.durationMinutes}</td>
+                <td class="right">${isCeded ? '—' : `R$ ${formatCurrencyBR(s.hourlyRate)}`}</td>
+                <td class="right"><strong>${isCeded ? 'R$ 0,00 (Troca)' : `R$ ${formatCurrencyBR(s.totalAmount)}`}</strong></td>
+                <td>${escapeHtml(fullObs)}</td>
               </tr>
-            `).join('')}
+            `;
+              })
+              .join('')}
             <tr class="subtotal-row">
-              <td colspan="4" class="right">Total de Sessões com Check-in:</td>
-              <td class="center">${patientGroup.sessions.length}</td>
+              <td colspan="4" class="right">Total de Sessões Realizadas:</td>
+              <td class="center">${patientGroup.billedSessionsCount}</td>
               <td class="right">Carga Horária Total:</td>
               <td colspan="2" class="left">${totalHours} horas</td>
             </tr>
             <tr class="grand-total">
               <td colspan="6" class="right" style="font-size: 12pt;">VALOR TOTAL A PAGAR:</td>
-              <td colspan="2" class="right" style="font-size: 12pt;">R$ ${patientGroup.totalAmount.toFixed(2).replace('.', ',')}</td>
+              <td colspan="2" class="right" style="font-size: 12pt;">R$ ${formatCurrencyBR(patientGroup.totalAmount)}</td>
             </tr>
           </tbody>
         </table>
@@ -1241,7 +1553,7 @@ export default function MonthlyFinancialSettlementView({
     URL.revokeObjectURL(url);
   };
 
-  // Exportar Relatório Consolidado em PDF de TODOS os Pacientes do Mês (Para a Gestora / Sabrina)
+  // Exportar Relatório Consolidado em PDF de TODOS os Pacientes do Mês — SEPARADO POR PACIENTE + TROCAS (Para a Gestora / Sabrina)
   const handleExportConsolidatedPDF = () => {
     if (!settlementSessions || settlementSessions.length === 0) {
       alert('Não há atendimentos registrados para exportar.');
@@ -1256,57 +1568,180 @@ export default function MonthlyFinancialSettlementView({
 
     const monthName = MONTH_NAMES[selectedMonth - 1];
 
-    // Tabela sintética por paciente
-    const summaryRowsHtml = groupedByPatient.map((g, idx) => `
+    // 1. Tabela sintética por paciente no topo
+    const summaryRowsHtml = groupedByPatient
+      .map((g, idx) => {
+        const swapSummaryPill =
+          g.swapsCount > 0
+            ? `<span style="display:inline-block; padding:2px 7px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:11px; font-weight:700;">${g.swapsCount} ${g.swapsCount === 1 ? 'troca' : 'trocas'}</span>`
+            : `<span style="color:#94a3b8; font-size:11px;">Sem trocas</span>`;
+        return `
       <tr>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">${idx + 1}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 600;">${g.patientName}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">${g.patientAddress}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; font-weight: 600;">${g.sessions.length}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">${(g.totalDurationMinutes / 60).toFixed(1)}h</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: bold; color: #0284c7;">
-          R$ ${g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 700;">${escapeHtml(g.patientName)}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">${escapeHtml(g.patientAddress)}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: center; font-weight: 700;">${g.billedSessionsCount}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; text-align: center;">${(g.totalDurationMinutes / 60).toFixed(1)}h</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">${swapSummaryPill}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: 800; color: #0284c7;">
+          R$ ${formatCurrencyBR(g.totalAmount)}
         </td>
       </tr>
-    `).join('');
+    `;
+      })
+      .join('');
 
-    // Tabela analítica de todas as sessões
-    const sessionsRowsHtml = settlementSessions.map((s, idx) => `
-      <tr>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">${idx + 1}</td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; white-space: nowrap;">
-          <strong>${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
-          <span style="color: #64748b; margin-left: 4px;">${s.timeStr}</span>
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600;">
-          ${s.patientName}
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #64748b;">
-          ${s.patientAddress}
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">
-          ${s.durationMinutes} min
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right;">
-          R$ ${Number(s.hourlyRate).toFixed(2)}
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: bold; color: #0284c7;">
-          R$ ${Number(s.totalAmount).toFixed(2)}
-        </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: ${s.notes ? '#92400e' : '#64748b'};">
-          ${s.notes ? `<strong>[Obs: ${s.notes}]</strong> ` : ''}${s.ruleApplied || 'Padrão'}
-        </td>
-      </tr>
-    `).join('');
+    // 2. Blocos separados por paciente (em ordem cronológica dentro de cada paciente!)
+    const patientBlocksHtml = groupedByPatient
+      .map((g, pIdx) => {
+        let billedIdx = 0;
+        const patientHours = (g.totalDurationMinutes / 60).toFixed(1);
+        const rowsHtml = g.sessions
+          .map((s) => {
+            const isCeded = Boolean(s.isInformationalSwap || s.swapType === 'CEDED');
+            if (!isCeded) billedIdx += 1;
+
+            const swapText = formatSwapBadgeText(s);
+            const swapHtml =
+              s.swapType === 'COVERED'
+                ? `<div style="display:inline-block; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-bottom:2px;">${escapeHtml(swapText)}</div>`
+                : isCeded
+                ? `<div style="display:inline-block; background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-bottom:2px;">${escapeHtml(swapText)}</div>`
+                : '';
+
+            const noteHtml = s.notes
+              ? `<div style="color:#92400e; font-weight:600; font-size:11px;">Obs: ${escapeHtml(s.notes)}</div>`
+              : '';
+
+            const ruleHtml = !isCeded
+              ? `<div style="color:#64748b; font-size:10.5px;">${escapeHtml(s.ruleApplied || 'Padrão')}</div>`
+              : `<div style="color:#92400e; font-size:10.5px;">Informativo p/ conferência da escala (não faturado)</div>`;
+
+            return `
+            <tr style="${isCeded ? 'background-color: #fffbeb;' : ''}">
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center; font-weight: 600;">
+                ${isCeded ? '↪' : billedIdx}
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; white-space: nowrap;">
+                <strong>${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
+                <span style="color: #64748b; margin-left: 4px;">${escapeHtml(s.timeStr)}</span>
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; color: #475569;">
+                ${escapeHtml(s.patientAddress)}
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">
+                ${isCeded ? '—' : `${s.durationMinutes} min`}
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; white-space: nowrap;">
+                ${isCeded ? '—' : `R$ ${formatCurrencyBR(s.hourlyRate)}`}
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: 700; color: ${isCeded ? '#92400e' : '#0284c7'}; white-space: nowrap;">
+                ${isCeded ? 'R$ 0,00 (Troca)' : `R$ ${formatCurrencyBR(s.totalAmount)}`}
+              </td>
+              <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                ${swapHtml}${noteHtml}${ruleHtml}
+              </td>
+            </tr>
+          `;
+          })
+          .join('');
+
+        return `
+        <div class="patient-group-card">
+          <div class="patient-group-header">
+            <div>
+              <span class="patient-badge-num">2.${pIdx + 1}</span>
+              <strong style="font-size: 14px; color: #0f172a;">${escapeHtml(g.patientName)}</strong>
+              <span style="color: #64748b; font-size: 12px; margin-left: 8px;">• ${escapeHtml(g.patientAddress)}</span>
+            </div>
+            <div style="font-size: 12.5px; font-weight: 700; color: #0369a1;">
+              ${g.billedSessionsCount} ${g.billedSessionsCount === 1 ? 'sessão' : 'sessões'} • ${patientHours}h • Subtotal: R$ ${formatCurrencyBR(g.totalAmount)}
+            </div>
+          </div>
+          <table style="margin-bottom: 0;">
+            <thead>
+              <tr>
+                <th style="width: 32px; text-align: center;">#</th>
+                <th style="width: 125px;">Data & Horário</th>
+                <th>Local Atendido</th>
+                <th style="width: 72px; text-align: center;">Duração</th>
+                <th style="width: 92px; text-align: right;">Valor Hora</th>
+                <th style="width: 105px; text-align: right;">Total Sessão</th>
+                <th>Troca de Escala ("Quem Fez") / Obs</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+              <tr style="background: #f8fafc;">
+                <td colspan="5" style="padding: 8px 12px; text-align: right; font-size: 12px; font-weight: 700; color: #334155;">
+                  Subtotal de ${escapeHtml(g.patientName)} (${g.billedSessionsCount} ${g.billedSessionsCount === 1 ? 'sessão faturada' : 'sessões faturadas'} • ${patientHours}h${g.cededCount > 0 ? ` • ${g.cededCount} plantão cedido` : ''}):
+                </td>
+                <td style="padding: 8px 10px; text-align: right; font-size: 13px; font-weight: 800; color: #0284c7; white-space: nowrap;">
+                  R$ ${formatCurrencyBR(g.totalAmount)}
+                </td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+      })
+      .join('');
+
+    // 3. Quadro-resumo dedicado de Trocas de Escala (exibido automaticamente se houver alguma troca no mês!)
+    const allSwaps = settlementSessions.filter((s) => s.swapType && s.swapType !== 'NONE');
+    const swapsSectionHtml =
+      allSwaps.length > 0
+        ? `
+        <div class="section-title">3. Quadro Resumo de Trocas & Coberturas de Escala ("Quem Fez o Quê")</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 120px;">Data & Horário</th>
+              <th>Paciente</th>
+              <th>Tipo de Troca</th>
+              <th>Profissional Envolvido</th>
+              <th>Detalhe / Observação p/ Escala</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allSwaps
+              .map((s) => {
+                const isCeded = Boolean(s.isInformationalSwap || s.swapType === 'CEDED');
+                return `
+              <tr style="${isCeded ? 'background:#fffbeb;' : 'background:#f8fafc;'}">
+                <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 700;">
+                  ${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')} ${escapeHtml(s.timeStr)}
+                </td>
+                <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 700;">
+                  ${escapeHtml(s.patientName)}
+                </td>
+                <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; font-weight: 700; color: ${isCeded ? '#92400e' : '#4338ca'};">
+                  ${isCeded ? '↪ Plantão Cedido (Colega fez)' : `🔄 Assumiu / Cobriu (${escapeHtml(activeProfessional.name)} fez)`}
+                </td>
+                <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600;">
+                  ${escapeHtml(s.swapPartnerName || '—')}
+                </td>
+                <td style="padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; color: #475569;">
+                  ${escapeHtml([s.swapReason, s.notes].filter(Boolean).join(' • ') || 'Conferência de escala')}
+                </td>
+              </tr>
+            `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      `
+        : '';
 
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="pt-BR">
       <head>
         <meta charset="UTF-8">
-        <title>Fechamento Geral Consolidado — ${activeProfessional.name} (${monthName}/${selectedYear})</title>
+        <title>Fechamento Geral Consolidado — ${escapeHtml(activeProfessional.name)} (${monthName}/${selectedYear})</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 30px; font-size: 13px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 28px; font-size: 13px; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
           .pro-info h2 { margin: 0 0 4px 0; color: #0284c7; font-size: 22px; }
           .pro-info p { margin: 2px 0; font-size: 12px; color: #64748b; }
@@ -1319,13 +1754,17 @@ export default function MonthlyFinancialSettlementView({
           .kpi-box .val { font-size: 18px; font-weight: 800; color: #0284c7; margin-top: 4px; }
           .kpi-box .lbl { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
           
-          .section-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 20px 0 8px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+          .section-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 22px 0 10px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+          
+          .patient-group-card { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 18px; page-break-inside: avoid; }
+          .patient-group-header { background: #f0f9ff; border-bottom: 2px solid #0284c7; padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+          .patient-badge-num { display: inline-block; background: #0284c7; color: #ffffff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; margin-right: 6px; }
           
           table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           th { background: #f1f5f9; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #475569; text-align: left; border-bottom: 2px solid #cbd5e1; }
           
           .totals-box { display: flex; justify-content: flex-end; margin-top: 15px; }
-          .totals-table { width: 360px; border-collapse: collapse; }
+          .totals-table { width: 380px; border-collapse: collapse; }
           .totals-table td { padding: 6px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
           .totals-table tr.grand-total td { font-size: 16px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; border-bottom: none; }
           
@@ -1333,8 +1772,8 @@ export default function MonthlyFinancialSettlementView({
           .footer { margin-top: 35px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-size: 11px; color: #94a3b8; text-align: center; }
           
           @media print {
-            body { margin: 15px; font-size: 11px; }
-            .page-break { page-break-before: always; }
+            body { margin: 14px; font-size: 11px; }
+            .patient-group-card { break-inside: avoid; }
             .no-print { display: none; }
           }
         </style>
@@ -1342,8 +1781,8 @@ export default function MonthlyFinancialSettlementView({
       <body>
         <div class="header">
           <div class="pro-info">
-            <h2>${activeProfessional.name}</h2>
-            <p>${activeProfessional.crm || 'CREFITO Ativo'} • ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</p>
+            <h2>${escapeHtml(activeProfessional.name)}</h2>
+            <p>${escapeHtml(activeProfessional.crm || 'CREFITO Ativo')} • ${escapeHtml(activeProfessional.specialty || 'Fisioterapia Domiciliar')}</p>
             <p>Atendimento Fisioterapêutico Especializado em Saúde Domiciliar</p>
           </div>
           <div class="statement-title">
@@ -1355,7 +1794,7 @@ export default function MonthlyFinancialSettlementView({
         <div class="kpi-cards">
           <div class="kpi-box">
             <div class="lbl">Faturamento Geral</div>
-            <div class="val">R$ ${monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="val">R$ ${formatCurrencyBR(monthTotals.totalAmount)}</div>
           </div>
           <div class="kpi-box">
             <div class="lbl">Total de Atendimentos</div>
@@ -1380,6 +1819,7 @@ export default function MonthlyFinancialSettlementView({
               <th>Endereço Principal</th>
               <th style="text-align: center;">Sessões</th>
               <th style="text-align: center;">Horas</th>
+              <th style="text-align: center;">Trocas</th>
               <th style="text-align: right;">Subtotal a Receber</th>
             </tr>
           </thead>
@@ -1388,42 +1828,36 @@ export default function MonthlyFinancialSettlementView({
           </tbody>
         </table>
 
-        <div class="section-title">2. Detalhamento Cronológico de Atendimentos & Ocorrências</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 30px; text-align: center;">#</th>
-              <th>Data & Horário</th>
-              <th>Paciente</th>
-              <th>Local Atendido</th>
-              <th style="text-align: center;">Duração</th>
-              <th style="text-align: right;">Valor Hora</th>
-              <th style="text-align: right;">Total Sessão</th>
-              <th>Regra / Obs / Permuta</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sessionsRowsHtml}
-          </tbody>
-        </table>
+        <div class="section-title">2. Detalhamento Separado por Paciente (Ordem Cronológica por Paciente & Trocas)</div>
+        ${patientBlocksHtml}
+
+        ${swapsSectionHtml}
 
         <div class="totals-box">
           <table class="totals-table">
             <tr>
-              <td>Total Geral de Sessões:</td>
+              <td>Total Geral de Sessões Faturadas:</td>
               <td style="text-align: right; font-weight: bold;">${monthTotals.totalSessions}</td>
             </tr>
             <tr>
-              <td>Carga Horária Total:</td>
+              <td>Carga Horária Total Realizada:</td>
               <td style="text-align: right; font-weight: bold;">${monthTotals.totalHours} horas</td>
             </tr>
             <tr>
               <td>Pacientes Atendidos no Mês:</td>
               <td style="text-align: right; font-weight: bold;">${monthTotals.totalPatients}</td>
             </tr>
+            ${
+              monthTotals.totalSwaps > 0
+                ? `<tr>
+              <td>Registros de Troca / Cobertura de Escala:</td>
+              <td style="text-align: right; font-weight: bold; color: #92400e;">${monthTotals.totalSwaps}</td>
+            </tr>`
+                : ''
+            }
             <tr class="grand-total">
               <td>VALOR TOTAL A RECEBER:</td>
-              <td style="text-align: right;">R$ ${monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="text-align: right;">R$ ${formatCurrencyBR(monthTotals.totalAmount)}</td>
             </tr>
           </table>
         </div>
@@ -1431,7 +1865,7 @@ export default function MonthlyFinancialSettlementView({
         <div class="pix-box">
           <strong style="color: #166534; display: block; margin-bottom: 3px;">Dados para Quitação de Honorários (Chave PIX):</strong>
           <span style="font-size: 13px; color: #15803d;">
-            Chave: <strong>${activeProfessional.email || 'contato@omnihomecare.com'}</strong> • Titular: <strong>${activeProfessional.name}</strong>
+            Chave: <strong>${escapeHtml(activeProfessional.email || 'contato@omnihomecare.com')}</strong> • Titular: <strong>${escapeHtml(activeProfessional.name)}</strong>
           </span>
         </div>
 
@@ -1452,7 +1886,7 @@ export default function MonthlyFinancialSettlementView({
     printWindow.document.close();
   };
 
-  // Exportar Planilha Excel Geral Consolidada (.xlsx/.xls) com Todos os Pacientes (Para a Gestora / Sabrina)
+  // Exportar Planilha Excel Geral Consolidada (.xlsx/.xls) — SEPARADA POR PACIENTE + TROCAS (Para a Gestora / Sabrina)
   const handleExportConsolidatedXLSX = () => {
     if (!settlementSessions || settlementSessions.length === 0) {
       alert('Não há atendimentos registrados para exportar.');
@@ -1460,6 +1894,100 @@ export default function MonthlyFinancialSettlementView({
     }
 
     const monthName = MONTH_NAMES[selectedMonth - 1];
+    const allSwaps = settlementSessions.filter((s) => s.swapType && s.swapType !== 'NONE');
+
+    const groupedTablesExcelHtml = groupedByPatient
+      .map((g, pIdx) => {
+        let billedIdx = 0;
+        const patientHours = (g.totalDurationMinutes / 60).toFixed(1);
+        return `
+        <table>
+          <thead>
+            <tr>
+              <th colspan="8" style="background-color: #e0f2fe; color: #0f172a; font-size: 11.5pt; text-align: left; border: 1px solid #0284c7; padding: 8px 10px;">
+                2.${pIdx + 1} PACIENTE: ${escapeHtml(g.patientName)} — ${escapeHtml(g.patientAddress)} (${g.billedSessionsCount} sessões • ${patientHours}h • Subtotal: R$ ${formatCurrencyBR(g.totalAmount)})
+              </th>
+            </tr>
+            <tr>
+              <th style="width: 40px; text-align: center;">#</th>
+              <th style="width: 100px; text-align: center;">Data</th>
+              <th style="width: 75px; text-align: center;">Horário</th>
+              <th>Endereço Atendido</th>
+              <th style="width: 100px; text-align: center;">Duração (min)</th>
+              <th style="width: 120px; text-align: right;">Valor Hora (R$)</th>
+              <th style="width: 130px; text-align: right;">Valor Sessão (R$)</th>
+              <th>Troca de Escala ("Quem Fez") / Regra / Obs</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${g.sessions
+              .map((s) => {
+                const isCeded = Boolean(s.isInformationalSwap || s.swapType === 'CEDED');
+                if (!isCeded) billedIdx += 1;
+                const swapText = formatSwapBadgeText(s);
+                const fullObs = [swapText, s.notes ? `[Obs: ${s.notes}]` : '', s.ruleApplied]
+                  .filter(Boolean)
+                  .join(' • ');
+                return `
+              <tr class="${isCeded ? 'ceded-row' : ''}">
+                <td class="center">${isCeded ? '↪' : billedIdx}</td>
+                <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                <td class="center">${escapeHtml(s.timeStr)}</td>
+                <td>${escapeHtml(s.patientAddress)}</td>
+                <td class="center">${isCeded ? '—' : s.durationMinutes}</td>
+                <td class="right">${isCeded ? '—' : `R$ ${formatCurrencyBR(s.hourlyRate)}`}</td>
+                <td class="right"><strong>${isCeded ? 'R$ 0,00 (Troca)' : `R$ ${formatCurrencyBR(s.totalAmount)}`}</strong></td>
+                <td>${escapeHtml(fullObs)}</td>
+              </tr>
+            `;
+              })
+              .join('')}
+            <tr class="subtotal-row">
+              <td colspan="6" class="right">Subtotal — ${escapeHtml(g.patientName)} (${g.billedSessionsCount} sessões • ${patientHours}h):</td>
+              <td class="right">R$ ${formatCurrencyBR(g.totalAmount)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+      })
+      .join('');
+
+    const swapsExcelHtml =
+      allSwaps.length > 0
+        ? `
+        <div class="section-title">3. QUADRO RESUMO DE TROCAS DE ESCALA ("QUEM FEZ O QUÊ")</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 100px; text-align: center;">Data</th>
+              <th style="width: 75px; text-align: center;">Horário</th>
+              <th>Paciente</th>
+              <th>Tipo de Troca</th>
+              <th>Profissional Envolvido</th>
+              <th>Detalhes / Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allSwaps
+              .map((s) => {
+                const isCeded = Boolean(s.isInformationalSwap || s.swapType === 'CEDED');
+                return `
+              <tr class="${isCeded ? 'ceded-row' : ''}">
+                <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                <td class="center">${escapeHtml(s.timeStr)}</td>
+                <td><strong>${escapeHtml(s.patientName)}</strong></td>
+                <td>${isCeded ? 'Plantão Cedido (Colega atendeu)' : `Assumiu Troca (${escapeHtml(activeProfessional.name)} atendeu)`}</td>
+                <td><strong>${escapeHtml(s.swapPartnerName || '—')}</strong></td>
+                <td>${escapeHtml([s.swapReason, s.notes].filter(Boolean).join(' • ') || '—')}</td>
+              </tr>
+            `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      `
+        : '';
 
     const excelHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1470,7 +1998,7 @@ export default function MonthlyFinancialSettlementView({
           <x:ExcelWorkbook>
             <x:ExcelWorksheets>
               <x:ExcelWorksheet>
-                <x:Name>Consolidado Mensal</x:Name>
+                <x:Name>Consolidado por Paciente</x:Name>
                 <x:WorksheetOptions>
                   <x:DisplayGridlines/>
                 </x:WorksheetOptions>
@@ -1484,20 +2012,21 @@ export default function MonthlyFinancialSettlementView({
           .header-title { font-size: 14pt; font-weight: bold; color: #0284c7; }
           .meta-row { font-size: 11pt; color: #1e293b; margin: 4px 0; }
           .section-title { font-size: 12pt; font-weight: bold; color: #0f172a; margin-top: 15px; }
-          table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 15px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 18px; }
           th { background-color: #0284c7; color: #ffffff; font-weight: bold; text-align: left; border: 1px solid #94a3b8; padding: 7px 10px; }
           td { border: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5pt; }
           .center { text-align: center; }
           .right { text-align: right; }
+          .ceded-row td { background-color: #fffbeb; color: #92400e; }
           .subtotal-row td { background-color: #f1f5f9; font-weight: bold; }
           .grand-total td { background-color: #e0f2fe; font-weight: bold; font-size: 12pt; color: #0369a1; }
         </style>
       </head>
       <body>
-        <div class="header-title">DEMONSTRATIVO GERAL CONSOLIDADO DE ATENDIMENTOS</div>
-        <div class="meta-row"><strong>Profissional:</strong> ${activeProfessional.name} (${activeProfessional.crm || 'CREFITO Ativo'}) - ${activeProfessional.specialty || 'Fisioterapia Domiciliar'}</div>
+        <div class="header-title">DEMONSTRATIVO GERAL CONSOLIDADO DE ATENDIMENTOS (SEPARADO POR PACIENTE)</div>
+        <div class="meta-row"><strong>Profissional:</strong> ${escapeHtml(activeProfessional.name)} (${escapeHtml(activeProfessional.crm || 'CREFITO Ativo')}) - ${escapeHtml(activeProfessional.specialty || 'Fisioterapia Domiciliar')}</div>
         <div class="meta-row"><strong>Competência:</strong> ${monthName} / ${selectedYear}</div>
-        <div class="meta-row"><strong>Chave PIX:</strong> ${activeProfessional.email || 'contato@omnihomecare.com'}</div>
+        <div class="meta-row"><strong>Chave PIX:</strong> ${escapeHtml(activeProfessional.email || 'contato@omnihomecare.com')}</div>
         <br/>
 
         <div class="section-title">1. RESUMO SINTÉTICO POR PACIENTE</div>
@@ -1508,65 +2037,49 @@ export default function MonthlyFinancialSettlementView({
               <th>Paciente</th>
               <th>Endereço Principal</th>
               <th>Responsável / Contato</th>
-              <th style="width: 100px; text-align: center;">Sessões</th>
-              <th style="width: 110px; text-align: center;">Horas (h)</th>
+              <th style="width: 95px; text-align: center;">Sessões</th>
+              <th style="width: 100px; text-align: center;">Horas (h)</th>
+              <th style="width: 100px; text-align: center;">Trocas</th>
               <th style="width: 150px; text-align: right;">Subtotal (R$)</th>
             </tr>
           </thead>
           <tbody>
-            ${groupedByPatient.map((g, idx) => `
+            ${groupedByPatient
+              .map(
+                (g, idx) => `
               <tr>
                 <td class="center">${idx + 1}</td>
-                <td><strong>${g.patientName}</strong></td>
-                <td>${g.patientAddress}</td>
-                <td>${g.responsibleName} (${g.phone})</td>
-                <td class="center">${g.sessions.length}</td>
+                <td><strong>${escapeHtml(g.patientName)}</strong></td>
+                <td>${escapeHtml(g.patientAddress)}</td>
+                <td>${escapeHtml(g.responsibleName)} (${escapeHtml(g.phone)})</td>
+                <td class="center">${g.billedSessionsCount}</td>
                 <td class="center">${(g.totalDurationMinutes / 60).toFixed(1)}h</td>
-                <td class="right"><strong>R$ ${Number(g.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
+                <td class="center">${g.swapsCount > 0 ? g.swapsCount : '—'}</td>
+                <td class="right"><strong>R$ ${formatCurrencyBR(g.totalAmount)}</strong></td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join('')}
             <tr class="grand-total">
-              <td colspan="4" class="right">TOTAIS CONSOLIDADOS:</td>
+              <td colspan="4" class="right">TOTAIS CONSOLIDADOS DO MÊS:</td>
               <td class="center">${monthTotals.totalSessions}</td>
               <td class="center">${monthTotals.totalHours}h</td>
-              <td class="right">R$ ${Number(monthTotals.totalAmount).toFixed(2).replace('.', ',')}</td>
+              <td class="center">${monthTotals.totalSwaps > 0 ? monthTotals.totalSwaps : '—'}</td>
+              <td class="right">R$ ${formatCurrencyBR(monthTotals.totalAmount)}</td>
             </tr>
           </tbody>
         </table>
 
-        <div class="section-title">2. DETALHAMENTO DE ATENDIMENTOS & OCORRÊNCIAS</div>
+        <div class="section-title">2. DETALHAMENTO DE ATENDIMENTOS E TROCAS SEPARADO POR PACIENTE</div>
+        ${groupedTablesExcelHtml}
+
+        ${swapsExcelHtml}
+
         <table>
-          <thead>
-            <tr>
-              <th style="width: 40px; text-align: center;">#</th>
-              <th style="width: 100px; text-align: center;">Data</th>
-              <th style="width: 70px; text-align: center;">Horário</th>
-              <th style="width: 160px;">Paciente</th>
-              <th>Endereço Atendido</th>
-              <th style="width: 100px; text-align: center;">Duração (min)</th>
-              <th style="width: 120px; text-align: right;">Valor Hora (R$)</th>
-              <th style="width: 130px; text-align: right;">Valor Sessão (R$)</th>
-              <th>Regra / Permuta / Ocorrência</th>
-            </tr>
-          </thead>
           <tbody>
-            ${settlementSessions.map((s, idx) => `
-              <tr>
-                <td class="center">${idx + 1}</td>
-                <td class="center">${new Date(s.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
-                <td class="center">${s.timeStr}</td>
-                <td><strong>${s.patientName}</strong></td>
-                <td>${s.patientAddress}</td>
-                <td class="center">${s.durationMinutes}</td>
-                <td class="right">R$ ${Number(s.hourlyRate).toFixed(2).replace('.', ',')}</td>
-                <td class="right"><strong>R$ ${Number(s.totalAmount).toFixed(2).replace('.', ',')}</strong></td>
-                <td>${s.notes ? `[Obs: ${s.notes}] ` : ''}${s.ruleApplied}</td>
-              </tr>
-            `).join('')}
             <tr class="grand-total">
-              <td colspan="7" class="right">VALOR TOTAL GERAL A RECEBER NO MÊS:</td>
-              <td class="right">R$ ${Number(monthTotals.totalAmount).toFixed(2).replace('.', ',')}</td>
-              <td></td>
+              <td colspan="6" class="right">VALOR TOTAL GERAL A RECEBER NO MÊS (${monthTotals.totalSessions} sessões • ${monthTotals.totalHours}h):</td>
+              <td colspan="2" class="right">R$ ${formatCurrencyBR(monthTotals.totalAmount)}</td>
             </tr>
           </tbody>
         </table>
@@ -1678,8 +2191,18 @@ export default function MonthlyFinancialSettlementView({
           </button>
 
           <button
+            type="button"
+            className="btn-swap-register"
+            onClick={() => openAddSessionModal({ initialSwapType: 'COVERED' })}
+            title="Registrar troca ou cobertura de escala (quem fez o quê para conferência da escala)"
+          >
+            <RefreshCw size={15} />
+            Registrar Troca
+          </button>
+
+          <button
             className="btn btn-primary"
-            onClick={() => setIsAddSessionModalOpen(true)}
+            onClick={() => openAddSessionModal({ initialSwapType: 'NONE' })}
             title="Incluir atendimento realizado avulso neste mês"
           >
             <Plus size={16} />
@@ -1734,10 +2257,10 @@ export default function MonthlyFinancialSettlementView({
                 </div>
               </div>
               <div className="kpi-value">
-                R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {formatCurrencyBR(monthTotals.totalAmount)}
               </div>
               <div className="kpi-subtitle">
-                {monthTotals.totalSessions} sessões em {monthTotals.totalHours} horas atendidas
+                {monthTotals.totalSessions} sessões faturadas em {monthTotals.totalHours} horas atendidas
               </div>
             </div>
 
@@ -1753,6 +2276,7 @@ export default function MonthlyFinancialSettlementView({
               </div>
               <div className="kpi-subtitle">
                 Em {monthTotals.totalPatients} pacientes atendidos
+                {monthTotals.totalSwaps > 0 ? ` • ${monthTotals.totalSwaps} ${monthTotals.totalSwaps === 1 ? 'troca registrada' : 'trocas registradas'}` : ''}
               </div>
             </div>
 
@@ -1764,7 +2288,7 @@ export default function MonthlyFinancialSettlementView({
                 </div>
               </div>
               <div className="kpi-value" style={{ color: 'var(--success)' }}>
-                R$ {monthTotals.totalSessions > 0 ? (monthTotals.totalAmount / monthTotals.totalSessions).toFixed(2) : '0,00'}
+                R$ {monthTotals.totalSessions > 0 ? formatCurrencyBR(monthTotals.totalAmount / monthTotals.totalSessions) : '0,00'}
               </div>
               <div className="kpi-subtitle">
                 Ticket médio individual
@@ -1781,7 +2305,7 @@ export default function MonthlyFinancialSettlementView({
                   <div>
                     <span className="patient-selector-title">Visualizar Paciente Individual:</span>
                     <span className="patient-selector-subtitle">
-                      Selecione um paciente para inspecionar seus atendimentos e exportar o demonstrativo mensal
+                      Selecione um paciente para inspecionar seus atendimentos ou veja todos separados por paciente abaixo
                     </span>
                   </div>
                 </div>
@@ -1794,11 +2318,11 @@ export default function MonthlyFinancialSettlementView({
                     onChange={(e) => setSelectedPatientId(e.target.value)}
                   >
                     <option value="all">
-                      📋 Todos os Pacientes (Visão Geral Consolidada) — {monthTotals.totalSessions} sessões (R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                      📋 Todos os Pacientes (Separado por Paciente) — {monthTotals.totalSessions} sessões (R$ {formatCurrencyBR(monthTotals.totalAmount)})
                     </option>
                     {groupedByPatient.map((g) => (
                       <option key={g.patientId} value={g.patientId}>
-                        {g.patientName} — {g.sessions.length} {g.sessions.length === 1 ? 'sessão' : 'sessões'} (R$ {g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                        {g.patientName} — {g.billedSessionsCount} {g.billedSessionsCount === 1 ? 'sessão' : 'sessões'} (R$ {formatCurrencyBR(g.totalAmount)})
                       </option>
                     ))}
                   </select>
@@ -1827,7 +2351,7 @@ export default function MonthlyFinancialSettlementView({
                       title={`Visualizar apenas atendimentos de ${g.patientName}`}
                     >
                       <span className="pill-name">{g.patientName}</span>
-                      <span className="pill-count">{g.sessions.length}</span>
+                      <span className="pill-count">{g.billedSessionsCount}</span>
                     </button>
                   ))}
                 </div>
@@ -1843,7 +2367,7 @@ export default function MonthlyFinancialSettlementView({
                 <h4>Nenhum atendimento com check-in realizado neste mês</h4>
                 <p>
                   O fechamento mensal considera exclusivamente atendimentos em que o check-in foi efetuado.
-                  Faça o check-in dos atendimentos na <strong>Agenda</strong> ou utilize o botão <strong>"Incluir Atendimento"</strong>.
+                  Faça o check-in dos atendimentos na <strong>Agenda</strong>, clique em <strong>"Incluir Atendimento"</strong> ou em <strong>"Registrar Troca"</strong>.
                 </p>
               </div>
             </div>
@@ -1857,9 +2381,10 @@ export default function MonthlyFinancialSettlementView({
                     <Layers size={22} />
                   </div>
                   <div>
-                    <h3>Demonstrativo Geral Consolidado (Todos os Pacientes)</h3>
+                    <h3>Demonstrativo Geral Consolidado (Separado por Paciente)</h3>
                     <p>
-                      Competência: <strong>{MONTH_NAMES[selectedMonth - 1]}/{selectedYear}</strong> • {monthTotals.totalPatients} pacientes atendidos • {monthTotals.totalSessions} sessões ({monthTotals.totalHours} horas)
+                      Competência: <strong>{MONTH_NAMES[selectedMonth - 1]}/{selectedYear}</strong> • {monthTotals.totalPatients} pacientes • {monthTotals.totalSessions} sessões ({monthTotals.totalHours}h)
+                      {monthTotals.totalSwaps > 0 ? ` • ${monthTotals.totalSwaps} ${monthTotals.totalSwaps === 1 ? 'troca de escala' : 'trocas de escala'}` : ''}
                     </p>
                   </div>
                 </div>
@@ -1870,7 +2395,7 @@ export default function MonthlyFinancialSettlementView({
                     type="button"
                     className="btn-export pdf-consolidated"
                     onClick={handleExportConsolidatedPDF}
-                    title="Gerar e imprimir demonstrativo consolidado de todos os pacientes em PDF"
+                    title="Gerar PDF Geral Consolidado já separado por paciente e com trocas de escala"
                   >
                     <Printer size={15} />
                     Gerar PDF Geral
@@ -1880,7 +2405,7 @@ export default function MonthlyFinancialSettlementView({
                     type="button"
                     className="btn-export excel-consolidated"
                     onClick={handleExportConsolidatedXLSX}
-                    title="Baixar planilha Excel (.xls) com todos os pacientes e atendimentos"
+                    title="Baixar planilha Excel (.xls) já separada por paciente e com trocas de escala"
                   >
                     <FileSpreadsheet size={15} />
                     Exportar Excel Geral
@@ -1902,136 +2427,405 @@ export default function MonthlyFinancialSettlementView({
                         {g.patientName}
                       </strong>
                       <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                        {g.sessions.length} {g.sessions.length === 1 ? 'sessão' : 'sessões'} • {(g.totalDurationMinutes / 60).toFixed(1)}h
+                        {g.billedSessionsCount} {g.billedSessionsCount === 1 ? 'sessão' : 'sessões'} • {(g.totalDurationMinutes / 60).toFixed(1)}h
+                        {g.swapsCount > 0 ? ` • 🔄 ${g.swapsCount} ${g.swapsCount === 1 ? 'troca' : 'trocas'}` : ''}
                       </span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        R$ {g.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {formatCurrencyBR(g.totalAmount)}
                       </span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Tabela Cronológica Consolidada de Todas as Sessões */}
-              <div style={{ overflowX: 'auto' }}>
-                <table className="financial-table">
-                  <thead>
-                    <tr>
-                      <th>Data & Horário</th>
-                      <th>Paciente</th>
-                      <th>Endereço / Local</th>
-                      <th>Tipo de Dia</th>
-                      <th>Duração</th>
-                      <th>Custo Horário</th>
-                      <th>Valor Total</th>
-                      <th>Regra & Ocorrências / Permuta</th>
-                      <th style={{ textAlign: 'right' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {settlementSessions.map((sess) => {
-                      const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
-                      const dayCat = classifyDate(dateObj);
+              {/* Barra de Modo de Exibição: Separado por Paciente (Padrão) vs Ordem Cronológica */}
+              <div className="consolidated-view-mode-bar">
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <strong>Organização do Detalhamento:</strong>{' '}
+                  {consolidatedViewMode === 'by_patient'
+                    ? 'Agrupado por paciente para facilitar a conferência na escala (também usado no PDF e Excel).'
+                    : 'Todos os pacientes misturados dia a dia em ordem cronológica.'}
+                </div>
+                <div className="view-mode-toggle-group">
+                  <button
+                    type="button"
+                    className={`view-mode-btn ${consolidatedViewMode === 'by_patient' ? 'active' : ''}`}
+                    onClick={() => setConsolidatedViewMode('by_patient')}
+                  >
+                    <Users size={14} />
+                    Separado por Paciente
+                  </button>
+                  <button
+                    type="button"
+                    className={`view-mode-btn ${consolidatedViewMode === 'chronological' ? 'active' : ''}`}
+                    onClick={() => setConsolidatedViewMode('chronological')}
+                  >
+                    <Calendar size={14} />
+                    Ordem Cronológica
+                  </button>
+                </div>
+              </div>
 
-                      return (
-                        <tr key={sess.id}>
-                          <td>
-                            <strong>
-                              {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
-                            </strong>
-                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              {sess.timeStr}
-                            </span>
-                          </td>
+              {consolidatedViewMode === 'by_patient' ? (
+                /* --- DETALHAMENTO SEPARADO POR PACIENTE (PADRÃO!) --- */
+                <div className="grouped-patients-stack">
+                  {groupedByPatient.map((g, pIdx) => {
+                    let billedRowCounter = 0;
+                    return (
+                      <div key={g.patientId} className="grouped-patient-block">
+                        <div className="grouped-patient-block-header">
+                          <div className="grouped-patient-title-wrap">
+                            <span className="grouped-patient-index">{pIdx + 1}</span>
+                            <div>
+                              <strong style={{ fontSize: '0.98rem', color: 'var(--text-headline)', display: 'block' }}>
+                                {g.patientName}
+                              </strong>
+                              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {g.patientAddress} • {g.billedSessionsCount}{' '}
+                                {g.billedSessionsCount === 1 ? 'sessão faturada' : 'sessões faturadas'} (
+                                {(g.totalDurationMinutes / 60).toFixed(1)}h)
+                              </span>
+                            </div>
+                          </div>
 
-                          <td>
+                          <div className="grouped-patient-meta">
                             <button
                               type="button"
-                              className="patient-link-btn"
-                              onClick={() => setSelectedPatientId(sess.patientId)}
-                              title="Filtrar demonstrativo deste paciente"
+                              className="btn-action-sm swap"
+                              onClick={() =>
+                                openAddSessionModal({ patientId: g.patientId, initialSwapType: 'COVERED' })
+                              }
+                              title={`Registrar troca de escala para ${g.patientName}`}
                             >
-                              <strong>{sess.patientName}</strong>
+                              <RefreshCw size={13} />
+                              Registrar Troca
                             </button>
-                          </td>
-
-                          <td>
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                              {sess.patientAddress}
+                            <button
+                              type="button"
+                              className="btn-action-sm"
+                              onClick={() =>
+                                openAddSessionModal({ patientId: g.patientId, initialSwapType: 'NONE' })
+                              }
+                              title={`Incluir atendimento avulso para ${g.patientName}`}
+                            >
+                              <Plus size={13} />
+                              Atendimento
+                            </button>
+                            <span className="grouped-patient-subtotal-chip">
+                              Subtotal: R$ {formatCurrencyBR(g.totalAmount)}
                             </span>
-                          </td>
+                          </div>
+                        </div>
 
-                          <td>
-                            <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
-                              {dayCat === 'WEEKEND' ? 'Fim de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil'}
-                            </span>
-                          </td>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table className="financial-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: '42px', textAlign: 'center' }}>#</th>
+                                <th>Data & Horário</th>
+                                <th>Tipo de Dia</th>
+                                <th>Duração</th>
+                                <th>Custo Horário</th>
+                                <th>Valor Sessão</th>
+                                <th>Troca de Escala ("Quem Fez") & Ocorrências</th>
+                                <th style={{ textAlign: 'right' }}>Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {g.sessions.map((sess) => {
+                                const isCeded = Boolean(sess.isInformationalSwap || sess.swapType === 'CEDED');
+                                if (!isCeded) billedRowCounter += 1;
+                                const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
+                                const dayCat = classifyDate(dateObj);
+                                const swapLabel = formatSwapBadgeText(sess);
 
-                          <td>
-                            <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
-                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              ({(sess.durationMinutes / 60).toFixed(1)}h)
-                            </span>
-                          </td>
+                                return (
+                                  <tr key={sess.id} className={isCeded ? 'ceded-swap-row' : ''}>
+                                    <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                      {isCeded ? '↪' : billedRowCounter}
+                                    </td>
+                                    <td>
+                                      <strong>
+                                        {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                      </strong>
+                                      <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                        {sess.timeStr}
+                                      </span>
+                                    </td>
 
-                          <td>
-                            <strong style={{ color: 'var(--text-headline)' }}>
-                              R$ {Number(sess.hourlyRate).toFixed(2)}/h
-                            </strong>
-                          </td>
+                                    <td>
+                                      <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
+                                        {dayCat === 'WEEKEND'
+                                          ? 'Fim de Semana'
+                                          : dayCat === 'HOLIDAY'
+                                          ? 'Feriado'
+                                          : 'Dia Útil'}
+                                      </span>
+                                    </td>
 
-                          <td>
-                            <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
-                              R$ {Number(sess.totalAmount).toFixed(2)}
-                            </strong>
-                          </td>
+                                    <td>
+                                      {isCeded ? (
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                                      ) : (
+                                        <>
+                                          <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                                          <span
+                                            style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                                          >
+                                            ({(sess.durationMinutes / 60).toFixed(1)}h)
+                                          </span>
+                                        </>
+                                      )}
+                                    </td>
 
-                          <td>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                              <span className="rule-tag default">
-                                {sess.ruleApplied}
+                                    <td>
+                                      {isCeded ? (
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                                      ) : (
+                                        <strong style={{ color: 'var(--text-headline)' }}>
+                                          R$ {formatCurrencyBR(sess.hourlyRate)}/h
+                                        </strong>
+                                      )}
+                                    </td>
+
+                                    <td>
+                                      {isCeded ? (
+                                        <span className="swap-badge ceded">R$ 0,00 (Troca)</span>
+                                      ) : (
+                                        <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                                          R$ {formatCurrencyBR(sess.totalAmount)}
+                                        </strong>
+                                      )}
+                                    </td>
+
+                                    <td>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                        {swapLabel && (
+                                          <span className={`swap-badge ${isCeded ? 'ceded' : 'covered'}`}>
+                                            {swapLabel}
+                                          </span>
+                                        )}
+                                        {!isCeded && (
+                                          <span className="rule-tag default">
+                                            {sess.ruleApplied}
+                                          </span>
+                                        )}
+                                        {sess.notes && (
+                                          <span className="session-note-tag" title={sess.notes}>
+                                            Obs: {sess.notes}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
+                                        <button
+                                          type="button"
+                                          className="btn-action-sm swap"
+                                          onClick={() => openEditSessionModal(sess, true)}
+                                          title="Informar ou editar troca de escala neste atendimento"
+                                        >
+                                          <RefreshCw size={13} />
+                                          Troca
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-action-sm"
+                                          onClick={() => openEditSessionModal(sess, false)}
+                                          title="Corrigir valores, data ou ocorrência deste atendimento"
+                                        >
+                                          <Edit2 size={13} />
+                                          Corrigir
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-action-sm danger"
+                                          onClick={() => handleDeleteSession(sess.id)}
+                                          title="Excluir este registro do fechamento"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="grouped-patient-block-footer">
+                          <span style={{ color: 'var(--text-muted)' }}>
+                            Conferência de <strong>{g.patientName}</strong>: {g.billedSessionsCount}{' '}
+                            {g.billedSessionsCount === 1 ? 'sessão realizada' : 'sessões realizadas'} •{' '}
+                            {(g.totalDurationMinutes / 60).toFixed(1)} horas
+                            {g.cededCount > 0 ? ` • ${g.cededCount} plantão cedido em troca` : ''}
+                          </span>
+                          <strong style={{ color: 'var(--primary)', fontSize: '0.96rem' }}>
+                            Subtotal {g.patientName}: R$ {formatCurrencyBR(g.totalAmount)}
+                          </strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* --- MODO OPCIONAL: TABELA CRONOLÓGICA DIA A DIA --- */
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="financial-table">
+                    <thead>
+                      <tr>
+                        <th>Data & Horário</th>
+                        <th>Paciente</th>
+                        <th>Endereço / Local</th>
+                        <th>Tipo de Dia</th>
+                        <th>Duração</th>
+                        <th>Custo Horário</th>
+                        <th>Valor Total</th>
+                        <th>Troca de Escala & Ocorrências</th>
+                        <th style={{ textAlign: 'right' }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {settlementSessions.map((sess) => {
+                        const isCeded = Boolean(sess.isInformationalSwap || sess.swapType === 'CEDED');
+                        const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
+                        const dayCat = classifyDate(dateObj);
+                        const swapLabel = formatSwapBadgeText(sess);
+
+                        return (
+                          <tr key={sess.id} className={isCeded ? 'ceded-swap-row' : ''}>
+                            <td>
+                              <strong>
+                                {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              </strong>
+                              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {sess.timeStr}
                               </span>
-                              {sess.notes && (
-                                <span className="session-note-tag" title={sess.notes}>
-                                  Obs: {sess.notes}
-                                </span>
-                              )}
-                            </div>
-                          </td>
+                            </td>
 
-                          <td style={{ textAlign: 'right' }}>
-                            <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
+                            <td>
                               <button
-                                className="btn-action-sm"
-                                onClick={() => setEditingSession({ ...sess })}
-                                title="Corrigir valores ou ocorrência deste atendimento"
+                                type="button"
+                                className="patient-link-btn"
+                                onClick={() => setSelectedPatientId(sess.patientId)}
+                                title="Filtrar demonstrativo deste paciente"
                               >
-                                <Edit2 size={13} />
-                                Corrigir
+                                <strong>{sess.patientName}</strong>
                               </button>
-                              <button
-                                className="btn-action-sm danger"
-                                onClick={() => handleDeleteSession(sess.id)}
-                                title="Excluir este atendimento do fechamento"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            </td>
+
+                            <td>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                {sess.patientAddress}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className={`daytype-badge ${dayCat.toLowerCase()}`}>
+                                {dayCat === 'WEEKEND' ? 'Fim de Semana' : dayCat === 'HOLIDAY' ? 'Feriado' : 'Dia Útil'}
+                              </span>
+                            </td>
+
+                            <td>
+                              {isCeded ? (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                              ) : (
+                                <>
+                                  <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    ({(sess.durationMinutes / 60).toFixed(1)}h)
+                                  </span>
+                                </>
+                              )}
+                            </td>
+
+                            <td>
+                              {isCeded ? (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                              ) : (
+                                <strong style={{ color: 'var(--text-headline)' }}>
+                                  R$ {formatCurrencyBR(sess.hourlyRate)}/h
+                                </strong>
+                              )}
+                            </td>
+
+                            <td>
+                              {isCeded ? (
+                                <span className="swap-badge ceded">R$ 0,00 (Troca)</span>
+                              ) : (
+                                <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                                  R$ {formatCurrencyBR(sess.totalAmount)}
+                                </strong>
+                              )}
+                            </td>
+
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                {swapLabel && (
+                                  <span className={`swap-badge ${isCeded ? 'ceded' : 'covered'}`}>
+                                    {swapLabel}
+                                  </span>
+                                )}
+                                {!isCeded && (
+                                  <span className="rule-tag default">
+                                    {sess.ruleApplied}
+                                  </span>
+                                )}
+                                {sess.notes && (
+                                  <span className="session-note-tag" title={sess.notes}>
+                                    Obs: {sess.notes}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td style={{ textAlign: 'right' }}>
+                              <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  className="btn-action-sm swap"
+                                  onClick={() => openEditSessionModal(sess, true)}
+                                  title="Informar ou editar troca de escala"
+                                >
+                                  <RefreshCw size={13} />
+                                  Troca
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action-sm"
+                                  onClick={() => openEditSessionModal(sess, false)}
+                                  title="Corrigir valores ou ocorrência deste atendimento"
+                                >
+                                  <Edit2 size={13} />
+                                  Corrigir
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action-sm danger"
+                                  onClick={() => handleDeleteSession(sess.id)}
+                                  title="Excluir este atendimento do fechamento"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* Subtotalizador Geral Consolidado */}
               <div className="patient-subtotal-bar consolidated">
                 <div className="patient-subtotal-stats">
                   <span>
-                    Total Geral de Sessões: <strong>{monthTotals.totalSessions}</strong>
+                    Total Geral de Sessões Faturadas: <strong>{monthTotals.totalSessions}</strong>
                   </span>
                   <span>
                     Pacientes Atendidos: <strong>{monthTotals.totalPatients}</strong>
@@ -2046,7 +2840,7 @@ export default function MonthlyFinancialSettlementView({
                     Total Geral a Receber no Mês:
                   </span>
                   <div className="patient-subtotal-total" style={{ fontSize: '1.35rem' }}>
-                    R$ {monthTotals.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {formatCurrencyBR(monthTotals.totalAmount)}
                   </div>
                 </div>
               </div>
@@ -2056,6 +2850,7 @@ export default function MonthlyFinancialSettlementView({
             (() => {
               const group = groupedByPatient.find((g) => g.patientId === selectedPatientId) || groupedByPatient[0];
               if (!group) return null;
+              let billedRowCounter = 0;
 
               return (
                 <div key={group.patientId} className="patient-financial-card">
@@ -2072,9 +2867,20 @@ export default function MonthlyFinancialSettlementView({
                       </div>
                     </div>
 
-                    {/* Ações de Exportação para o Paciente */}
+                    {/* Ações de Troca e Exportação para o Paciente */}
                     <div className="patient-actions-block">
                       <button
+                        type="button"
+                        className="btn-action-sm swap"
+                        onClick={() => openAddSessionModal({ patientId: group.patientId, initialSwapType: 'COVERED' })}
+                        title={`Registrar troca de escala para ${group.patientName}`}
+                      >
+                        <RefreshCw size={14} />
+                        Registrar Troca
+                      </button>
+
+                      <button
+                        type="button"
                         className="btn-export pdf"
                         onClick={() => handleExportPDF(group)}
                         title="Gerar e imprimir demonstrativo formal em PDF para enviar ao paciente/responsável"
@@ -2084,6 +2890,7 @@ export default function MonthlyFinancialSettlementView({
                       </button>
 
                       <button
+                        type="button"
                         className="btn-export excel"
                         onClick={() => handleExportXLSX(group)}
                         title="Baixar planilha Excel (.xls) com o demonstrativo deste paciente"
@@ -2099,22 +2906,29 @@ export default function MonthlyFinancialSettlementView({
                     <table className="financial-table">
                       <thead>
                         <tr>
+                          <th style={{ width: '42px', textAlign: 'center' }}>#</th>
                           <th>Data & Horário</th>
                           <th>Tipo de Dia</th>
                           <th>Duração</th>
                           <th>Custo Horário (R$/h)</th>
                           <th>Valor Total da Sessão</th>
-                          <th>Regra Aplicada & Observações</th>
+                          <th>Troca de Escala & Observações</th>
                           <th style={{ textAlign: 'right' }}>Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.sessions.map((sess) => {
+                          const isCeded = Boolean(sess.isInformationalSwap || sess.swapType === 'CEDED');
+                          if (!isCeded) billedRowCounter += 1;
                           const dateObj = new Date(`${sess.dateStr}T${sess.timeStr}:00`);
                           const dayCat = classifyDate(dateObj);
+                          const swapLabel = formatSwapBadgeText(sess);
 
                           return (
-                            <tr key={sess.id}>
+                            <tr key={sess.id} className={isCeded ? 'ceded-swap-row' : ''}>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                {isCeded ? '↪' : billedRowCounter}
+                              </td>
                               <td>
                                 <strong>
                                   {new Date(sess.dateStr + 'T12:00:00').toLocaleDateString('pt-BR')}
@@ -2131,29 +2945,50 @@ export default function MonthlyFinancialSettlementView({
                               </td>
 
                               <td>
-                                <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
-                                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  ({(sess.durationMinutes / 60).toFixed(1)}h)
-                                </span>
+                                {isCeded ? (
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                                ) : (
+                                  <>
+                                    <span style={{ fontWeight: 600 }}>{sess.durationMinutes} min</span>
+                                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      ({(sess.durationMinutes / 60).toFixed(1)}h)
+                                    </span>
+                                  </>
+                                )}
                               </td>
 
                               <td>
-                                <strong style={{ color: 'var(--text-headline)' }}>
-                                  R$ {Number(sess.hourlyRate).toFixed(2)}/h
-                                </strong>
+                                {isCeded ? (
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+                                ) : (
+                                  <strong style={{ color: 'var(--text-headline)' }}>
+                                    R$ {formatCurrencyBR(sess.hourlyRate)}/h
+                                  </strong>
+                                )}
                               </td>
 
                               <td>
-                                <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
-                                  R$ {Number(sess.totalAmount).toFixed(2)}
-                                </strong>
+                                {isCeded ? (
+                                  <span className="swap-badge ceded">R$ 0,00 (Troca)</span>
+                                ) : (
+                                  <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
+                                    R$ {formatCurrencyBR(sess.totalAmount)}
+                                  </strong>
+                                )}
                               </td>
 
                               <td>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                  <span className="rule-tag default">
-                                    {sess.ruleApplied}
-                                  </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                  {swapLabel && (
+                                    <span className={`swap-badge ${isCeded ? 'ceded' : 'covered'}`}>
+                                      {swapLabel}
+                                    </span>
+                                  )}
+                                  {!isCeded && (
+                                    <span className="rule-tag default">
+                                      {sess.ruleApplied}
+                                    </span>
+                                  )}
                                   {sess.notes && (
                                     <span className="session-note-tag" title={sess.notes}>
                                       Obs: {sess.notes}
@@ -2165,14 +3000,25 @@ export default function MonthlyFinancialSettlementView({
                               <td style={{ textAlign: 'right' }}>
                                 <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
                                   <button
+                                    type="button"
+                                    className="btn-action-sm swap"
+                                    onClick={() => openEditSessionModal(sess, true)}
+                                    title="Informar ou editar troca de escala"
+                                  >
+                                    <RefreshCw size={13} />
+                                    Troca
+                                  </button>
+                                  <button
+                                    type="button"
                                     className="btn-action-sm"
-                                    onClick={() => setEditingSession({ ...sess })}
+                                    onClick={() => openEditSessionModal(sess, false)}
                                     title="Corrigir valores ou duração deste atendimento"
                                   >
                                     <Edit2 size={13} />
                                     Corrigir
                                   </button>
                                   <button
+                                    type="button"
                                     className="btn-action-sm danger"
                                     onClick={() => handleDeleteSession(sess.id)}
                                     title="Excluir este atendimento do fechamento"
@@ -2192,7 +3038,7 @@ export default function MonthlyFinancialSettlementView({
                   <div className="patient-subtotal-bar">
                     <div className="patient-subtotal-stats">
                       <span>
-                        Total de Sessões: <strong>{group.sessions.length}</strong>
+                        Total de Sessões Realizadas: <strong>{group.billedSessionsCount}</strong>
                       </span>
                       <span>
                         Horas Realizadas: <strong>{(group.totalDurationMinutes / 60).toFixed(1)} horas</strong>
@@ -2204,7 +3050,7 @@ export default function MonthlyFinancialSettlementView({
                         Subtotal a Receber de {(group.patientName || 'Paciente').split(' ')[0]}:
                       </span>
                       <div className="patient-subtotal-total">
-                        R$ {group.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {formatCurrencyBR(group.totalAmount)}
                       </div>
                     </div>
                   </div>
@@ -2287,12 +3133,12 @@ export default function MonthlyFinancialSettlementView({
                       </td>
                       <td>
                         <strong style={{ color: 'var(--primary)', fontSize: '1rem' }}>
-                          R$ {Number(r.hourlyRate).toFixed(2)}/h
+                          R$ {formatCurrencyBR(r.hourlyRate)}/h
                         </strong>
                       </td>
                       <td>
                         <strong>
-                          R$ {Number(r.fixedPrice || r.hourlyRate).toFixed(2)}
+                          R$ {formatCurrencyBR(r.fixedPrice || r.hourlyRate)}
                         </strong>
                       </td>
                       <td>{r.notes || '-'}</td>
@@ -2314,16 +3160,21 @@ export default function MonthlyFinancialSettlementView({
         </div>
       )}
 
-      {/* MODAL 1: CORRIGIR VALORES / ATENDIMENTO */}
+      {/* MODAL 1: CORRIGIR VALORES / REGISTRAR TROCA EM ATENDIMENTO EXISTENTE */}
       {editingSession && (
         <div className="modal-overlay" onClick={() => setEditingSession(null)}>
           <div className="modal-content-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <Edit2 size={18} color="var(--primary)" />
-                Corrigir Valores do Atendimento — {editingSession.patientName}
+                {editingSession._focusSwap ? (
+                  <RefreshCw size={18} color="var(--warning)" />
+                ) : (
+                  <Edit2 size={18} color="var(--primary)" />
+                )}
+                {editingSession._focusSwap ? 'Registrar Troca de Escala' : 'Corrigir Atendimento'} — {editingSession.patientName}
               </h3>
               <button
+                type="button"
                 className="btn-action-sm"
                 onClick={() => setEditingSession(null)}
               >
@@ -2333,6 +3184,145 @@ export default function MonthlyFinancialSettlementView({
 
             <form onSubmit={handleSaveEditSession}>
               <div className="modal-body">
+                {/* SELETOR ESTRUTURADO DE TROCA DE ESCALA ("QUEM FEZ O QUÊ") */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 800 }}>
+                    Situação na Escala ("Quem realizou este atendimento?")
+                  </label>
+                  <div className="swap-type-grid">
+                    <button
+                      type="button"
+                      className={`swap-type-card ${(!editingSession.swapType || editingSession.swapType === 'NONE') ? 'active normal' : ''}`}
+                      onClick={() => {
+                        const restoredRate = editingSession._backupHourlyRate || 150;
+                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                        const restoredTot =
+                          editingSession.swapType === 'CEDED'
+                            ? Math.round(((dur * restoredRate) / 60) * 100) / 100
+                            : editingSession.totalAmount;
+                        setEditingSession({
+                          ...editingSession,
+                          swapType: 'NONE',
+                          hourlyRate: editingSession.swapType === 'CEDED' ? restoredRate : editingSession.hourlyRate,
+                          totalAmount: restoredTot
+                        });
+                      }}
+                    >
+                      <span className="swap-type-card-title">✓ Escala Normal</span>
+                      <span className="swap-type-card-desc">Era meu plantão e eu mesma atendi</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`swap-type-card ${editingSession.swapType === 'COVERED' ? 'active covered' : ''}`}
+                      onClick={() => {
+                        const restoredRate = editingSession._backupHourlyRate || 150;
+                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                        const restoredTot =
+                          editingSession.swapType === 'CEDED'
+                            ? Math.round(((dur * restoredRate) / 60) * 100) / 100
+                            : editingSession.totalAmount;
+                        setEditingSession({
+                          ...editingSession,
+                          swapType: 'COVERED',
+                          hourlyRate: editingSession.swapType === 'CEDED' ? restoredRate : editingSession.hourlyRate,
+                          totalAmount: restoredTot
+                        });
+                      }}
+                    >
+                      <span className="swap-type-card-title">🔄 Cobri / Assumi Troca</span>
+                      <span className="swap-type-card-desc">Eu atendi no lugar de colega (faturado p/ mim)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`swap-type-card ${editingSession.swapType === 'CEDED' ? 'active ceded' : ''}`}
+                      onClick={() => {
+                        const currentRate = parseNumericInput(editingSession.hourlyRate, 0);
+                        const currentTot = parseNumericInput(editingSession.totalAmount, 0);
+                        setEditingSession({
+                          ...editingSession,
+                          swapType: 'CEDED',
+                          _backupHourlyRate: currentRate > 0 ? currentRate : editingSession._backupHourlyRate,
+                          _backupTotalAmount: currentTot > 0 ? currentTot : editingSession._backupTotalAmount,
+                          hourlyRate: 0,
+                          totalAmount: 0
+                        });
+                      }}
+                    >
+                      <span className="swap-type-card-title">↪ Passei Plantão</span>
+                      <span className="swap-type-card-desc">Colega fez meu dia (R$ 0 — só p/ conferência)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {editingSession.swapType && editingSession.swapType !== 'NONE' && (
+                  <div className={`swap-details-panel ${editingSession.swapType === 'CEDED' ? 'ceded' : ''}`}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">
+                        {editingSession.swapType === 'COVERED'
+                          ? 'No lugar de qual profissional você atendeu? *'
+                          : 'Qual profissional realizou este atendimento no seu lugar? *'}
+                      </label>
+                      <select
+                        className="form-input"
+                        value={editingSession.swapPartnerSelect || ''}
+                        onChange={(e) =>
+                          setEditingSession({ ...editingSession, swapPartnerSelect: e.target.value })
+                        }
+                        required
+                      >
+                        <option value="">Selecione o(a) profissional da equipe...</option>
+                        {colleagueOptions.map((col) => (
+                          <option key={col.id} value={col.name}>
+                            {col.name}
+                          </option>
+                        ))}
+                        <option value="__custom__">Outro profissional (digitar nome)...</option>
+                      </select>
+                    </div>
+
+                    {editingSession.swapPartnerSelect === '__custom__' && (
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Nome do(a) Profissional *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={editingSession.swapPartnerCustom || ''}
+                          onChange={(e) =>
+                            setEditingSession({ ...editingSession, swapPartnerCustom: e.target.value })
+                          }
+                          placeholder="Ex: Roberta, Sabrina, Patrícia..."
+                          required
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Detalhe da Permuta / Data Trocada (Opcional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editingSession.swapReason || ''}
+                        onChange={(e) =>
+                          setEditingSession({ ...editingSession, swapReason: e.target.value })
+                        }
+                        placeholder={
+                          editingSession.swapType === 'COVERED'
+                            ? 'Ex: Troquei pelo meu dia 15/10, Cobertura extra...'
+                            : 'Ex: Ela fez este dia e eu fiz o dia 22/10 dela...'
+                        }
+                      />
+                    </div>
+
+                    {editingSession.swapType === 'CEDED' && (
+                      <div style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600 }}>
+                        ℹ️ Como outra profissional realizou este atendimento, ele ficará com R$ 0,00 e não somará nas suas sessões pagas — aparecendo apenas para conferência da escala.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Data da Sessão</label>
@@ -2367,103 +3357,105 @@ export default function MonthlyFinancialSettlementView({
                   />
                 </div>
 
+                {editingSession.swapType !== 'CEDED' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Duração (minutos)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-input"
+                        value={editingSession.durationMinutes}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setEditingSession({ ...editingSession, durationMinutes: '' });
+                            return;
+                          }
+                          const dur = parseNumericInput(raw, 0);
+                          const rate = parseNumericInput(editingSession.hourlyRate, 0);
+                          const tot = dur > 0 ? Math.round(((dur * rate) / 60) * 100) / 100 : editingSession.totalAmount;
+                          setEditingSession({
+                            ...editingSession,
+                            durationMinutes: raw,
+                            totalAmount: tot,
+                            isManualValueOverride: true
+                          });
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Custo Horário (R$/h)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="form-input"
+                        value={editingSession.hourlyRate}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setEditingSession({ ...editingSession, hourlyRate: '' });
+                            return;
+                          }
+                          const rate = parseNumericInput(raw, 0);
+                          const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                          const tot = Math.round(((dur * rate) / 60) * 100) / 100;
+                          setEditingSession({
+                            ...editingSession,
+                            hourlyRate: raw,
+                            totalAmount: tot,
+                            isManualValueOverride: true
+                          });
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Valor Total da Sessão (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="form-input"
+                        style={{ fontWeight: 800, color: 'var(--primary)' }}
+                        value={editingSession.totalAmount}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setEditingSession({ ...editingSession, totalAmount: '' });
+                            return;
+                          }
+                          const tot = parseNumericInput(raw, 0);
+                          const dur = parseNumericInput(editingSession.durationMinutes, 60);
+                          const rate =
+                            dur > 0 ? Math.round(((tot * 60) / dur) * 100) / 100 : editingSession.hourlyRate;
+                          setEditingSession({
+                            ...editingSession,
+                            totalAmount: raw,
+                            hourlyRate: rate,
+                            isManualValueOverride: true
+                          });
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label className="form-label">Observações / Trocas de Escala (Ex: "Troquei com Sabrina pelo dia 29", "Cobertura Roberta")</label>
+                  <label className="form-label">Observações Gerais (Opcional)</label>
                   <input
                     type="text"
                     className="form-input"
                     value={editingSession.notes || ''}
                     onChange={(e) => setEditingSession({ ...editingSession, notes: e.target.value })}
-                    placeholder="Ex: Troca de escala com colega, atendimento domiciliar especial..."
+                    placeholder="Ex: Atendimento em dupla, sessão prolongada..."
                   />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Duração (minutos)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      className="form-input"
-                      value={editingSession.durationMinutes}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === '') {
-                          setEditingSession({ ...editingSession, durationMinutes: '' });
-                          return;
-                        }
-                        const dur = parseNumericInput(raw, 0);
-                        const rate = parseNumericInput(editingSession.hourlyRate, 0);
-                        const tot = dur > 0 ? Math.round(((dur * rate) / 60) * 100) / 100 : editingSession.totalAmount;
-                        setEditingSession({
-                          ...editingSession,
-                          durationMinutes: raw,
-                          totalAmount: tot,
-                          isManualValueOverride: true
-                        });
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Custo Horário (R$/h)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="form-input"
-                      value={editingSession.hourlyRate}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === '') {
-                          setEditingSession({ ...editingSession, hourlyRate: '' });
-                          return;
-                        }
-                        const rate = parseNumericInput(raw, 0);
-                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
-                        const tot = Math.round(((dur * rate) / 60) * 100) / 100;
-                        setEditingSession({
-                          ...editingSession,
-                          hourlyRate: raw,
-                          totalAmount: tot,
-                          isManualValueOverride: true
-                        });
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Valor Total da Sessão (R$)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="form-input"
-                      style={{ fontWeight: 800, color: 'var(--primary)' }}
-                      value={editingSession.totalAmount}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === '') {
-                          setEditingSession({ ...editingSession, totalAmount: '' });
-                          return;
-                        }
-                        const tot = parseNumericInput(raw, 0);
-                        const dur = parseNumericInput(editingSession.durationMinutes, 60);
-                        const rate =
-                          dur > 0 ? Math.round(((tot * 60) / dur) * 100) / 100 : editingSession.hourlyRate;
-                        setEditingSession({
-                          ...editingSession,
-                          totalAmount: raw,
-                          hourlyRate: rate,
-                          isManualValueOverride: true
-                        });
-                      }}
-                      required
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -2479,7 +3471,7 @@ export default function MonthlyFinancialSettlementView({
                   type="submit"
                   className="btn btn-primary"
                 >
-                  Salvar Correção
+                  Salvar Alterações
                 </button>
               </div>
             </form>
@@ -2487,16 +3479,23 @@ export default function MonthlyFinancialSettlementView({
         </div>
       )}
 
-      {/* MODAL 2: INCLUIR ATENDIMENTO AVULSO */}
+      {/* MODAL 2: INCLUIR ATENDIMENTO AVULSO OU REGISTRAR TROCA DE ESCALA */}
       {isAddSessionModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAddSessionModalOpen(false)}>
           <div className="modal-content-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <Plus size={18} color="var(--primary)" />
-                Incluir Atendimento no Fechamento Mensal
+                {newSessionSwapType !== 'NONE' ? (
+                  <RefreshCw size={18} color="var(--warning)" />
+                ) : (
+                  <Plus size={18} color="var(--primary)" />
+                )}
+                {newSessionSwapType !== 'NONE'
+                  ? 'Registrar Troca / Cobertura de Escala'
+                  : 'Incluir Atendimento no Fechamento Mensal'}
               </h3>
               <button
+                type="button"
                 className="btn-action-sm"
                 onClick={() => setIsAddSessionModalOpen(false)}
               >
@@ -2506,6 +3505,70 @@ export default function MonthlyFinancialSettlementView({
 
             <form onSubmit={handleAddSession}>
               <div className="modal-body">
+                {/* SELETOR DE TIPO DE REGISTRO / TROCA */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 800 }}>
+                    Tipo de Registro na Escala *
+                  </label>
+                  <div className="swap-type-grid">
+                    <button
+                      type="button"
+                      className={`swap-type-card ${newSessionSwapType === 'NONE' ? 'active normal' : ''}`}
+                      onClick={() => {
+                        setNewSessionSwapType('NONE');
+                        if (newSessionPatientId && Number(newSessionHourlyRate) === 0) {
+                          const suggested = getSuggestedPatientPricing(
+                            newSessionPatientId,
+                            newSessionDate,
+                            newSessionDuration
+                          );
+                          setNewSessionHourlyRate(suggested.hourlyRate);
+                          setNewSessionTotal(suggested.totalAmount);
+                        }
+                      }}
+                    >
+                      <span className="swap-type-card-title">✓ Escala Normal</span>
+                      <span className="swap-type-card-desc">Atendimento meu previsto na escala</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`swap-type-card ${newSessionSwapType === 'COVERED' ? 'active covered' : ''}`}
+                      onClick={() => {
+                        setNewSessionSwapType('COVERED');
+                        if (newSessionPatientId && Number(newSessionHourlyRate) === 0) {
+                          const suggested = getSuggestedPatientPricing(
+                            newSessionPatientId,
+                            newSessionDate,
+                            newSessionDuration
+                          );
+                          setNewSessionHourlyRate(suggested.hourlyRate);
+                          setNewSessionTotal(suggested.totalAmount);
+                        } else if (!newSessionPatientId && Number(newSessionHourlyRate) === 0) {
+                          setNewSessionHourlyRate(150);
+                          setNewSessionTotal(150);
+                        }
+                      }}
+                    >
+                      <span className="swap-type-card-title">🔄 Cobri / Assumi Troca</span>
+                      <span className="swap-type-card-desc">Eu atendi no lugar de colega (faturado p/ mim)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`swap-type-card ${newSessionSwapType === 'CEDED' ? 'active ceded' : ''}`}
+                      onClick={() => {
+                        setNewSessionSwapType('CEDED');
+                        setNewSessionHourlyRate(0);
+                        setNewSessionTotal(0);
+                      }}
+                    >
+                      <span className="swap-type-card-title">↪ Passei Plantão</span>
+                      <span className="swap-type-card-desc">Colega atendeu meu dia (R$ 0 — só p/ escala)</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Paciente *</label>
                   <select
@@ -2518,10 +3581,16 @@ export default function MonthlyFinancialSettlementView({
                       if (pat) {
                         setNewSessionAddress(pat.address || '');
                       }
+                      if (id && newSessionSwapType !== 'CEDED') {
+                        const suggested = getSuggestedPatientPricing(id, newSessionDate, newSessionDuration);
+                        setNewSessionDuration(suggested.durationMinutes);
+                        setNewSessionHourlyRate(suggested.hourlyRate);
+                        setNewSessionTotal(suggested.totalAmount);
+                      }
                     }}
                     required
                   >
-                    <option value="">Selecione o paciente atendido...</option>
+                    <option value="">Selecione o paciente...</option>
                     {(patients || []).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -2529,6 +3598,67 @@ export default function MonthlyFinancialSettlementView({
                     ))}
                   </select>
                 </div>
+
+                {newSessionSwapType !== 'NONE' && (
+                  <div className={`swap-details-panel ${newSessionSwapType === 'CEDED' ? 'ceded' : ''}`}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">
+                        {newSessionSwapType === 'COVERED'
+                          ? 'No lugar de qual profissional você atendeu? *'
+                          : 'Qual profissional realizou este atendimento no seu lugar? *'}
+                      </label>
+                      <select
+                        className="form-input"
+                        value={newSessionSwapPartnerSelect}
+                        onChange={(e) => setNewSessionSwapPartnerSelect(e.target.value)}
+                        required
+                      >
+                        <option value="">Selecione o(a) profissional da equipe...</option>
+                        {colleagueOptions.map((col) => (
+                          <option key={col.id} value={col.name}>
+                            {col.name}
+                          </option>
+                        ))}
+                        <option value="__custom__">Outro profissional (digitar nome)...</option>
+                      </select>
+                    </div>
+
+                    {newSessionSwapPartnerSelect === '__custom__' && (
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Nome do(a) Profissional *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newSessionSwapPartnerCustom}
+                          onChange={(e) => setNewSessionSwapPartnerCustom(e.target.value)}
+                          placeholder="Ex: Roberta, Sabrina, Patrícia..."
+                          required
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Detalhe da Troca / Data Permutada (Opcional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={newSessionSwapReason}
+                        onChange={(e) => setNewSessionSwapReason(e.target.value)}
+                        placeholder={
+                          newSessionSwapType === 'COVERED'
+                            ? 'Ex: Troquei pelo meu dia 15/10, Cobertura de plantão...'
+                            : 'Ex: Ela cobriu meu dia 15/10 e eu fiz o dia 22/10 dela...'
+                        }
+                      />
+                    </div>
+
+                    {newSessionSwapType === 'CEDED' && (
+                      <div style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600 }}>
+                        ℹ️ Este registro terá valor R$ 0,00 e não somará nas suas sessões pagas — aparecerá no bloco do paciente apenas para a gestora conferir na escala quem realizou o atendimento.
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
@@ -2565,83 +3695,85 @@ export default function MonthlyFinancialSettlementView({
                   />
                 </div>
 
+                {newSessionSwapType !== 'CEDED' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Duração (minutos)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-input"
+                        value={newSessionDuration}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setNewSessionDuration(raw);
+                          if (raw !== '') {
+                            const dur = parseNumericInput(raw, 60);
+                            const rate = parseNumericInput(newSessionHourlyRate, 0);
+                            setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
+                          }
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Custo Horário (R$/h)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="form-input"
+                        value={newSessionHourlyRate}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setNewSessionHourlyRate(raw);
+                          if (raw !== '') {
+                            const rate = parseNumericInput(raw, 0);
+                            const dur = parseNumericInput(newSessionDuration, 60);
+                            setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
+                          }
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Valor Total (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="form-input"
+                        style={{ fontWeight: 800, color: 'var(--primary)' }}
+                        value={newSessionTotal}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setNewSessionTotal(raw);
+                          if (raw !== '') {
+                            const tot = parseNumericInput(raw, 0);
+                            const dur = parseNumericInput(newSessionDuration, 60);
+                            if (dur > 0) {
+                              setNewSessionHourlyRate(Math.round(((tot * 60) / dur) * 100) / 100);
+                            }
+                          }
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label className="form-label">Observações / Ocorrências de Escala (Opcional)</label>
+                  <label className="form-label">Observações Gerais (Opcional)</label>
                   <input
                     type="text"
                     className="form-input"
                     value={newSessionNotes}
                     onChange={(e) => setNewSessionNotes(e.target.value)}
-                    placeholder="Ex: 28 troquei com Sabrina pelo 29, Dupla com Patrícia..."
+                    placeholder="Ex: Atendimento em dupla com Patrícia, sessão estendida..."
                   />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Duração (minutos)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      className="form-input"
-                      value={newSessionDuration}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        setNewSessionDuration(raw);
-                        if (raw !== '') {
-                          const dur = parseNumericInput(raw, 60);
-                          const rate = parseNumericInput(newSessionHourlyRate, 0);
-                          setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
-                        }
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Custo Horário (R$/h)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="form-input"
-                      value={newSessionHourlyRate}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        setNewSessionHourlyRate(raw);
-                        if (raw !== '') {
-                          const rate = parseNumericInput(raw, 0);
-                          const dur = parseNumericInput(newSessionDuration, 60);
-                          setNewSessionTotal(Math.round(((dur * rate) / 60) * 100) / 100);
-                        }
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Valor Total (R$)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      className="form-input"
-                      style={{ fontWeight: 800, color: 'var(--primary)' }}
-                      value={newSessionTotal}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        setNewSessionTotal(raw);
-                        if (raw !== '') {
-                          const tot = parseNumericInput(raw, 0);
-                          const dur = parseNumericInput(newSessionDuration, 60);
-                          if (dur > 0) {
-                            setNewSessionHourlyRate(Math.round(((tot * 60) / dur) * 100) / 100);
-                          }
-                        }
-                      }}
-                      required
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -2657,7 +3789,11 @@ export default function MonthlyFinancialSettlementView({
                   type="submit"
                   className="btn btn-primary"
                 >
-                  Incluir Atendimento
+                  {newSessionSwapType === 'CEDED'
+                    ? 'Registrar Plantão Cedido'
+                    : newSessionSwapType === 'COVERED'
+                    ? 'Incluir Atendimento com Troca'
+                    : 'Incluir Atendimento'}
                 </button>
               </div>
             </form>
